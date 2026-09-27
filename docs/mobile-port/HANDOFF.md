@@ -1913,7 +1913,22 @@ lines to grep and the bench harness.
   (astra): in a natural wall, persistent vs fresh visitor seconds apart on one client, with a
   wait-only control, over repeated episodes.
 
-### Mini-player park (`ui/playback`)
+### Mini-player park (`ui/playback`) - WITHDRAWN in 1.10.1
+**Removed 2026-09-27 at the owner's call; 1.10.1 restores the 1.9.0 X (full close).** On the owner's
+Pixel 9 (Android 17) there was no notification and no lock-screen player after X, although every
+Pixel pass had marked the park PASS: they checked `dumpsys media_session` (PAUSED) and `cmd
+media_session dispatch play/next` (worked) plus `isForeground=true`, never a visible notification.
+The app DID post it (`dumpsys notification`: id 41337, `newtube_playback_channel`, `category=
+transport`, `vis=PUBLIC`, `NO_CLEAR`, session PAUSED, `active item id=-1`), but SystemUI dropped it:
+its `MediaLog` buffer (`dumpsys activity service com.android.systemui/.SystemUIService buffers`)
+showed `media notification entered pipeline` then `exited pipeline` for our key, `loading media data
+is canceled`, and `MediaCarouselController` had empty `dataKeys`; `KeyguardMediaController
+visible=false`. The runs had also logged `mini park-hold kept reason=notification-cancel`, which should
+have been read as a failure. Not established: why SystemUI drops it (Android 17 carousel rules for a
+paused session? `active item id=-1`? the repeated notification updates at park?). The feature was
+only ever emulator-tested on API 36. A future attempt should start from that question and check the
+user-visible result (a posted notification that SystemUI keeps, lock screen) on an API 37 device.
+The code: `8b6e310` (and branch `feature/miniplayer-resume`, `86486d7`); the notes below describe it.
 - `MiniSessionState` (none/docked/parked; 10 min on `elapsedRealtime`; nothing to resume or cast
   connected/connecting -> old full close), `MiniPlayerBridge`, `ParkedForegroundHold` (max 10 min,
   survives `restartEngine()` -> `detachPlayerForRestart()`), `MobilePlaybackService`

@@ -1,9 +1,10 @@
 # NewTube — Status
 
-**v1.10.0 (versionCode 11000), Gila Edition, 2026-09-26.** Release scope,
+**v1.10.1 (versionCode 11001), Gila Edition, 2026-09-27.** Release scope,
 validation and distribution are recorded in
-[the release record](../releases/1.10.0.md); it ships the three sections below
-(2026-09-24, 2026-09-25 and round 3). 1.9.0 is in [its record](../releases/1.9.0.md);
+[the release record](../releases/1.10.1.md); it ships the three sections below
+(2026-09-24, 2026-09-25 and round 3) without the mini-player park, which was
+withdrawn after 1.10.0 (tagged, never distributed: [its record](../releases/1.10.0.md)). 1.9.0 is in [its record](../releases/1.9.0.md);
 the 1.8.0 playback/network review lives in [its own record](../releases/1.8.0.md). Older dated investigations below
 remain historical evidence, not the current release verdict.
 
@@ -132,14 +133,14 @@ the old one failed: 07-27 Pixel/LTE, 7/7 anonymous clients challenged with a bra
 wording is gone. Pixel: one visitor across 3 cold starts. Re-enable with one line,
 `setRotateVisitorOnAnonChallenge(true)` in `MobileMainApplication` (persist the cooldown first).
 
-**Mini-player: X parks the video.** X used to destroy the player, session and notification. It now
-pauses and hides the card, and the paused notification stays up to 10 min. Play from the
-notification, lock screen, Quick Settings or a headset resumes the same position (card with video
-if a list screen is up, else audio); a notification tap opens the full player paused; Next/Previous
-restart the 10 min. A bounded foreground hold stops Android freezing and then killing the parked
-process. Pixel (media keys via `cmd media_session dispatch`): park, resume with Home up, resume
-after 3.5 min behind the launcher, Next while parked, expiry at exactly 10:00 leaving nothing
-behind. Lock screen, Quick Settings, headset, recents swipe, cast, engine restart: emulator/unit.
+**Mini-player park: withdrawn (1.10.1).** In 1.10.0, X paused the video and left a notification to
+resume it for 10 minutes. The Pixel passes only checked the media session and `cmd media_session
+dispatch` (both fine); on the owner's Android 17 phone there was no notification and no lock-screen
+player after X. The app did post the paused media notification, but SystemUI's media pipeline
+dropped it at once (`MediaLog: media notification entered pipeline` / `exited pipeline`, empty
+carousel). The cause was not established and the owner chose to keep the 1.9.0 behaviour: X closes
+the player. Design and findings: HANDOFF §31; the code is in `8b6e310` and branch
+`feature/miniplayer-resume`.
 
 **UI fixes on main.** Reopening the video you just left shows its related list again (the `/next`
 answer is reused for 5 min, same playlist and account; a like or subscribe drops it): 2/2, and
@@ -166,7 +167,7 @@ UX-26 centre pause still open.
 resume snap (5/5 resumed reopens; `t=` link and quick back-out controls), `mpd=direct`, lazy Home,
 install-time profile, TV_TIZEN, injected-wall routing and persistence, stable visitor, verdict
 learning, in-process use and restore in a new process on a new cell id, placeholder budget, the
-UI fixes, mini park (incl. Next while offline), Opus pre-roll skip, offline wait. Unit or emulator
+UI fixes, Opus pre-roll skip, offline wait. Unit or emulator
 only: verdict restore after a reboot, probe-driven verdict clearing, VPN/proxy
 exclusions, background-audio decoder release, next-prefetch retry, behaviour under a real wall
 (probe rotation, backoff, budgets), resume-snap cancellation by a lock-screen seek or double tap.
@@ -183,7 +184,7 @@ answered 4 min after stalling). A verdict with two stalled edges now needs answe
 different edges to clear (the second probe scheduled 60 s later, the pending state saved), and
 every removal leaves a breadcrumb the next restore line prints, so a repeat names its cause. Carrier
 restore across processes and network ids confirmed (`restored=y`, 2.7 s vs 9.8 s on the debug
-build). Mini park with Next while offline: foreground held, resumed on the network's return.
+build).
 
 **Reviews.** Every change got a Codex adversarial review (gpt-6-sol per area, the mini merge and
 the UX branch; gpt-6-astra for the visitor decision; an astra ideas pass found the four latent
@@ -222,8 +223,8 @@ live-account failures); release and debug assemble. The integrated UX build: 651
 - Second share link: brief PiP shrink-and-expand (~0.5-1 s); avoiding it needs the link router
   out of its own task.
 - UX: UX-12 captions, UX-13, UX-26 (the branch is merged; UX-02 declined by the owner).
-- Mini: a Quick Settings swipe on Android 11+ never reaches the app (the parked session lingers
-  until the 10 min); no resume after 10 min; ordinary paused background sessions can still freeze.
+- Mini: resuming after X from the notification (the withdrawn park) would first need to work out
+  why Android 17's SystemUI drops a paused media notification the app still posts.
 - SABR fallback still not wired. Owner 09-26: TV_TIZEN stays the account route only (used when
   anonymous clients are challenged or asked to sign in), and WEB_EMBED (error 152-18 on every
   network) left the phone walk: one wasted request less whenever VISIONOS can't serve (Pixel:

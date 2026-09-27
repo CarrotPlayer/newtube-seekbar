@@ -93,9 +93,6 @@ public final class MobileMiniPlayerController {
 
         attachTexture();
         mBar.setVisibility(View.VISIBLE);
-        // NEWTUBE(mini-park): a session resumed from the notification in the background runs
-        // audio-only; the card needs its video track back.
-        MiniPlayerBridge.onCardShown();
         updatePlayPause(player);
 
         Utils.removeCallbacks(mTick);

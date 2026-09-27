@@ -1,4 +1,4 @@
-☎️ NEWTUBE 1.10.0 — EDICIÓN GILA
+☎️ NEWTUBE 1.10.1 — EDICIÓN GILA
 
 —¿Oiga? ¿Es YouTube? Que se ponga el vídeo.
 —…
@@ -23,9 +23,6 @@ Sin conexión, el reproductor espera a que vuelva la red y lo intenta una vez, e
 🤖 «CONFIRMA QUE NO ERES UN BOT»
 Cuando YouTube se pone así, si tienes la sesión iniciada NewTube tira por una ruta de tele con tu cuenta y reproduce. Y se acuerda del bloqueo, en vez de preguntar a todo el mundo en cada vídeo. Los vídeos con restricción de edad, igual, si tu cuenta puede verlos.
 
-⏸️ LA X DEL MINIRREPRODUCTOR YA NO TIRA EL VÍDEO
-(Petición de un tester muy insistente.) Cierras el minirreproductor con la X y el vídeo se queda en pausa en la notificación durante 10 minutos. Le das a reproducir desde la notificación, la pantalla de bloqueo o los auriculares, y sigue por donde iba. Ideal para la música.
-
 🎨 REPASO DE LA INTERFAZ
 • Avisos propios de la app, con «Deshacer» o «Ver», que no tapan el minirreproductor.
 • Me gusta / No me gusta: pulgar relleno o hueco, sin ponerse rojo, y con Deshacer. Si no se guarda, te lo dice y lo deja como estaba.
@@ -36,7 +33,7 @@ Cuando YouTube se pone así, si tienes la sesión iniciada NewTube tira por una 
 • Fuera de Ajustes: Frecuencia de fotogramas automática y Control remoto, que son cosas de tele.
 
 🥃 LA LETRA PEQUEÑA
-La primera vez que tu operador se atasca, ese vídeo aún tarda unos 7-8 s mientras NewTube lo aprende. Si quitas el reproductor aparcado desde los ajustes rápidos, la app no se entera (Android 11+) y la pausa se va sola a los 10 minutos. Si eliges la misma descarga dos veces mientras baja, se pone dos veces en cola. Y YouTube sigue diciendo que no a algunos vídeos y cuentas; eso no lo arregla ni una llamada al enemigo.
+La primera vez que tu operador se atasca, ese vídeo aún tarda unos 7-8 s mientras NewTube lo aprende. Si eliges la misma descarga dos veces mientras baja, se pone dos veces en cola. Y YouTube sigue diciendo que no a algunos vídeos y cuentas; eso no lo arregla ni una llamada al enemigo.
 
 Adjunto el APK firmado para ARM64, como siempre. Android 7 o superior. Instálalo encima del anterior, sin desinstalar ni borrar datos.
 

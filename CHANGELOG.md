@@ -2,13 +2,14 @@
 
 All notable user-facing changes to NewTube ("SmartTube for phones").
 
-## 1.10.0 — 2026-09-26 — Gila Edition
+## 1.10.1 — 2026-09-27 — Gila Edition
 
 “¿Es el enemigo? Que se ponga… rápido.” A fictional homage to Miguel Gila, for
 a release about picking up faster: videos, the app and the network. It ships
 everything since 1.9.0 (`7276579`, 11 September): two network rounds (24 and
 25 September), a speed and smoothness round measured on a Pixel 9 over Wi-Fi
-and Movistar LTE, and a full pass over the phone UI.
+and Movistar LTE, and a full pass over the phone UI. 1.10.0 was tagged but never
+distributed (see below); this is the build that goes out.
 
 ### Faster
 
@@ -58,13 +59,6 @@ one phone, one carrier):
   full buffer and quality; the byte-saving caps apply only when Android's Data
   Saver is on. PiP and the mini-player still fetch only what their window shows.
 
-### Mini-player
-
-- **Closing the mini-player with X no longer throws the video away.** It pauses
-  and the notification stays for 10 minutes: play from the notification, the
-  lock screen or headphones picks up where it was. Tapping the notification
-  opens the full player.
-
 ### Looks and feel
 
 - **Snackbars instead of system toasts**, with Undo or View where it helps
@@ -92,11 +86,18 @@ one phone, one carrier):
 
 - The first time a carrier stalls, one video still waits ~7-8 s while the app
   learns it.
-- Swiping a parked player away from Quick Settings is not seen by the app on
-  Android 11+; the paused session goes away after 10 minutes.
 - Picking the same download twice while it runs queues a duplicate; on a phone
   short of storage a download can stay at "Finishing…".
 - YouTube can still refuse some videos and accounts, and SABR stays off.
+
+## 1.10.0 — 2026-09-26
+
+Tagged (`v1.10.0`) and installed on the test Pixel, never sent to the tester
+group. It added a mini-player "park": X paused the video and left a
+notification to resume it for 10 minutes. On the owner's Android 17 phone the
+system dropped that paused notification at once, so nothing was left to tap,
+and the feature was withdrawn in 1.10.1 (X closes the video again, as in
+1.9.0). Everything else in 1.10.0 ships in 1.10.1.
 
 ## 1.9.0 — 2026-09-11 — Chiquito Edition
 

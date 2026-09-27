@@ -3,13 +3,14 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
-## 1.10.0 — 26-09-2026 — Edición Gila
+## 1.10.1 — 27-09-2026 — Edición Gila
 
 «¿Es el enemigo? Que se ponga… pero rápido.» Homenaje ficticio a Miguel Gila,
 para una versión que va de coger antes el teléfono: los vídeos, la app y la
 red. Reúne todo lo hecho desde la 1.9.0 (11 de septiembre): dos rondas de red
 (24 y 25 de septiembre), una ronda de velocidad y fluidez medida en un Pixel 9
-con Wi-Fi y 4G de Movistar, y un repaso completo de la interfaz del móvil.
+con Wi-Fi y 4G de Movistar, y un repaso completo de la interfaz del móvil. La 1.10.0 se
+etiquetó pero no se llegó a repartir (ver abajo); esta es la que sale.
 
 ### Más rápida
 
@@ -63,13 +64,6 @@ Pixel 9, versiones de distribución, la de la época de la 1.9.0 frente a esta
   se aplican con el Ahorro de datos de Android activado. El PiP y el
   minirreproductor siguen pidiendo solo lo que cabe en su ventana.
 
-### Minirreproductor
-
-- **Cerrar el minirreproductor con la X ya no tira el vídeo.** Se pausa y la
-  notificación se queda 10 minutos: darle a reproducir desde la notificación,
-  la pantalla de bloqueo o los auriculares sigue donde estaba. Tocar la
-  notificación abre el reproductor completo.
-
 ### Aspecto y sensaciones
 
 - **Avisos de la app en lugar de los del sistema**, con Deshacer o Ver cuando
@@ -99,11 +93,18 @@ Pixel 9, versiones de distribución, la de la época de la 1.9.0 frente a esta
 
 - La primera vez que un operador se atasca, un vídeo aún espera unos 7-8 s
   mientras la app lo aprende.
-- Quitar un reproductor aparcado desde los Ajustes rápidos no le llega a la app
-  en Android 11 o superior; la sesión en pausa desaparece a los 10 minutos.
 - Elegir la misma descarga dos veces mientras baja la pone en cola dos veces;
   con el móvil sin espacio, una descarga puede quedarse en «Terminando…».
 - YouTube aún puede rechazar algunos vídeos y cuentas, y SABR sigue apagado.
+
+## 1.10.0 — 26-09-2026
+
+Etiquetada (`v1.10.0`) e instalada en el Pixel de pruebas, nunca enviada al
+grupo de testers. Añadía un «aparcado» del minirreproductor: la X pausaba el
+vídeo y dejaba una notificación para seguir durante 10 minutos. En el Android 17
+del móvil de pruebas el sistema quitaba esa notificación en pausa al instante,
+así que no quedaba nada que tocar, y se retiró en la 1.10.1 (la X vuelve a
+cerrar el vídeo, como en la 1.9.0). Todo lo demás de la 1.10.0 sale en la 1.10.1.
 
 ## 1.9.0 — 11-09-2026 — Edición Chiquito
 

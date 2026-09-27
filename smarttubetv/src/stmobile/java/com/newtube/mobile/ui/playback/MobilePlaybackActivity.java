@@ -46,7 +46,6 @@ import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
@@ -476,21 +475,6 @@ public class MobilePlaybackActivity extends MobileActivity
             return;
         }
 
-        if (isRestoredWithoutVideo(savedInstanceState != null,
-                savedInstanceState != null && savedInstanceState.getBoolean(STATE_HIDDEN_SESSION),
-                mPresenter.getVideo() != null)) {
-            // NEWTUBE(mini-park): Android restored this Activity from its task record after the
-            // process died, and it was a HIDDEN mini session (docked or parked behind the host
-            // screens). Reproduced on the API-36 emulator: close the mini card, leave the app,
-            // kill the process, reopen - then Back on Home recreated the player under it as the
-            // empty 00:00 watch page. Nothing asked for it and it sits below Home, so leave with no
-            // routing at all: that ends the app as the Back meant to. A full player the user was
-            // WATCHING is not hidden and keeps its old restore behaviour.
-            NetPath.log("playback-activity abort=no-video reason=hidden-session-restored");
-            finishWithoutRouting();
-            return;
-        }
-
         if (!shouldFinishWithoutVideo(savedInstanceState != null,
                 PlayerTransitionBridge.hasPending(), mPresenter.getVideo() != null)) {
             return;
@@ -513,30 +497,6 @@ public class MobilePlaybackActivity extends MobileActivity
     static boolean shouldFinishWithoutVideo(boolean hasSavedState, boolean hasPendingTransition,
             boolean presenterHasVideo) {
         return !hasSavedState && !hasPendingTransition && !presenterHasVideo;
-    }
-
-    /**
-     * Saved state, saved while this player was a hidden mini session, and no video: a hidden
-     * session restored after process death. A configuration recreate happens inside the living
-     * process, whose presenter still holds the video (parked in {@code Playlist.instance()}), so it
-     * never reaches this combination; the presenter is a process singleton and starts empty only
-     * in a new process. {@code wasHiddenSession} keeps a restored FULL player (the user was
-     * watching it when the system killed the backgrounded process) out of this bail-out.
-     */
-    static boolean isRestoredWithoutVideo(boolean hasSavedState, boolean wasHiddenSession,
-            boolean presenterHasVideo) {
-        return hasSavedState && wasHiddenSession && !presenterHasVideo;
-    }
-
-    /** Saved-state flag: this player was a hidden mini session (see isRestoredWithoutVideo). */
-    private static final String STATE_HIDDEN_SESSION = "newtube:hidden_mini_session";
-
-    @Override
-    protected void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        // Written at every stop: a minimize (docked, then maybe parked) stops this Activity after
-        // MiniPlayerBridge.activate, a plain background/PiP stop happens with no mini session.
-        outState.putBoolean(STATE_HIDDEN_SESSION, MiniPlayerBridge.isHiddenBy(this));
     }
 
     @Override
@@ -1144,7 +1104,7 @@ public class MobilePlaybackActivity extends MobileActivity
         // If already bound (e.g. after restartEngine) re-attach directly; otherwise start+bind now
         // while this Activity is in the foreground so startForeground is reached from the foreground.
         if (mServiceBound && mPlaybackService != null) {
-            mPlaybackService.attachPlayer(mPlayer, mPresenter, buildContentIntent(), mSessionListener);
+            mPlaybackService.attachPlayer(mPlayer, mPresenter, buildContentIntent());
         } else {
             bindPlaybackService();
         }
@@ -1161,15 +1121,6 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     private void destroyPlayerObjects() {
-        destroyPlayerObjects(false);
-    }
-
-    /**
-     * @param restarting true for restartEngine: a fresh player is attached right after, so the
-     *                   service keeps its foreground state and a parked session its hold
-     *                   (MobilePlaybackService#detachPlayerForRestart).
-     */
-    private void destroyPlayerObjects(boolean restarting) {
         if (mPlayer == null) {
             return;
         }
@@ -1189,11 +1140,7 @@ public class MobilePlaybackActivity extends MobileActivity
         // Detach the player from the media session/notification BEFORE releasing it, so the service
         // never references a released player. The service (and any audio) stops here on real finish.
         if (mPlaybackService != null) {
-            if (restarting) {
-                mPlaybackService.detachPlayerForRestart();
-            } else {
-                mPlaybackService.detachPlayer();
-            }
+            mPlaybackService.detachPlayer();
         }
 
         // Don't release a different (e.g. embed) player's engine state.
@@ -1245,14 +1192,6 @@ public class MobilePlaybackActivity extends MobileActivity
         // it the whole time, so no surface change, no codec re-init, no frozen frames. The card
         // captured its last frame for us; it covers the 1-2 frames until the texture paints.
         boolean fromMini = MiniPlayerBridge.isActive();
-        // NEWTUBE(mini-park): a parked session (card closed, paused notification left) coming back
-        // - notification tap, or a new video replacing it. Same texture re-parent as the card
-        // path, but there is no card on screen to morph from.
-        boolean fromParked = MiniPlayerBridge.isParkedBy(this);
-        stopParkWatch();
-        if (fromParked) {
-            setServiceForegroundWhileParked(false); // back in front: the normal pause rules
-        }
         Rect miniBounds = fromMini ? MiniPlayerBridge.takeMiniBounds() : null;
         if (fromMini) {
             Bitmap handoff = MiniPlayerBridge.takeHandoffStill();
@@ -1277,7 +1216,7 @@ public class MobilePlaybackActivity extends MobileActivity
                 mStillAwaitReady = true;
             }
             startOpenMorph(launch.sourceBounds, 300);
-        } else if (fromMini && !fromParked && mContainer != null) {
+        } else if (fromMini && mContainer != null) {
             // Plain mini-card expansion: exact reverse of minimize, from the card rectangle.
             overridePendingTransition(0, 0);
             mContainer.setVisibility(View.INVISIBLE);
@@ -1291,10 +1230,6 @@ public class MobilePlaybackActivity extends MobileActivity
                 mContainer.setVisibility(View.VISIBLE);
                 mContainer.postOnAnimation(() -> animateMorph(0f, 240, this::resetMorph));
             });
-        } else if (fromParked && mControlsRoot != null) {
-            // NEWTUBE(mini-park): reopened from the paused notification. The video is a still frame
-            // with nothing to say it is paused - show the controls (they stay up while paused).
-            showControlsInternal(false);
         }
 
         if (mPresenter != null) {
@@ -1430,7 +1365,6 @@ public class MobilePlaybackActivity extends MobileActivity
         RxHelper.disposeActions(mLiveChatAction);
 
         // The only playback activity (singleInstance) is going away: no mini session can outlive it.
-        stopParkWatch();
         MiniPlayerBridge.deactivate();
 
         // Fix situations when the engine wasn't properly destroyed (mirrors PlaybackFragment).
@@ -2108,7 +2042,7 @@ public class MobilePlaybackActivity extends MobileActivity
             mPlaybackService = ((MobilePlaybackService.LocalBinder) binder).getService();
             mServiceBound = true;
             if (mPlayer != null) {
-                mPlaybackService.attachPlayer(mPlayer, mPresenter, buildContentIntent(), mSessionListener);
+                mPlaybackService.attachPlayer(mPlayer, mPresenter, buildContentIntent());
             }
         }
 
@@ -2262,10 +2196,6 @@ public class MobilePlaybackActivity extends MobileActivity
             if (mPlayer != null) {
                 mPlayer.setPlayWhenReady(false);
             }
-            // NEWTUBE(mini-park): a connect that was in flight when the card was closed. The TV
-            // owns playback now and the paused local player is what a disconnect resumes - the
-            // park deadline must not destroy it, nor its foreground hold outlive the park.
-            leavePark("cast");
             Video video = getVideo();
             mCastSubtitleVssId = null;
             mCastSubtitleLabel = null;
@@ -3232,14 +3162,6 @@ public class MobilePlaybackActivity extends MobileActivity
     private final Player.Listener mUiPlayerListener = new Player.Listener() {
         @Override
         public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
-            // NEWTUBE(mini-park): whatever started playback - notification, system controls,
-            // headset, Next/Previous loading the following video, a cast session handing back - a
-            // parked session is live again. Watching the player catches every source; the old
-            // per-button hooks missed Next/Previous, whose new video then played under a parked
-            // state that the park timeout later tore down.
-            if (playWhenReady) {
-                leavePark("play");
-            }
             // The old 2-arg onPlayerStateChanged callback split in two in media3; both re-enter
             // the same state handler so the icon/PiP/screen-on logic sees every combination.
             if (mPlayer != null) {
@@ -4055,207 +3977,6 @@ public class MobilePlaybackActivity extends MobileActivity
         mSuppressAutoPip = true;
         updatePipActions();
         return true;
-    }
-
-    // ---------------------------------------------------------------------------------
-    // NEWTUBE(mini-park): closing the mini card parks the session instead of ending it
-    //
-    // Request (beta tester): closing the minimized player while listening to music killed it, with
-    // no way to bring it back; other apps leave a notification you can press play on. So the card's
-    // X now pauses and hides, and this hidden Activity keeps the player, the media session and the
-    // paused notification. Anything that starts playback again - the notification, the system media
-    // controls / lock screen, a headset, Next/Previous, a cast session handing back - un-parks it
-    // (mUiPlayerListener): audio-only while the app is in the background, with the card back as
-    // soon as a host screen shows. Tapping the notification reopens the full player. The session
-    // ends for real when MiniSessionState#PARK_TIMEOUT_MS (10 min of REAL time) passes unresumed
-    // (from Android 11 the system hides a paused player itself at that point, and a carousel swipe
-    // hides it without telling the app), when a new video replaces it, when the task is removed,
-    // or if a user dismissal of the notification ever reaches us.
-    //
-    // For those 10 minutes - and only for a parked session - the service stays in the foreground
-    // while paused, like Media3's MediaSessionService does after every pause: without it the frozen
-    // background process was KILLED by the very play press meant to resume it (see
-    // MobilePlaybackService#setKeepForegroundWhilePaused). Every other pause still demotes at once.
-    // ---------------------------------------------------------------------------------
-
-    /**
-     * Re-checks the park deadline. A Handler delay counts uptime, which stops in deep sleep, so it
-     * alone would let a video parked before bed hold its foreground service all night; the deadline
-     * itself is elapsedRealtime-based (MiniSessionState) and is re-checked on screen-on too (see
-     * mParkWakeReceiver). While the CPU sleeps nothing runs anyway; the first wake ends it.
-     */
-    private final Runnable mParkTimeout = () -> checkParkedSession("timer");
-
-    /** Screen on = the first moment after a deep sleep that anybody can see the parked session. */
-    private final BroadcastReceiver mParkWakeReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            checkParkedSession("screen-on");
-        }
-    };
-    private boolean mParkWakeRegistered;
-
-    private final MobilePlaybackService.SessionListener mSessionListener =
-            new MobilePlaybackService.SessionListener() {
-                @Override
-                public void onNotificationDismissed() {
-                    if (MiniPlayerBridge.endsOnNotificationDismiss(MobilePlaybackActivity.this)) {
-                        endParkedSession("notification-dismissed");
-                    }
-                }
-
-                @Override
-                public void onTaskRemoved() {
-                    // Only the parked session: a playing background session keeps whatever the
-                    // platform does with the removed task, exactly as before parking existed.
-                    boolean parked = MiniPlayerBridge.isParkedBy(MobilePlaybackActivity.this);
-                    NetPath.log("mini task-removed parked=" + (parked ? "y" : "n"));
-                    if (parked) {
-                        endParkedSession("task-removed");
-                    }
-                }
-            };
-
-    /** Something to resume? (see MiniSessionState#canPark). */
-    boolean canParkFromMiniPlayer() {
-        int state = mPlayer != null ? mPlayer.getPlaybackState() : Player.STATE_IDLE;
-        boolean casting = mCastSessionManager != null
-                && (mCastSessionManager.isConnected() || mCastSessionManager.isConnecting());
-        return MiniSessionState.canPark(mPlayer != null && mExoPlayerController != null,
-                state == Player.STATE_READY || state == Player.STATE_BUFFERING, mIsEnded, casting);
-    }
-
-    /**
-     * The card's X parked this session (MiniPlayerBridge already marked it). Pause through the same
-     * engine path as the in-player button (the presenter sees the pause and saves the position).
-     *
-     * <p>The video track deliberately stays enabled while parked. Re-enabling a dropped video track
-     * rebuffers from the previous keyframe with the AUDIO stalled too (measured on the API-36
-     * emulator: play on the media control, ~1 s of audio, then a 4.6 s stall until the card's first
-     * frame), which is exactly what a resume with the app open would hit. Kept enabled, that resume
-     * is instant and the paused decoder simply holds its last frame. The audio-only drop happens
-     * only if the resume lands while nothing can show video (see leavePark) - dropping a track
-     * while playing is seamless for the audio.</p>
-     */
-    void parkFromMiniPlayer() {
-        // Hold the service in the foreground through this pause (see
-        // MobilePlaybackService#setKeepForegroundWhilePaused for the freezer kill it prevents), set
-        // BEFORE pausing so the paused notification is already posted as foreground. Re-started
-        // first: an earlier notification cancel (every video switch goes through IDLE) may have
-        // stopSelf'd it into bound-only. The X tap is in the foreground, so both are allowed.
-        try {
-            startService(new Intent(this, MobilePlaybackService.class));
-        } catch (Exception e) {
-            // Background-start restriction: cannot happen from a tap, and binding still holds it.
-        }
-        setServiceForegroundWhileParked(true);
-        mExoPlayerController.setPlayWhenReady(false);
-        startParkWatch(MiniSessionState.PARK_TIMEOUT_MS);
-        NetPath.log("mini park video=" + (getVideo() != null ? getVideo().videoId : "?")
-                + " pos-ms=" + (mPlayer != null ? mPlayer.getCurrentPosition() : -1));
-    }
-
-    private void startParkWatch(long delayMs) {
-        Utils.removeCallbacks(mParkTimeout);
-        Utils.postDelayed(mParkTimeout, delayMs);
-        if (!mParkWakeRegistered) {
-            ContextCompat.registerReceiver(this, mParkWakeReceiver,
-                    new IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED);
-            mParkWakeRegistered = true;
-        }
-    }
-
-    /** Idempotent; every way out of PARKED (and onDestroy) goes through here. */
-    private void stopParkWatch() {
-        Utils.removeCallbacks(mParkTimeout);
-        if (mParkWakeRegistered) {
-            mParkWakeRegistered = false;
-            try {
-                unregisterReceiver(mParkWakeReceiver);
-            } catch (IllegalArgumentException e) {
-                // not registered
-            }
-        }
-    }
-
-    /** Timer / screen-on: end the parked session once its real-time deadline passed. */
-    private void checkParkedSession(String trigger) {
-        if (!MiniPlayerBridge.isParkedBy(this)) {
-            stopParkWatch();
-            return;
-        }
-        boolean playWhenReady = mPlayer != null && mPlayer.getPlayWhenReady();
-        if (playWhenReady) {
-            // Playing but still marked parked should not happen (mUiPlayerListener un-parks on
-            // every start); never end audio the user is listening to - un-park instead.
-            leavePark("playing-" + trigger);
-            return;
-        }
-        if (MiniPlayerBridge.shouldEndParked(this, false)) {
-            endParkedSession("timeout-" + trigger);
-            return;
-        }
-        long remainingMs = MiniPlayerBridge.parkRemainingMs();
-        NetPath.log("mini park-check trigger=" + trigger + " remaining-ms=" + remainingMs);
-        // The Handler clock can only run slow against the real one, so this re-arm is at most the
-        // real time left; floor it so a rounding edge cannot spin.
-        startParkWatch(Math.max(1_000L, remainingMs));
-    }
-
-    /**
-     * Leave PARKED without ending the session: playback started again (any source) or a cast
-     * session took over the paused player. Drops the foreground hold and the deadline; the card
-     * returns right away if a host screen is in front.
-     */
-    private void leavePark(String reason) {
-        if (!MiniPlayerBridge.isParkedBy(this)) {
-            return;
-        }
-        stopParkWatch();
-        setServiceForegroundWhileParked(false); // normal FGS rules again (playing = foreground)
-        boolean cardShown = MiniPlayerBridge.unpark();
-        if (!cardShown) {
-            // No host screen in front (app in the background, screen off, lock screen): nothing
-            // can show the video, so stream audio only - the same drop onStop does for plain
-            // background playback. Dropping the track is seamless for the audio; the next card or
-            // the full player re-enables it (onMiniCardShown / onResume).
-            setBackgroundAudioMode(true);
-        }
-        NetPath.log("mini park-resume reason=" + reason + " card=" + (cardShown ? "y" : "n")
-                + " video=" + (mBackgroundAudioMode ? "off" : "on"));
-    }
-
-    /** The parked foreground hold ends with the park (resume, expand, or the session's end). */
-    private void setServiceForegroundWhileParked(boolean keep) {
-        if (mPlaybackService != null) {
-            mPlaybackService.setKeepForegroundWhilePaused(keep);
-        }
-    }
-
-    /** A host card is drawing this session again: it needs the video track (see leavePark). */
-    void onMiniCardShown() {
-        if (mBackgroundAudioMode) {
-            setBackgroundAudioMode(false);
-        }
-    }
-
-    /**
-     * End a parked session for real: the same teardown as the old X (presenter finish, then
-     * onDestroy saves the position, releases the player and removes the notification). This window
-     * is invisible and the app may be in the background, so it leaves without any back-stack
-     * routing - a parent relaunch here would pull the app to the front.
-     */
-    private void endParkedSession(String reason) {
-        stopParkWatch();
-        if (isFinishing() || isDestroyed()) {
-            return;
-        }
-        NetPath.log("mini park-end reason=" + reason);
-        MiniPlayerBridge.deactivate();
-        if (mPresenter != null) {
-            mPresenter.onFinish();
-        }
-        finishWithoutRouting();
     }
 
     /** X tapped on the Browse mini bar: stop playback and quietly retire this hidden activity. */
@@ -6297,7 +6018,7 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void restartEngine() {
-        destroyPlayerObjects(/* restarting= */ true);
+        destroyPlayerObjects();
         createPlayerObjects();
     }
 
@@ -6409,13 +6130,6 @@ public class MobilePlaybackActivity extends MobileActivity
     public void setVideo(Video item) {
         if (item != null && item.videoId != null) {
             SessionWarmup.onPlaybackRequested();
-        }
-        // NEWTUBE(mini-park): Next/Previous on the notification loads the following video into this
-        // parked player. That is user interaction: its deadline restarts (it usually starts playing
-        // right away, which un-parks it through mUiPlayerListener).
-        if (item != null && MiniPlayerBridge.onParkedVideoChanged(this, item.videoId)) {
-            startParkWatch(MiniSessionState.PARK_TIMEOUT_MS);
-            NetPath.log("mini park-rearm video=" + item.videoId);
         }
         if (mExoPlayerController != null) {
             mExoPlayerController.setVideo(item);
