@@ -2,6 +2,102 @@
 
 All notable user-facing changes to NewTube ("SmartTube for phones").
 
+## 1.10.0 — 2026-09-26 — Gila Edition
+
+“¿Es el enemigo? Que se ponga… rápido.” A fictional homage to Miguel Gila, for
+a release about picking up faster: videos, the app and the network. It ships
+everything since 1.9.0 (`7276579`, 11 September): two network rounds (24 and
+25 September), a speed and smoothness round measured on a Pixel 9 over Wi-Fi
+and Movistar LTE, and a full pass over the phone UI.
+
+### Faster
+
+Pixel 9, release builds, 1.9.0-era build vs this one (medians; small samples,
+one phone, one carrier):
+
+| | Wi-Fi | Mobile data |
+| --- | --- | --- |
+| App open, first screen | 397 → 240 ms | 458 → 241 ms |
+| Home fully painted | 1.83 → 1.35 s | 2.05 → 1.56 s |
+| Tap a related video → first frame | 554 → 497 ms | 1033 → 528 ms |
+| Tap a shared link → first frame | 952 → 664 ms | 8.96 s → ~0.84 s |
+| Reopen a half-watched video → picture | up to 1.4 s → ~0.37 s | |
+
+- **Videos start sooner.** The decoders stay open between videos, the codec
+  lists are read at app start, and the answer from YouTube is parsed about four
+  times faster. Autoplay fetches the next video 20 seconds before the end.
+- **Reopening a half-watched video is instant.** It resumes at the start of
+  the nearest video segment, and the audio no longer decodes the seconds it
+  skips.
+- **The app opens faster and Home fills sooner**, with no blank flash when the
+  fresh feed replaces the saved one. Home loads its first pages at once and the
+  rest as you scroll. The APK carries its own start-up profile, so Android
+  optimises it at install instead of the next night.
+- **Going back to the video you just left** shows its related list straight
+  away.
+
+### Steadier on bad networks
+
+- **Stuck video servers.** Some mobile networks stall the connection to some
+  YouTube video servers. The app now switches connection within the same
+  request, remembers the problem per carrier (also after a restart), and later
+  videos go straight to the working path instead of waiting again. It lets go
+  once two different servers answer again.
+- **No connection:** the player waits for the network and tries once when it
+  comes back, instead of retrying in bursts. A network that Android blocks for
+  the app no longer triggers a storm of retries. Home backs off while offline;
+  channel, uploads and playlist pages show No connection / Try again.
+- **Blocks and bot checks.** When YouTube challenges the anonymous clients, a
+  signed-in phone plays through a TV route with the account, and the app
+  remembers the wall instead of asking every client again on each video.
+  Age-restricted videos play through the same route when the account is
+  allowed to watch them. A removed video stops after three matching answers
+  instead of trying all eleven clients. The embedded-player client, which
+  YouTube refuses everywhere (error 152-18), is no longer asked.
+- **Mobile data is spent for smoothness.** On mobile data the player keeps the
+  full buffer and quality; the byte-saving caps apply only when Android's Data
+  Saver is on. PiP and the mini-player still fetch only what their window shows.
+
+### Mini-player
+
+- **Closing the mini-player with X no longer throws the video away.** It pauses
+  and the notification stays for 10 minutes: play from the notification, the
+  lock screen or headphones picks up where it was. Tapping the notification
+  opens the full player.
+
+### Looks and feel
+
+- **Snackbars instead of system toasts**, with Undo or View where it helps
+  (subscribe, like, dislike, download), sitting above the mini-player.
+- **Like and Dislike** show a filled or outlined thumb instead of turning red,
+  confirm with Undo, reach YouTube in the order you tapped them, and roll back
+  with a message when they could not be saved.
+- **The watch page holds still while it loads**, shows views and a relative
+  date ("4 days ago"), names dubbed audio tracks, and says when you are
+  offline.
+- **Switching between light and dark mode keeps the video playing**, the You
+  tab and Settings; the dark theme holds when the phone is in light mode.
+- **Search** tells offline, failed and empty results apart, keeps Retry, and
+  suggests matching history instead of the whole history.
+- **Back from any tab goes to Home; menu sheets fit in landscape;** local
+  History cards have thumbnails; bigger touch targets and TalkBack labels; the
+  card menu leads with the everyday actions (only on a menu nobody customised).
+- **Auto Frame Rate and Remote control leave phone Settings** (TV features;
+  switched off once).
+- Minimizing after opening a shared link no longer flashes the launcher; a
+  second shared link no longer lands in picture-in-picture; downloading a video
+  again after deleting its download works.
+
+### Still limited
+
+- The first time a carrier stalls, one video still waits ~7-8 s while the app
+  learns it.
+- Swiping a parked player away from Quick Settings is not seen by the app on
+  Android 11+; the paused session goes away after 10 minutes.
+- Picking the same download twice while it runs queues a duplicate; on a phone
+  short of storage a download can stay at "Finishing…".
+- YouTube can still refuse some videos and accounts, and SABR stays off.
+
 ## 1.9.0 — 2026-09-11 — Chiquito Edition
 
 “¡Te das cuen! Ya se descargan.” A fictional homage to Chiquito de la Calzada,

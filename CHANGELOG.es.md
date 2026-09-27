@@ -3,6 +3,108 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
+## 1.10.0 — 26-09-2026 — Edición Gila
+
+«¿Es el enemigo? Que se ponga… pero rápido.» Homenaje ficticio a Miguel Gila,
+para una versión que va de coger antes el teléfono: los vídeos, la app y la
+red. Reúne todo lo hecho desde la 1.9.0 (11 de septiembre): dos rondas de red
+(24 y 25 de septiembre), una ronda de velocidad y fluidez medida en un Pixel 9
+con Wi-Fi y 4G de Movistar, y un repaso completo de la interfaz del móvil.
+
+### Más rápida
+
+Pixel 9, versiones de distribución, la de la época de la 1.9.0 frente a esta
+(medianas; pocas muestras, un teléfono, un operador):
+
+| | Wi-Fi | Datos móviles |
+| --- | --- | --- |
+| Abrir la app, primera pantalla | 397 → 240 ms | 458 → 241 ms |
+| Inicio pintado del todo | 1,83 → 1,35 s | 2,05 → 1,56 s |
+| Tocar un vídeo relacionado → primer fotograma | 554 → 497 ms | 1033 → 528 ms |
+| Tocar un enlace compartido → primer fotograma | 952 → 664 ms | 8,96 s → ~0,84 s |
+| Volver a un vídeo a medias → imagen | hasta 1,4 s → ~0,37 s | |
+
+- **Los vídeos arrancan antes.** Los decodificadores siguen abiertos entre un
+  vídeo y otro, las listas de códecs se leen al abrir la app y la respuesta de
+  YouTube se procesa unas cuatro veces más rápido. La reproducción automática
+  pide el siguiente vídeo 20 segundos antes del final.
+- **Volver a un vídeo a medias es inmediato.** Se reanuda al principio del
+  fragmento de vídeo más cercano, y el audio ya no descodifica los segundos que
+  se salta.
+- **La app abre antes y el Inicio se llena antes**, sin el parpadeo en blanco
+  al cambiar el feed guardado por el nuevo. El Inicio carga sus primeras
+  páginas de golpe y el resto a medida que bajas. El APK lleva su propio perfil
+  de arranque, así que Android lo optimiza al instalar y no la noche siguiente.
+- **Volver al vídeo que acabas de dejar** muestra sus relacionados al momento.
+
+### Más estable con mala red
+
+- **Servidores de vídeo atascados.** Algunas redes móviles se atascan con
+  algunos servidores de vídeo de YouTube. La app cambia de conexión dentro de
+  la misma petición, recuerda el problema por operador (también tras reiniciar)
+  y los vídeos siguientes van directos por el camino que funciona en vez de
+  esperar otra vez. Lo olvida cuando dos servidores distintos vuelven a
+  responder.
+- **Sin conexión:** el reproductor espera a que vuelva la red y lo intenta una
+  vez, en lugar de reintentar a ráfagas. Una red que Android bloquea para la
+  app ya no provoca una tormenta de reintentos. El Inicio espera más entre
+  intentos mientras no hay red; las páginas de canal, subidas y listas muestran
+  Sin conexión / Reintentar.
+- **Bloqueos y comprobaciones anti-bot.** Cuando YouTube pone a prueba a los
+  clientes anónimos, un móvil con sesión iniciada reproduce por una ruta de TV
+  con la cuenta, y la app recuerda el bloqueo en vez de preguntar a todos los
+  clientes en cada vídeo. Los vídeos con restricción de edad se reproducen por
+  la misma ruta si la cuenta puede verlos. Un vídeo eliminado se detecta con
+  tres respuestas iguales en vez de probar los once clientes. El cliente de
+  reproductor insertado, que YouTube rechaza en todas partes (error 152-18), ya
+  no se usa.
+- **Los datos móviles se gastan en fluidez.** Con datos móviles el reproductor
+  mantiene el búfer y la calidad completos; los límites para ahorrar datos solo
+  se aplican con el Ahorro de datos de Android activado. El PiP y el
+  minirreproductor siguen pidiendo solo lo que cabe en su ventana.
+
+### Minirreproductor
+
+- **Cerrar el minirreproductor con la X ya no tira el vídeo.** Se pausa y la
+  notificación se queda 10 minutos: darle a reproducir desde la notificación,
+  la pantalla de bloqueo o los auriculares sigue donde estaba. Tocar la
+  notificación abre el reproductor completo.
+
+### Aspecto y sensaciones
+
+- **Avisos de la app en lugar de los del sistema**, con Deshacer o Ver cuando
+  ayuda (suscribirse, me gusta, no me gusta, descargar), por encima del
+  minirreproductor.
+- **Me gusta y No me gusta** muestran el pulgar relleno o en contorno en vez de
+  ponerse rojos, se confirman con Deshacer, llegan a YouTube en el orden en que
+  los tocaste y se deshacen con un aviso si no se pudieron guardar.
+- **La página del vídeo no se mueve mientras carga**, muestra las visualizaciones
+  y una fecha relativa («hace 4 días»), nombra las pistas de audio dobladas y
+  avisa cuando no hay conexión.
+- **Cambiar entre modo claro y oscuro no para el vídeo**, ni la pestaña Tú ni
+  Ajustes; el tema oscuro se mantiene con el móvil en modo claro.
+- **La búsqueda** distingue sin conexión, error y sin resultados, mantiene
+  Reintentar y sugiere el historial que coincide en vez del historial entero.
+- **Atrás desde cualquier pestaña vuelve al Inicio; los menús caben en
+  horizontal;** las tarjetas del Historial local tienen miniatura; zonas táctiles
+  más grandes y etiquetas para TalkBack; el menú de la tarjeta empieza por las
+  acciones de todos los días (solo si nadie lo había personalizado).
+- **Frecuencia de fotogramas automática y Control remoto salen de Ajustes**
+  (son funciones de TV; se apagan una vez).
+- Minimizar tras abrir un enlace compartido ya no enseña el escritorio un
+  instante; un segundo enlace compartido ya no acaba en imagen en imagen; volver
+  a descargar un vídeo cuya descarga borraste ya funciona.
+
+### Sigue limitado
+
+- La primera vez que un operador se atasca, un vídeo aún espera unos 7-8 s
+  mientras la app lo aprende.
+- Quitar un reproductor aparcado desde los Ajustes rápidos no le llega a la app
+  en Android 11 o superior; la sesión en pausa desaparece a los 10 minutos.
+- Elegir la misma descarga dos veces mientras baja la pone en cola dos veces;
+  con el móvil sin espacio, una descarga puede quedarse en «Terminando…».
+- YouTube aún puede rechazar algunos vídeos y cuentas, y SABR sigue apagado.
+
 ## 1.9.0 — 11-09-2026 — Edición Chiquito
 
 «¡Te das cuen! Ya se descargan.» Homenaje ficticio a Chiquito de la Calzada,

@@ -1,9 +1,10 @@
 # NewTube — Status
 
-**v1.9.0 (versionCode 10900), Chiquito Edition, 2026-09-11.** Release scope,
+**v1.10.0 (versionCode 11000), Gila Edition, 2026-09-26.** Release scope,
 validation and distribution are recorded in
-[the release record](../releases/1.9.0.md); the 1.8.0 playback/network
-review lives in [its own record](../releases/1.8.0.md). Older dated investigations below
+[the release record](../releases/1.10.0.md); it ships the three sections below
+(2026-09-24, 2026-09-25 and round 3). 1.9.0 is in [its record](../releases/1.9.0.md);
+the 1.8.0 playback/network review lives in [its own record](../releases/1.8.0.md). Older dated investigations below
 remain historical evidence, not the current release verdict.
 
 Phone-only: the TV flavors, vendored ExoPlayer fork and Leanback modules were
