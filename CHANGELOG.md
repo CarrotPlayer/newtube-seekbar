@@ -2,6 +2,27 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## Unreleased
+
+### Fixed
+
+- **Text follows your phone's font size.** NewTube sized its top bar, tabs,
+  menus and settings from a density of its own, inherited from SmartTube's TV
+  layout, so the phone's font size and display size only reached the video
+  feed. Now the rest of the app follows both (the tab labels only the display
+  size, a Material rule), and Settings → User interface → UI scale zooms
+  everything on top of them
+  ([#3](https://github.com/aleixrodriala/newtube/issues/3)). At default settings
+  the top bar, tabs and menus come out a little larger than before (4% on a
+  Pixel 9, 18% on a test phone with navigation buttons), the same size as in
+  other apps. If you had raised UI
+  scale to read more easily, try a lower value: it now enlarges the feed too.
+- **Check for updates works.** Settings → About → Check for updates looked for a
+  file NewTube's releases didn't publish, and failed with "Value Not of type
+  java.lang.String" ([#4](https://github.com/aleixrodriala/newtube/issues/4)).
+  Every release now carries it, 1.10.2 and 1.10.3 can update from the app too,
+  and a failed check says so in plain words.
+
 ## 1.10.3 — 2026-09-28 — Martes y Trece Edition
 
 "Where were we?…" A fictional homage to Martes y Trece and the spirit of their

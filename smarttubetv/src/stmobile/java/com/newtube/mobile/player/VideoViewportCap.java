@@ -203,17 +203,18 @@ final class VideoViewportCap {
     }
 
     /**
-     * Real pixels of a window from its configuration: {@code screen*Dp} and {@code densityDpi} are
-     * both system values. {@code getResources().getDisplayMetrics()} must NOT be used here - the
-     * app swaps in a TV-derived density (see MotherActivity.initDpi).
+     * Real pixels of a window: its configuration's {@code screen*Dp} (system dp) times the
+     * system density. Neither the activity's {@code densityDpi} nor its DisplayMetrics may be used
+     * here - with a UI scale other than 1.0x both carry the app's density override
+     * (MotherActivity.applyUiScale), which {@code screen*Dp} doesn't.
      */
     @Nullable
-    static int[] windowPixels(@Nullable Configuration config) {
+    static int[] windowPixels(@Nullable Configuration config, int systemDensityDpi) {
         if (config == null || config.screenWidthDp <= 0 || config.screenHeightDp <= 0
-                || config.densityDpi <= 0) {
+                || systemDensityDpi <= 0) {
             return null;
         }
-        float scale = config.densityDpi / 160f;
+        float scale = systemDensityDpi / 160f;
         return new int[] {Math.round(config.screenWidthDp * scale),
                 Math.round(config.screenHeightDp * scale)};
     }

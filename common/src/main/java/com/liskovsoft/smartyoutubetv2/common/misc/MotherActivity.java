@@ -7,7 +7,6 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.os.Build.VERSION;
 import android.os.Bundle;
-import android.util.DisplayMetrics;
 import android.view.KeyCharacterMap.UnavailableException;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -39,9 +38,6 @@ import java.util.List;
 
 public class MotherActivity extends FragmentActivity {
     private static final String TAG = MotherActivity.class.getSimpleName();
-    private static final float DEFAULT_DENSITY = 2.0f; // xhdpi
-    private static final float DEFAULT_WIDTH = 1920f; // xhdpi
-    private static DisplayMetrics sCachedDisplayMetrics;
     protected static boolean sIsInPipMode;
     private ScreensaverManager mScreensaverManager;
     // Make static in case Don't keep activities enabled in Developer settings
@@ -64,7 +60,6 @@ public class MotherActivity extends FragmentActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         // Fixing: Only fullscreen opaque activities can request orientation (api 26)
         // NOTE: You should remove 'screenOrientation' from the manifest.
-        // NOTE: Possible side effect: initDpi() won't work: "When you setRequestedOrientation() the view may be restarted"
         //if (VERSION.SDK_INT != 26) {
         //    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         //}
@@ -75,7 +70,6 @@ public class MotherActivity extends FragmentActivity {
         mIsOculusQuestFixEnabled = PlayerTweaksData.instance(this).isOculusQuestFixEnabled();
         mIsFullscreenModeEnabled = GeneralData.instance(this).isFullscreenModeEnabled();
 
-        initDpi();
         initTheme();
 
         // Search Fullscreen routine inside onPause() method
@@ -195,11 +189,36 @@ public class MotherActivity extends FragmentActivity {
         Context contextWrapper = null;
 
         if (context != null) {
-            // NOTE: Use only cached metrics. Because metrics creation involves using WindowManager, which isn't available at this stage.
-            contextWrapper = LocaleContextWrapper.wrap(context, LocaleUpdater.getSavedLocale(context), sCachedDisplayMetrics);
+            contextWrapper = LocaleContextWrapper.wrap(context, LocaleUpdater.getSavedLocale(context), null);
         }
 
         super.attachBaseContext(contextWrapper);
+
+        if (contextWrapper != null) {
+            applyUiScale(contextWrapper);
+        }
+    }
+
+    /**
+     * NEWTUBE(system-density): the app used to replace every activity's DisplayMetrics with a TV
+     * density (2.0 at 1920 px on the long side: 2.5 on a 2400 px phone, 2.525 on a Pixel 9), with
+     * scaledDensity equal to it. That ignored the phone's font size and display size wherever the
+     * swap held, while views inflated after the system reset the metrics followed them - so the feed
+     * cards grew with the phone's font size and the top bar, tabs and settings didn't (issue #3).
+     * Now the system's own density and font scale (non-linear on Android 14+) apply everywhere, and
+     * UI scale, when it isn't 1.0x, is an override of the system density on top of them. Being a
+     * configuration override, the framework keeps it through its own metrics resets.
+     */
+    private void applyUiScale(Context base) {
+        float uiScale = MainUIData.instance(base).getUIScale();
+
+        if (uiScale <= 0 || Helpers.floatEquals(uiScale, 1.0f)) {
+            return;
+        }
+
+        Configuration override = new Configuration();
+        override.densityDpi = Math.round(base.getResources().getConfiguration().densityDpi * uiScale);
+        applyOverrideConfiguration(override);
     }
 
     @Override
@@ -251,40 +270,10 @@ public class MotherActivity extends FragmentActivity {
         }
     }
 
-    private void initDpi() {
-        getResources().getDisplayMetrics().setTo(getDisplayMetrics(this));
-    }
-
-    private DisplayMetrics getDisplayMetrics(Context context) {
-        // BUG: adapt to resolution change (e.g. on AFR)
-        // Don't disable caching or you will experience weird sizes on cards in video suggestions (e.g. after exit from PIP)!
-        if (sCachedDisplayMetrics == null) {
-            // NOTE: Don't replace with getResources().getDisplayMetrics(). Shows wrong metrics here!
-            DisplayMetrics displayMetrics = new DisplayMetrics();
-            getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
-            float uiScale = MainUIData.instance(context).getUIScale();
-            // Take into the account screen orientation (e.g. when running on phone)
-            int widthPixels = Math.max(displayMetrics.widthPixels, displayMetrics.heightPixels);
-            float widthRatio = DEFAULT_WIDTH / widthPixels;
-            float density = DEFAULT_DENSITY / widthRatio * uiScale;
-            displayMetrics.density = density;
-            displayMetrics.scaledDensity = density;
-            sCachedDisplayMetrics = displayMetrics;
-        }
-
-        return sCachedDisplayMetrics;
-    }
-
     private void applyCustomConfig() {
-        // NOTE: dpi should come after locale update to prevent resources overriding.
-
         // Fix sudden language change.
         // Could happen when screen goes off or after PIP mode.
         LocaleUpdater.applySavedLocale(this);
-
-        // Fix sudden dpi change.
-        // Could happen when screen goes off or after PIP mode.
-        initDpi();
     }
 
     /**
@@ -360,12 +349,7 @@ public class MotherActivity extends FragmentActivity {
      * Big troubles with AFR resolution switch!
      */
     public static void invalidate() {
-        sCachedDisplayMetrics = null;
         sIsInPipMode = false;
-    }
-
-    public static DisplayMetrics getCachedDisplayMetrics() {
-        return sCachedDisplayMetrics;
     }
 
     /**

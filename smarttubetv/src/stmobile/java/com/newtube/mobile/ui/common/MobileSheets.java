@@ -22,10 +22,10 @@ public final class MobileSheets {
     /**
      * Opens {@code dialog} expanded at {@code heightFraction} of the screen.
      *
-     * <p>Deliberately NOT {@code getResources().getDisplayMetrics()}: {@code MotherActivity}
-     * replaces the process's DisplayMetrics with a single cached instance built at the first
-     * Activity's onCreate, so its {@code heightPixels} is frozen at whatever orientation the app
-     * happened to start in. Launch the app in landscape and the comments sheet opened 918px tall
+     * <p>Deliberately NOT {@code getResources().getDisplayMetrics()}: before 1.10.4
+     * {@code MotherActivity} replaced the process's DisplayMetrics with a single cached instance
+     * built at the first Activity's onCreate, so its {@code heightPixels} was frozen at whatever
+     * orientation the app happened to start in. Launch the app in landscape and the comments sheet opened 918px tall
      * (85% of 1080) in portrait forever after. The live display is the right measure.</p>
      */
     public static void expandTo(Dialog dialog, float heightFraction) {

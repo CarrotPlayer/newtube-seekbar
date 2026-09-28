@@ -3,6 +3,30 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
+## Sin publicar
+
+### Arreglado
+
+- **El texto sigue el tamaño de letra del móvil.** NewTube dimensionaba la barra
+  superior, las pestañas, los menús y los ajustes con una densidad propia,
+  heredada del diseño para TV de SmartTube, así que el tamaño de letra y de
+  pantalla del móvil solo llegaban al feed de vídeos. Ahora el resto de la app
+  sigue los dos (las etiquetas de las pestañas, solo el tamaño de pantalla, una
+  regla de Material), y Ajustes → Interfaz de usuario → Escala de interfaz
+  amplía todo por encima
+  ([#3](https://github.com/aleixrodriala/newtube/issues/3)). Con los ajustes por
+  defecto, la barra superior, las pestañas y los menús salen algo más grandes
+  que antes (un 4% en un Pixel 9, un 18% en un móvil de pruebas con botones de
+  navegación), del mismo tamaño que en las demás apps. Si habías subido la
+  escala de interfaz para leer mejor, prueba un valor más bajo: ahora también
+  amplía el feed.
+- **Buscar actualizaciones funciona.** Ajustes → Acerca de → Buscar
+  actualizaciones buscaba un archivo que las versiones de NewTube no publicaban,
+  y fallaba con «Value Not of type java.lang.String»
+  ([#4](https://github.com/aleixrodriala/newtube/issues/4)). Ahora cada versión
+  lo lleva, la 1.10.2 y la 1.10.3 también pueden actualizarse desde la app, y si
+  la búsqueda falla lo dice con palabras normales.
+
 ## 1.10.3 — 28-09-2026 — Edición Martes y Trece
 
 «¿Por dónde íbamos?…» Homenaje ficticio a Martes y Trece y al espíritu de sus

@@ -310,8 +310,8 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
      * long sheet grow into the status bar.
      *
      * <p>NEWTUBE(sheet-landscape): measured against the LIVE window, not
-     * {@code getResources().getDisplayMetrics()} - that is MotherActivity's process-wide copy
-     * frozen at the first activity's orientation (CLAUDE.md), so a landscape sheet was capped at
+     * {@code getResources().getDisplayMetrics()} - before 1.10.4 that was MotherActivity's
+     * process-wide copy frozen at the first activity's orientation, so a landscape sheet was capped at
      * 72% of the PORTRAIT height (1650px in a 1080px window) and its last rows were unreachable.
      */
     private int sheetMaxHeight(int windowHeight) {

@@ -860,11 +860,13 @@ public class Media3PlayerController implements Player.Listener {
     }
 
     /**
-     * Same, sized from the window's configuration (PiP entry/resize): real pixels from the system's
-     * {@code screen*Dp} and {@code densityDpi}, never the app's swapped DisplayMetrics.
+     * Same, sized from the window's configuration (PiP entry/resize): real pixels from its
+     * {@code screen*Dp} and the system density (the application context's, which the activity's
+     * UI scale override doesn't touch).
      */
     public void setSmallWindowViewport(String mode, @Nullable android.content.res.Configuration windowConfig) {
-        int[] pixels = VideoViewportCap.windowPixels(windowConfig);
+        int[] pixels = VideoViewportCap.windowPixels(windowConfig,
+                mContext.getResources().getConfiguration().densityDpi);
         if (pixels == null) {
             NetPath.log("viewport " + mode + " ignored reason=no-window-size");
             return;

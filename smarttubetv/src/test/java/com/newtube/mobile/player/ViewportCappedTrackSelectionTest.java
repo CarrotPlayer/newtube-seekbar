@@ -95,7 +95,9 @@ public class ViewportCappedTrackSelectionTest {
 
     @Test
     public void miniCardKeepsThreeSixtyP() {
-        // 180x102 dp at the app's TV-derived density (2.525 on a Pixel 9).
+        // 180x102 dp at the old TV-derived density (2.525 on a Pixel 9); the system's 2.625
+        // (473x268) keeps the same rung.
+        assertEquals(640 * 360, VideoViewportCap.maxPixelsToRetain(LADDER, 473, 268));
         assertEquals(640 * 360, VideoViewportCap.maxPixelsToRetain(LADDER, 455, 258));
     }
 
@@ -127,16 +129,17 @@ public class ViewportCappedTrackSelectionTest {
     }
 
     @Test
-    public void windowPixelsUseTheSystemDensityNotTheAppsSwappedMetrics() {
+    public void windowPixelsUseTheSystemDensityNotTheAppsOverride() {
         Configuration pip = new Configuration();
         pip.screenWidthDp = 230;
         pip.screenHeightDp = 130;
-        pip.densityDpi = 420; // Pixel 9: 2.625
-        int[] pixels = VideoViewportCap.windowPixels(pip);
+        pip.densityDpi = 504; // UI scale 1.2x over a Pixel 9's 420: the activity's override
+        int[] pixels = VideoViewportCap.windowPixels(pip, 420); // Pixel 9: 2.625
         assertEquals(604, pixels[0]);
         assertEquals(341, pixels[1]);
-        assertNull(VideoViewportCap.windowPixels(new Configuration()));
-        assertNull(VideoViewportCap.windowPixels(null));
+        assertNull(VideoViewportCap.windowPixels(new Configuration(), 420));
+        assertNull(VideoViewportCap.windowPixels(pip, 0));
+        assertNull(VideoViewportCap.windowPixels(null, 420));
     }
 
     @Test

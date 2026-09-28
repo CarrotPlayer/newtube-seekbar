@@ -88,10 +88,11 @@ without auditing `LiveDashManifestParser` + `Helpers.setField` call sites).
   socket; HTTP/2's 10 s ping prevents it). The flag is now set in `MobileMainApplication`'s static
   initializer and a late call logs `prefer-http2=true IGNORED` — check that line after touching
   app startup.
-- **`getResources().getDisplayMetrics()` is NOT this device's metrics.**
-  `MotherActivity.initDpi()` (private, called from its `onCreate` — not overridable)
-  swaps in one process-wide cached instance: density is derived from a 1920px TV
-  reference (2.525 on a Pixel 9, not 2.625), and width/height are frozen at whatever
-  orientation the FIRST activity saw. Anything sizing itself off `heightPixels` must
-  read the live display instead (`MobileSheets.expandTo`); `UI scale` multiplies that
-  same density, which is why that settings knob is still live.
+- **Density is the system's, times UI scale** (since 1.10.4, issue #3). Until then
+  `MotherActivity.initDpi()` swapped in one process-wide DisplayMetrics with a TV-derived
+  density (2.525 on a Pixel 9, not 2.625) and `scaledDensity` equal to it, so the phone's
+  font and display size were ignored in some screens and not others. Now nothing touches
+  the metrics; UI scale other than 1.0x is a `densityDpi` configuration override
+  (`MotherActivity.applyUiScale`). So an activity's `densityDpi`/`density` carry that
+  override while `screen*Dp` stay system values: to turn a window's dp into real pixels
+  use the application context's `densityDpi` (`VideoViewportCap.windowPixels`).
