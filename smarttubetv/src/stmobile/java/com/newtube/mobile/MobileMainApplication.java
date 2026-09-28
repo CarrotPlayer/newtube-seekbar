@@ -127,6 +127,11 @@ public class MobileMainApplication extends MainApplication {
         // resets. The monitor is read-only and logs no SSID, carrier, IP, DNS or account data.
         NetworkDiagnostics.start(this);
 
+        // DIAGNOSTIC LOG (mobile-only): keep this app's own recent logcat lines in memory so
+        // About > "Send diagnostic log" still holds a failure minutes later. Its own thread, and
+        // the logcat spawn waits past launch; nothing is shared unless the user sends it.
+        com.liskovsoft.smartyoutubetv2.common.misc.DiagnosticLog.start(this);
+
         // CAPTION DEFAULT MIGRATION (mobile-only, one-shot): the default caption look changed
         // from the TV yellow-on-semi preset to the official app's white-on-semi. The style index
         // is persisted inside the PlayerData blob even for users who never touched it, so

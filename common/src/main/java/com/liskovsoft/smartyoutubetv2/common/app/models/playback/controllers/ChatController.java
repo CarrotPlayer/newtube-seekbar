@@ -64,7 +64,8 @@ public class ChatController extends BasePlayerController {
         mChatAction = mChatService.openLiveChatObserve(mLiveChatKey)
                 .subscribe(
                         chatItem -> {
-                            Log.d(TAG, chatItem.getMessage());
+                            // NEWTUBE(diagnostics): chat text is not logged - it would land in the
+                            // diagnostic export, including the viewer's own messages.
                             if (checkItem(chatItem)) {
                                 chatReceiver.addChatItem(chatItem);
                             }

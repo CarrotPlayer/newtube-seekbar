@@ -68,6 +68,11 @@
     <string name="about_license">License</string>
     <string name="about_license_name" translatable="false">MIT</string>
     <string name="about_license_url" translatable="false">https://github.com/aleixrodriala/newtube/blob/main/LICENSE</string>
+    <!-- NEWTUBE(diagnostics): About > "Send diagnostic log" (DiagnosticLog). -->
+    <string name="diagnostic_log_send">Send diagnostic log</string>
+    <string name="diagnostic_log_send_desc">For bug reports. Includes the videos and channels you opened; passwords and sign-in tokens are removed</string>
+    <string name="diagnostic_log_subject">%1$s %2$s diagnostic log</string>
+    <string name="diagnostic_log_failed">Couldn\'t create the diagnostic log</string>
     <string name="dialog_account_list">Select account</string>
     <string name="dialog_account_none">None</string>
     <string name="dialog_remove_account">Sign out</string>

@@ -59,6 +59,10 @@
   <string name="about_app">Acerca de %1$s</string>
   <string name="about_source_code">Código fuente</string>
   <string name="about_license">Licencia</string>
+  <string name="diagnostic_log_send">Enviar registro de diagnóstico</string>
+  <string name="diagnostic_log_send_desc">Para informar de errores. Incluye los vídeos y canales que has abierto; se quitan las contraseñas y los datos de inicio de sesión</string>
+  <string name="diagnostic_log_subject">Registro de diagnóstico de %1$s %2$s</string>
+  <string name="diagnostic_log_failed">No se ha podido crear el registro de diagnóstico</string>
   <string name="dialog_account_list">Seleccionar cuenta</string>
   <string name="dialog_account_none">Ninguna</string>
   <string name="dialog_remove_account">Eliminar cuenta</string>

@@ -12,6 +12,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.base.BasePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.ATVBridgePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AmazonBridgePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AppUpdatePresenter;
+import com.liskovsoft.smartyoutubetv2.common.misc.DiagnosticLog;
 import com.liskovsoft.smartyoutubetv2.common.misc.PhoneUi;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 
@@ -76,6 +77,10 @@ public class AboutSimpleSettingsPresenter extends BasePresenter<Void> {
                 getContext().getString(R.string.about_license),
                 getContext().getString(R.string.about_license_name),
                 option -> Utils.openLinkExt(getContext(), getContext().getString(R.string.about_license_url))));
+        settingsPresenter.appendSingleButton(UiOptionItem.from(
+                getContext().getString(R.string.diagnostic_log_send),
+                getContext().getString(R.string.diagnostic_log_send_desc),
+                option -> DiagnosticLog.share(getContext())));
 
         settingsPresenter.showDialog(mainTitle);
     }
