@@ -467,8 +467,9 @@ public class Media3SourceFactory {
         // NEWTUBE(debug-shaper): runtime bandwidth/fault shaping for on-device experiments
         // (see DebugMediaShaper - the Pixel 9 is the dev Mac's uplink, so radio-level
         // throttling is off-limits, and the emulator's throttle stalls instead of shaping).
-        // Debug builds only; inert while the debug.arc.* props are unset.
-        if (BuildConfig.DEBUG) {
+        // Debug and benchmark builds only (the benchmark's recovery episodes inject a 403 with
+        // debug.arc.poison_once_itag); inert while the debug.arc.* props are unset.
+        if (BuildConfig.DEBUG || BuildConfig.BENCHMARK) {
             leafFactory = new DebugMediaShaper.Factory(leafFactory);
         }
 

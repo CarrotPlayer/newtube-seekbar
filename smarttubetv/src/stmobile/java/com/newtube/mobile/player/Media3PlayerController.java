@@ -1157,10 +1157,11 @@ public class Media3PlayerController implements Player.Listener {
         }
         Log.e(TAG, "onPlayerError: " + error);
         NetPath.logError(getVideoId(), error); // NetPath milestone 5: player error
-        // Debug playground only: keep a synthetic one-shot media fault active until Media3 really
-        // gives up, then make the app-level client/transport reload clean. No property means a
-        // no-op, and release builds never construct the shaper in the first place.
-        if (com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG) {
+        // Debug playground and benchmark only: keep a synthetic one-shot media fault active until
+        // Media3 really gives up, then make the app-level client/transport reload clean. No
+        // property means a no-op, and release builds never construct the shaper in the first place.
+        if (com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG
+                || com.liskovsoft.smartyoutubetv2.tv.BuildConfig.BENCHMARK) {
             DebugMediaShaper.disarmOneShotPoisonForRecovery();
         }
         if (mSabrSourceActive) {

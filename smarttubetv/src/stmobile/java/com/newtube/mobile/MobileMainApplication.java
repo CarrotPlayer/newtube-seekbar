@@ -270,9 +270,9 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "anon-tizen after refusal enabled (debug)");
             }
 
-            // PLANNER SWITCH: "1" takes the /player order from PhoneSourcePlanner (netbench
-            // PLANNER.md) instead of upstream's ring and the phone gates, to measure it on the
-            // device before it becomes a default.
+            // PLANNER SWITCH: "1" takes a signed-out walk's /player order from PhoneSourcePlanner
+            // (docs/player-sources/PLANNER.md) instead of upstream's ring and the phone gates, with
+            // TV_TIZEN asked after a refusal, to measure it on the device before it becomes a default.
             if ("1".equals(getDebugSystemProperty("debug.arc.planner"))) {
                 VideoInfoService.setPlannerEnabled(true);
                 android.util.Log.w("NetPath", "source planner enabled (debug)");
