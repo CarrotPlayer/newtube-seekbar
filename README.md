@@ -273,7 +273,7 @@ The [changelog](CHANGELOG.md) covers every release, with a
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=aleixrodriala/newtube&type=Date&theme=dark">
     <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=aleixrodriala/newtube&type=Date">
-    <img alt="NewTube's GitHub stars over time" src="https://api.star-history.com/svg?repos=aleixrodriala/newtube&type=Date" width="600">
+    <img alt="NewTube's GitHub stars over time" src="https://api.star-history.com/svg?repos=aleixrodriala/newtube&type=Date" width="100%">
   </picture>
 </a>
 
