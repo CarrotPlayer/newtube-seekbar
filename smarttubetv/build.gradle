@@ -230,7 +230,10 @@ android {
             } else if (project.hasProperty('sideBySide')) {
                 // Device checks on the owner's phone (-PsideBySide): its own app id, data and (no)
                 // account next to the daily driver, so a test never plays on his account.
-                applicationIdSuffix ".check"
+                // -PsideBySide=auth: a second id for the signed-in benchmark, which signs in to the
+                // owner's account (his OK, 2026-09-29) while ".check" stays signed out. Benchmark
+                // builds never write to the account's history (MobileMainApplication).
+                applicationIdSuffix project.property('sideBySide') == 'auth' ? ".auth" : ".check"
             }
         }
     }

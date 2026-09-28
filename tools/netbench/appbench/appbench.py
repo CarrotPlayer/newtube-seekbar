@@ -292,11 +292,15 @@ def main():
     ap.add_argument("--serial", default=os.environ.get("NETBENCH_SERIAL"),
                     help="adb serial of the phone (default: $NETBENCH_SERIAL; required; guarded "
                          "unless it is an emulator-* serial)")
+    ap.add_argument("--package", default=PKG,
+                    help="the app to drive (default: the signed-out .check build; .auth is the "
+                         "signed-in benchmark build, -PsideBySide=auth)")
     ap.add_argument("--data", default=os.environ.get("NETBENCH_DATA") or DEFAULT_DATA,
                     help="data directory; results go to <data>/appbench/results "
                          "(default: $NETBENCH_DATA, else the tools/netbench directory)")
     args = ap.parse_args()
     global SERIAL, NO_GUARD, RESULTS
+    globals()["PKG"] = args.package  # read as a default above, so not in the global list
     if not args.serial:
         ap.error("no device: pass --serial or set NETBENCH_SERIAL (the phone's adb serial)")
     SERIAL = args.serial

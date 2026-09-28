@@ -104,6 +104,14 @@ public class MobileMainApplication extends MainApplication {
         boolean forceFreshAppInfo = com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG
                 && "1".equals(getDebugSystemProperty("debug.arc.fresh_app_info"));
 
+        // BENCHMARK ACCOUNT GUARD: a benchmark build never writes to the signed-in account's watch
+        // history (watch-time pings, pause/resume/clear). The signed-in /player benchmark runs on
+        // the owner's own account (-PsideBySide=auth, his OK 2026-09-29), and signing in used to
+        // resume a paused history account-wide. Before anything can sign in or play.
+        if (com.liskovsoft.smartyoutubetv2.tv.BuildConfig.BENCHMARK) {
+            com.liskovsoft.youtubeapi.service.AccountWrites.setHistoryBlocked(true);
+        }
+
         // TTFF FIX (mobile-only, biggest click-to-play win): cap the DEFAULT video quality at 1080p
         // instead of the fixed high rung (~4K/FHD). The first media segment + decode is then <=1080p
         // (a 4K VP9 first frame dominates click-to-play time) and never 1440p/2160p, and phones only
