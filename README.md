@@ -129,6 +129,8 @@ YouTube app.
 - **Verify what you install.** Every APK is signed with the same key. Its certificate SHA-256 is
   `2e:f9:9d:76:ed:fa:d9:88:ad:17:cd:ee:8b:a1:8c:63:4e:23:0f:e1:e3:cb:1f:dc:6c:db:02:49:37:0a:36:c9`.
   Check it with `apksigner verify --print-certs <file>.apk`. Each release also lists a SHA-256 for every file.
+  From 1.10.3 the APKs are built by GitHub Actions from the tagged source; check that with
+  `gh attestation verify <file>.apk -R aleixrodriala/newtube`.
   NewTube's key is not SmartTube's, so neither app can update the other.
 - **Distributed on GitHub**, not on Google Play.
 
@@ -206,7 +208,9 @@ fork of SmartTube, worth comparing. The two are separate projects. One differenc
 <details>
 <summary><b>Is it safe? How do I know the APK is really NewTube?</b></summary>
 
-The APKs are built by the maintainer; the builds aren't reproducible yet. Check the signing
+Up to 1.10.2 the APKs were built on the maintainer's computer. From 1.10.3 they're built by
+GitHub Actions from the tagged source, and each file has a build attestation you can check with
+`gh attestation verify <file>.apk -R aleixrodriala/newtube`. The builds aren't reproducible yet. Check the signing
 certificate against the fingerprint under [Download](#download), and each file against the
 SHA-256 in its release notes. Every release is tagged, so you can read the exact source.
 The app has no analytics, no crash reporting and no ad SDKs, and the developer receives nothing.
