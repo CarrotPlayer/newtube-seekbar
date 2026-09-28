@@ -1,5 +1,14 @@
 name: VirusTotal Scan
 
+# Uploads every APK of a published release to VirusTotal, waits for the analyses to
+# finish and appends a results table to the release notes. Needs the repository secret
+# VIRUS_TOTAL_API_KEY (a free VirusTotal account's API key is enough).
+#
+# The VirusTotal API is called directly instead of through crazy-max/ghaction-virustotal:
+# on `release` events that action ignores local files and matches `files` as a regex
+# against asset names, so the old `release_assets/*.apk` pattern uploaded nothing, and its
+# rate limiter counts one request per file while a >32 MB upload costs two.
+
 on:
   release:
     types: [published]
@@ -9,90 +18,117 @@ on:
         description: 'Release tag to scan'
         required: true
 
+concurrency:
+  group: virustotal-${{ github.event.release.tag_name || inputs.release_tag }}
+
 jobs:
   virustotal_scan:
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
-      HAS_VT_KEY: ${{ secrets.VIRUS_TOTAL_API_KEY != '' }}
+      TAG_NAME: ${{ github.event.release.tag_name || inputs.release_tag }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
 
     steps:
-      - name: Set tag variable
+      - name: Check the VirusTotal key
+        env:
+          VT_API_KEY: ${{ secrets.VIRUS_TOTAL_API_KEY }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "TAG_NAME=${{ github.event.inputs.release_tag }}" >> $GITHUB_ENV
-          else
-            echo "TAG_NAME=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+          if [ -z "$VT_API_KEY" ]; then
+            echo "::error::The VIRUS_TOTAL_API_KEY secret is not set, so $TAG_NAME was not scanned. Add it under Settings > Secrets and variables > Actions, then run this workflow by hand for $TAG_NAME."
+            exit 1
           fi
 
-      - name: Set report marker variable
+      - name: Download the release APKs
         run: |
-          echo -e "MARKER=\t\t\t" >> $GITHUB_ENV
+          gh release download "$TAG_NAME" --dir release_assets --pattern '*.apk'
+          ls -l release_assets
 
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-      - name: Download Release Assets
+      - name: Scan with VirusTotal
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VT_API_KEY: ${{ secrets.VIRUS_TOTAL_API_KEY }}
         run: |
-          mkdir -p release_assets
-          gh release download "$TAG_NAME" --dir release_assets --pattern "*.apk"
+          set -euo pipefail
+          api=https://www.virustotal.com/api/v3
 
-      - name: VirusTotal Scan
-        if: ${{ env.HAS_VT_KEY == 'true' }}
-        id: vt
-        uses: crazy-max/ghaction-virustotal@936d8c5c00afe97d3d9a1af26d017cfdf26800a2 # v5.0.0
-        with:
-          vt_api_key: ${{ secrets.VIRUS_TOTAL_API_KEY }}
-          files: |
-            release_assets/*.apk
-          request_rate: 4
+          # The public API allows 4 requests a minute, so every call waits 16 s first.
+          # curl --retry also backs off on 429 if the quota is shared with other uses.
+          vt() {
+            sleep 16
+            curl -sS --fail-with-body --retry 5 --retry-delay 30 -H "x-apikey: $VT_API_KEY" "$@"
+          }
 
-      - name: Generate Custom Badge Report
-        if: steps.vt.outcome == 'success'
-        run: |
-          echo "Waiting 150s for VirusTotal engines to report..."
-          sleep 150
-
-          echo -e "$MARKER\n## 🛡️ VirusTotal Analysis" > vt_report.txt
-          echo "" >> vt_report.txt
-
-          echo "| Build Variant | VirusTotal Status | Detailed Report |" >> vt_report.txt
-          echo "| :--- | :--- | :--- |" >> vt_report.txt
-          
-          for file in release_assets/*.apk; do
-            [ -e "$file" ] || continue
-            filename=$(basename "$file")
-            sha256=$(sha256sum "$file" | awk '{print $1}')
-
-            vt_link="https://www.virustotal.com/gui/file/$sha256/detection"
-            badge_url="https://badges.cssnr.com/vt/id/$sha256?start=green&end=red&n=8"
-
-            echo "Purging badge cache for $filename..."
-            curl -s -X POST $badge_url
-            
-            asset_link="https://github.com/${{ github.repository }}/releases/download/${{ env.TAG_NAME }}/$filename"
-            
-            echo "| [$filename]($asset_link) | [![]($badge_url&v=$(date +%s))]($vt_link) | [View Report]($vt_link) |" >> vt_report.txt
+          apks=(release_assets/*.apk)
+          analyses=()
+          for apk in "${apks[@]}"; do
+            # upload_url accepts any size up to 650 MB; /files stops at 32 MB
+            upload_url=$(vt "$api/files/upload_url" | jq -r '.data')
+            [[ $upload_url == https://* ]] || { echo "::error::No upload URL for $apk: $upload_url"; exit 1; }
+            analysis=$(vt -F "file=@$apk" "$upload_url" | jq -r '.data.id')
+            [[ -n $analysis && $analysis != null ]] || { echo "::error::Upload of $apk returned no analysis id"; exit 1; }
+            echo "Uploaded $(basename "$apk"), analysis $analysis"
+            analyses+=("$analysis")
           done
 
-      - name: Update Release Notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release view "$TAG_NAME" --json body -q .body > current_notes.txt || echo "" > current_notes.txt
+          # Poll until every analysis is done. A large APK usually takes a few minutes.
+          declare -A rows
+          pending=("${!apks[@]}")
+          deadline=$((SECONDS + 30 * 60))
+          while ((${#pending[@]})); do
+            if ((SECONDS > deadline)); then
+              echo "::error::VirusTotal did not finish analysing ${#pending[@]} APK(s) within 30 minutes"
+              exit 1
+            fi
+            still_pending=()
+            for i in "${pending[@]}"; do
+              apk=${apks[$i]}
+              name=$(basename "$apk")
+              result=$(vt "$api/analyses/${analyses[$i]}")
+              status=$(jq -r '.data.attributes.status' <<<"$result")
+              if [[ $status != completed ]]; then
+                echo "$name: $status"
+                still_pending+=("$i")
+                continue
+              fi
+              malicious=$(jq '.data.attributes.stats.malicious' <<<"$result")
+              engines=$(jq '.data.attributes.stats | .malicious + .suspicious + .undetected + .harmless' <<<"$result")
+              flagged_by=$(jq -r '[.data.attributes.results[] | select(.category == "malicious") | .engine_name] | join(", ")' <<<"$result")
+              echo "$name: $malicious of $engines engines flagged it${flagged_by:+ ($flagged_by)}"
+              if ((malicious > 0)); then
+                echo "::warning::$name was flagged by $malicious of $engines engines: $flagged_by"
+              fi
+              sha256=$(sha256sum "$apk" | cut -d' ' -f1)
+              rows[$i]="| \`$name\` | $malicious of $engines | [Report](https://www.virustotal.com/gui/file/$sha256/detection) |"
+            done
+            pending=("${still_pending[@]}")
+          done
 
-          # If the header exists, delete from that line to the end
-          if grep -q "$MARKER" current_notes.txt; then
-            echo "Previous report found. Cleaning up..."
-            sed -i "/$MARKER/,\$d" current_notes.txt
-          fi
-          
           {
-            cat current_notes.txt
-            cat vt_report.txt
-          } > final_notes.txt
-          
-          gh release edit "$TAG_NAME" --notes-file final_notes.txt
+            echo '<!-- virustotal-report -->'
+            echo '### VirusTotal scan'
+            echo
+            echo "Each APK of this release was uploaded to VirusTotal on $(date -u +%Y-%m-%d)."
+            echo
+            echo '| File | Engines that flagged it | Details |'
+            echo '| --- | --- | --- |'
+            for i in "${!apks[@]}"; do echo "${rows[$i]}"; done
+            echo '<!-- /virustotal-report -->'
+          } > vt_report.md
+          cat vt_report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update the release notes
+        run: |
+          set -euo pipefail
+          # No fallback on purpose: if the notes can't be read, editing them would wipe them.
+          gh release view "$TAG_NAME" --json body -q .body > notes.md
+          # Drop the previous report (between its two markers) so a rescan replaces it,
+          # then drop trailing blank lines. Nothing outside the markers is touched.
+          awk '/<!-- virustotal-report -->/ { skip = 1 }
+               !skip { print }
+               /<!-- \/virustotal-report -->/ { skip = 0 }' notes.md \
+            | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}' > kept.md
+          { cat kept.md; echo; cat vt_report.md; } > final_notes.md
+          gh release edit "$TAG_NAME" --notes-file final_notes.md
