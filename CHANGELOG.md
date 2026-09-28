@@ -1,6 +1,6 @@
 # NewTube Changelog
 
-All notable user-facing changes to NewTube ("SmartTube for phones").
+All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
 ## 1.10.2 — 2026-09-28 — Tip y Coll Edition
 

@@ -1,1 +1,1 @@
-A clean, open-source YouTube client for Android phones — no ads, no root.
+Unofficial YouTube client built on SmartTube: code sign-in, background, offline
