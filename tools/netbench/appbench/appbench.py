@@ -131,7 +131,8 @@ def parse(lines, video):
             res["first_frame_ms"] = int(m.group(1))
         m = re.search(r"video=" + re.escape(video) + r" error \+(\d+) (.*)", ln)
         if m:
-            res["errors"].append({"ms": int(m.group(1)), "error": m.group(2)[:160]})
+            res["errors"].append({"ms": int(m.group(1)), "error": m.group(2)[:160],
+                                  "ticks_before": len(res["ticks"])})
         m = re.search(r"bench-tick video=(\S+) pos=(-?\d+) dur=(-?\d+) buf=(-?\d+) state=(\S+) playing=(\S) t=(\d+)", ln)
         if m and m.group(1) == video:
             res["ticks"].append({"pos": int(m.group(2)), "dur": int(m.group(3)), "buf": int(m.group(4)),
@@ -166,10 +167,17 @@ def parse(lines, video):
     res["dur_ms"] = dur
     res["ended"] = ended
     res["played_after_seek"] = bool(after_seek)
+    # An error the app recovered from (recovery walk, re-mint): playing ticks advanced after it.
+    after_error = ticks[res["errors"][-1]["ticks_before"]:] if res["errors"] else []
+    playing_after = [t for t in after_error if t["playing"] == "y" and t["state"] == "READY"]
+    res["recovered"] = bool(res["errors"]) and (ended or (
+        len(playing_after) >= 2 and playing_after[-1]["pos"] > playing_after[0]["pos"]))
     if res["first_frame_ms"] is None:
         verdict = "NO-START"
-    elif res["errors"] and not ended:
+    elif res["errors"] and not res["recovered"]:
         verdict = f"FAIL@{max(0, max_pos) // 1000}s"
+    elif res["errors"]:
+        verdict = f"RECOVERED@{max(0, max_pos) // 1000}s"
     elif ended or (res["seek"] and after_seek) or max_pos >= 140_000:
         verdict = "PLAY-OK"
     elif max_pos >= 60_000:

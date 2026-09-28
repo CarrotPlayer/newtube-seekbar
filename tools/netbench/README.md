@@ -104,6 +104,7 @@ only debug and benchmark builds read at process start:
 | `debug.arc.planner` | `--prop debug.arc.planner=1` | /player order from `PhoneSourcePlanner` |
 | `debug.arc.hls_vod` | `--prop debug.arc.hls_vod=1` | HLS for VOD answers whose adaptive formats are SABR-only |
 | `debug.arc.readiness` | `--prop debug.arc.readiness=0` | turn the pre-roll readiness gate off (comparison only) |
+| `debug.arc.poison_once_itag` | `--prop debug.arc.poison_once_itag=any` | refuse one media request with a synthetic 403 (then the app's recovery runs) |
 
 Every property is reset to `none` at the end. Then, from `tools/netbench`:
 ```bash
@@ -115,9 +116,15 @@ python3 appbench/appbench.py --network wifi --sources RING,TV_TIZEN,WEB_EMBED \
 ```
 Other flags: `--keep-process` (no restart between opens), `--repeat N`, `--play-s 150`,
 `--serial`, `--data`. Each open prints a verdict (`PLAY-OK`, `PARTIAL@Ns`, `STALL@Ns`, `FAIL@Ns`,
-`NO-START`) and writes `<data>/appbench/results/<run-id>.jsonl` plus the raw log of that open. Exit
+`RECOVERED@Ns` for an error the app then played past, `NO-START`) and writes `<data>/appbench/results/<run-id>.jsonl` plus the raw log of that open. Exit
 code 2 means a guard or focus stop ended the run (or a usage error). Put each sequence in a small script under
 `<data>/appbench/` with a `check build vN` comment in its header: the recap reads it to label runs.
+
+**Acceptance (planner and HLS for VOD).** `appbench/accept.sh <wifi|lte> smoke|rest` runs the matrix
+of `docs/player-sources/PLANNER.md` section 4, each switch on against the same build with it off (LTE
+inside `pixel-lte-wrap.sh`). `python3 appbench/accept_report.py [--data DIR] lte wifi` prints it per
+video, on beside off: verdict, `/player` requests, winner, delivery, first frame, readiness waits, and
+flags for challenges, auto-reload caps and aborts.
 
 **Recap.** Offline, deterministic, stdlib only:
 ```bash
