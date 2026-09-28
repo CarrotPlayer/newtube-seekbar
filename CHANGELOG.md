@@ -2,7 +2,11 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
-## Unreleased
+## 1.10.4 — 2026-09-28 — Lina Morgan Edition
+
+"Grateful and up to date…" A fictional homage to Lina Morgan and the spirit of
+her curtain calls, for a release that answers the people who wrote in. Text
+follows the size you chose on your phone, and Check for updates works.
 
 ### Fixed
 
@@ -22,6 +26,12 @@ All notable user-facing changes to NewTube, the phone app built on SmartTube.
   java.lang.String" ([#4](https://github.com/aleixrodriala/newtube/issues/4)).
   Every release now carries it, 1.10.2 and 1.10.3 can update from the app too,
   and a failed check says so in plain words.
+
+### Still limited
+
+- **Some made-for-kids videos still stop with "Unknown source error"**
+  ([#5](https://github.com/aleixrodriala/newtube/issues/5)). We found why and a
+  way to play them, and it is being measured on real phones before it ships.
 
 ## 1.10.3 — 2026-09-28 — Martes y Trece Edition
 

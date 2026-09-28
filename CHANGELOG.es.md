@@ -3,7 +3,12 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
-## Sin publicar
+## 1.10.4 — 28-09-2026 — Edición Lina Morgan
+
+«Agradecidos y actualizados…» Homenaje ficticio a Lina Morgan y al espíritu de
+sus despedidas desde el escenario, para una versión que responde a quien nos
+escribió. El texto sigue el tamaño de letra que elegiste en el móvil, y «Buscar
+actualizaciones» funciona.
 
 ### Arreglado
 
@@ -26,6 +31,13 @@ versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
   ([#4](https://github.com/aleixrodriala/newtube/issues/4)). Ahora cada versión
   lo lleva, la 1.10.2 y la 1.10.3 también pueden actualizarse desde la app, y si
   la búsqueda falla lo dice con palabras normales.
+
+### Sigue limitado
+
+- **Algunos vídeos para niños siguen parando con «Unknown source error»**
+  ([#5](https://github.com/aleixrodriala/newtube/issues/5)). Ya sabemos por qué
+  y cómo reproducirlos, y lo estamos midiendo en móviles reales antes de
+  publicarlo.
 
 ## 1.10.3 — 28-09-2026 — Edición Martes y Trece
 
