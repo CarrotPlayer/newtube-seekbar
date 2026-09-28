@@ -134,6 +134,14 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
     @Override
     public void onLongBuffering() {
         if (mTerminalSourceCapped || getPlayer() != null && !getPlayer().allowsAutomaticSourceRecovery()) return;
+        // NEWTUBE(readiness): media held back for pre-roll ads is waiting as announced, not
+        // stalled - lowering the quality would buy nothing. Look again once more time has passed.
+        long readinessHoldMs = getPlayer() != null ? getPlayer().getMediaReadinessHoldMs() : 0;
+        if (readinessHoldMs > 0) {
+            NetPath.log(NetPath.context() + " recovery-deferred reason=readiness holdMs=" + readinessHoldMs);
+            mBufferingDetector.onStartBuffering();
+            return;
+        }
         if (isStreamEnded()) {
             getMainController().onPlayEnd();
         // NEWTUBE(buffer-rescue): a branch here used to read "VOD + subtitles on" as "the

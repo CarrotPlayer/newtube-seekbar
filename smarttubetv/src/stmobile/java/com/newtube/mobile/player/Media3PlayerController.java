@@ -97,6 +97,9 @@ public class Media3PlayerController implements Player.Listener {
     /** Whether the active SABR source is the automatic fallback rather than the opt-in preference. */
     private boolean mSabrWasFallback;
     private Runnable mOnVideoLoaded;
+    /** NEWTUBE(readiness): the answer the last generated-DASH open played (see getMediaReadinessHoldMs). */
+    @Nullable
+    private volatile MediaItemFormatInfo mReadinessAnswer;
     // NEWTUBE(live): last resort for a pathological live stream - rate-limits BLW recoveries.
     private long mLastLiveEdgeRecoveryMs;
 
@@ -175,6 +178,7 @@ public class Media3PlayerController implements Player.Listener {
     // ---------------------------------------------------------------------------------
 
     public void openSabr(MediaItemFormatInfo formatInfo) {
+        mReadinessAnswer = null; // not a gated route
         if (SabrSourcePreference.isEnabled(mContext) && SabrFormatAdapter.eligible(formatInfo)) {
             // A preferred SABR source displaced a working DASH route, so its failure is the
             // user's experiment failing and stays terminal. A fallback SABR source is the only
@@ -208,6 +212,18 @@ public class Media3PlayerController implements Player.Listener {
 
     public boolean allowsAutomaticSourceRecovery() { return !mSabrSourceActive || mSabrWasFallback; }
 
+    /**
+     * NEWTUBE(readiness): how much longer the open answer's media may legitimately be held back
+     * for its pre-roll ads (see ReadinessGate); 0 when it is not waiting.
+     */
+    public long getMediaReadinessHoldMs() {
+        MediaItemFormatInfo answer = mReadinessAnswer;
+        if (answer == null || !java.util.Objects.equals(answer.getVideoId(), getVideoId())) {
+            return 0;
+        }
+        return ReadinessGate.holdLeftMs(answer);
+    }
+
     public void openDash(MediaItemFormatInfo formatInfo) {
         // Only the opt-in experiment displaces working DASH links. The default-on fallback never
         // reaches this route: it exists for responses that have no links to displace.
@@ -215,6 +231,7 @@ public class Media3PlayerController implements Player.Listener {
             openSabr(formatInfo);
             return;
         }
+        mReadinessAnswer = formatInfo;
         // NEWTUBE(prepare-stash): a pre-built source for this exact video skips the XML gen+parse
         // AND the executor round-trip - prepare fires synchronously, within ~1ms of this call.
         if (!formatInfo.isLive()) {
@@ -275,14 +292,22 @@ public class Media3PlayerController implements Player.Listener {
                 // Manager/player interactions belong to main. Recorded live/OTF keeps only the
                 // existing XML prebuild; its normalized manifest must not start speculative loads.
                 if (!formatInfo.isLiveContent() && !formatInfo.isUnplayable()) {
-                    mMainHandler.post(mOpenGeneration.guard(generation, "preload-deliver", () -> {
+                    // NEWTUBE(readiness): an answer that announced pre-roll ads may have its media
+                    // held back until its ready time; the sample preload starts then, rather than
+                    // spending its load deadline asleep in the gate.
+                    long untilReadyMs = ReadinessGate.untilReadyMs(formatInfo);
+                    if (untilReadyMs > 0) {
+                        NetPath.log("next-preload defer video=" + videoId + " ms=" + untilReadyMs
+                                + " reason=readiness");
+                    }
+                    mMainHandler.postDelayed(mOpenGeneration.guard(generation, "preload-deliver", () -> {
                         if (!mSourceStash.containsSource(result)) {
                             return;
                         }
                         if (mNextPreloader != null) {
                             mNextPreloader.offer(videoId, result);
                         }
-                    }));
+                    }), untilReadyMs);
                 }
             }
         }));
@@ -336,27 +361,33 @@ public class Media3PlayerController implements Player.Listener {
     }
 
     public void openDash(InputStream dashManifest) {
+        mReadinessAnswer = null;
         openMediaSource(mMediaSourceFactory.fromDashManifest(dashManifest), "dash-mpd");
     }
 
     public void openDashUrl(String dashManifestUrl) {
+        mReadinessAnswer = null;
         openMediaSource(mMediaSourceFactory.fromDashManifestUrl(dashManifestUrl), "dash-url");
     }
 
     public void openHlsUrl(String hlsPlaylistUrl) {
+        mReadinessAnswer = null;
         openMediaSource(mMediaSourceFactory.fromHlsPlaylist(hlsPlaylistUrl), "hls");
     }
 
     public void openUrlList(List<String> urlList) {
+        mReadinessAnswer = null;
         openMediaSource(mMediaSourceFactory.fromUrlList(urlList), "progressive");
     }
 
     public void openMerged(MediaItemFormatInfo formatInfo, String hlsPlaylistUrl) {
+        mReadinessAnswer = formatInfo; // its DASH half is gated
         openMediaSourceOffMain(() -> mMediaSourceFactory.fromMerged(formatInfo, hlsPlaylistUrl), "dash-mpd+hls",
                 new SourceBuildTiming());
     }
 
     public void openMerged(InputStream dashManifest, String hlsPlaylistUrl) {
+        mReadinessAnswer = null;
         openMediaSource(mMediaSourceFactory.fromMerged(dashManifest, hlsPlaylistUrl), "dash-mpd+hls");
     }
 

@@ -5906,6 +5906,11 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     @Override
+    public long getMediaReadinessHoldMs() {
+        return mExoPlayerController != null ? mExoPlayerController.getMediaReadinessHoldMs() : 0;
+    }
+
+    @Override
     public void openDash(MediaItemFormatInfo formatInfo) {
         mExoPlayerController.openDash(formatInfo);
     }

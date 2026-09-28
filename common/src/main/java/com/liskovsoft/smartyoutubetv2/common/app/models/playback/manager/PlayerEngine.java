@@ -17,6 +17,11 @@ public interface PlayerEngine extends PlayerConstants {
     default void prebuildNextSource(MediaItemFormatInfo formatInfo) {}
     /** Stateful experimental sources own their failures; generic recovery must not change route/quality. */
     default boolean allowsAutomaticSourceRecovery() { return true; }
+    /**
+     * NEWTUBE(readiness): how much longer the open answer's media may legitimately be held back for
+     * its pre-roll ads, ms (0 = not waiting). A spinner inside it is not a stall.
+     */
+    default long getMediaReadinessHoldMs() { return 0; }
     void openSabr(MediaItemFormatInfo formatInfo);
     void openDash(MediaItemFormatInfo formatInfo);
     void openDash(InputStream dashManifest);

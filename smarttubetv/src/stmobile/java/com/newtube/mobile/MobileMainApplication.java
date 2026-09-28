@@ -262,6 +262,13 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "unknown debug.arc.player_client=" + forcedClient);
             }
 
+            // READINESS ROLLBACK: "0" stops holding back the media of answers with pre-roll ads
+            // (see com.newtube.mobile.player.ReadinessGate), to compare against the old behaviour.
+            if ("0".equals(getDebugSystemProperty("debug.arc.readiness"))) {
+                com.newtube.mobile.player.ReadinessGate.setEnabled(false);
+                android.util.Log.w("NetPath", "readiness gate disabled (debug)");
+            }
+
             // SOURCE BENCHMARK: devicePlaybackCapabilities.supportXhr for every client -
             // "true" / "false", or "absent" to omit the block (yt-dlp's shape). WEB_EMBED only
             // gets URLs with it off; whether other clients do is what the benchmark measures.

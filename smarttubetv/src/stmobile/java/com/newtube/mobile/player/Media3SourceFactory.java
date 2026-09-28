@@ -368,6 +368,7 @@ public class Media3SourceFactory {
     private final StartupBandwidthMeter mBandwidthMeter;
     private final DataSource.Factory mHttpDataSourceFactory;
     private final DataSource.Factory mCachedDataSourceFactory;
+    @Nullable private final Cache mMediaCache;
     @Nullable private DataSource.Factory mSabrDataSourceFactory;
     private final boolean mCronetAvailable;
     private final OkHttpClient mMediaOkHttpClient;
@@ -483,16 +484,20 @@ public class Media3SourceFactory {
         if (bypassCache) {
             NetPath.log("media-cache bypass=debug");
         }
-        Cache mediaCache = bypassCache ? null : Media3PlayerCache.get(mContext);
-        if (mediaCache != null) {
-            mCachedDataSourceFactory = new CacheDataSource.Factory()
-                    .setCache(mediaCache)
-                    .setCacheKeyFactory(Media3PlayerCache.getCacheKeyFactory())
-                    .setUpstreamDataSourceFactory(mHttpDataSourceFactory)
-                    .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
-        } else {
-            mCachedDataSourceFactory = mHttpDataSourceFactory;
+        mMediaCache = bypassCache ? null : Media3PlayerCache.get(mContext);
+        mCachedDataSourceFactory = cachedOver(mHttpDataSourceFactory);
+    }
+
+    /** The on-disk cache tier over {@code upstream}; {@code upstream} itself without a cache. */
+    private DataSource.Factory cachedOver(DataSource.Factory upstream) {
+        if (mMediaCache == null) {
+            return upstream;
         }
+        return new CacheDataSource.Factory()
+                .setCache(mMediaCache)
+                .setCacheKeyFactory(Media3PlayerCache.getCacheKeyFactory())
+                .setUpstreamDataSourceFactory(upstream)
+                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
     }
 
     private synchronized DataSource createTransportDataSource(
@@ -922,6 +927,8 @@ public class Media3SourceFactory {
     @Nullable
     MediaSource fromDashFormatInfo(MediaItemFormatInfo formatInfo, @Nullable SourceBuildTiming timing) {
         long startMs = android.os.SystemClock.elapsedRealtime();
+        // NEWTUBE(readiness): null unless this answer announced a pre-roll wait (see ReadinessGate).
+        ReadinessGate gate = ReadinessGate.forAnswer(formatInfo);
         // NEWTUBE(open-cpu): the same manifest without printing and re-lexing its XML (see
         // DirectMpd). Anything it declines or fails on takes the text route below, unchanged.
         DirectMpd.Recorder recorder = DirectMpd.record(formatInfo);
@@ -931,7 +938,7 @@ public class Media3SourceFactory {
             try {
                 StaticDashManifestParser parser = new StaticDashManifestParser();
                 direct = fromStaticManifest(
-                        parser.parse(recorder.replay(), GENERATED_MANIFEST_URI), parser);
+                        parser.parse(recorder.replay(), GENERATED_MANIFEST_URI), parser, gate);
             } catch (IOException | RuntimeException e) {
                 Log.w(TAG, "fromDashFormatInfo: direct manifest failed, using xml: " + e);
             }
@@ -946,7 +953,7 @@ public class Media3SourceFactory {
         }
         InputStream mpd = formatInfo.createMpdStream();
         long generatedMs = android.os.SystemClock.elapsedRealtime();
-        MediaSource source = fromDashManifest(mpd, formatInfo.isLive());
+        MediaSource source = fromDashManifest(mpd, formatInfo.isLive(), gate);
         if (timing != null) {
             timing.genMs = generatedMs - startMs;
             timing.parseMs = android.os.SystemClock.elapsedRealtime() - generatedMs;
@@ -1010,6 +1017,10 @@ public class Media3SourceFactory {
      */
     @Nullable
     MediaSource fromDashManifest(InputStream dashManifest, boolean isLive) {
+        return fromDashManifest(dashManifest, isLive, null);
+    }
+
+    private MediaSource fromDashManifest(InputStream dashManifest, boolean isLive, @Nullable ReadinessGate gate) {
         if (dashManifest == null) {
             return null;
         }
@@ -1027,11 +1038,12 @@ public class Media3SourceFactory {
             return null;
         }
 
-        return fromStaticManifest(manifest, parser);
+        return fromStaticManifest(manifest, parser, gate);
     }
 
     /** The side-loaded source for a generated manifest {@code parser} produced (either route). */
-    private MediaSource fromStaticManifest(DashManifest manifest, StaticDashManifestParser parser) {
+    private MediaSource fromStaticManifest(DashManifest manifest, StaticDashManifestParser parser,
+            @Nullable ReadinessGate gate) {
         // "Live media bypasses the cache" applies to SIDE-LOADED manifests too: the generated MPD
         // (YouTubeMPDBuilder) declares type="dynamic" whenever the FORMATS are live media
         // (yt_live_broadcast / live=1 urls) - which includes PAST live streams whose formatInfo is
@@ -1040,8 +1052,15 @@ public class Media3SourceFactory {
         // cache key (Media3PlayerCache) already keeps such segments apart - this routing makes
         // that belt-and-braces, and spares the LRU cache segments that would never be re-watched.
         // Static VOD keeps the cached tier.
-        DataSource.Factory chunkDataSourceFactory =
-                parser.wasDynamic() ? mHttpDataSourceFactory : mCachedDataSourceFactory;
+        DataSource.Factory chunkDataSourceFactory;
+        if (gate == null) {
+            chunkDataSourceFactory = parser.wasDynamic() ? mHttpDataSourceFactory : mCachedDataSourceFactory;
+        } else {
+            // The gate goes on the HTTP side of the cache: only a network answer says whether
+            // googlevideo serves this answer yet, a cache hit never waits and never counts.
+            DataSource.Factory gated = gate.wrap(mHttpDataSourceFactory);
+            chunkDataSourceFactory = parser.wasDynamic() ? gated : cachedOver(gated);
+        }
 
         return new DashMediaSource.Factory(
                         new DefaultDashChunkSource.Factory(chunkDataSourceFactory),
