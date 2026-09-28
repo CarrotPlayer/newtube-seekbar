@@ -262,6 +262,14 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "unknown debug.arc.player_client=" + forcedClient);
             }
 
+            // PLANNER SWITCH: "1" asks TV_TIZEN without the account right after a client refuses
+            // the video (VideoInfoService.setAnonTizenAfterRefusal), to measure it on the device
+            // before it becomes a default.
+            if ("1".equals(getDebugSystemProperty("debug.arc.anon_tizen"))) {
+                VideoInfoService.setAnonTizenAfterRefusal(true);
+                android.util.Log.w("NetPath", "anon-tizen after refusal enabled (debug)");
+            }
+
             // READINESS ROLLBACK: "0" stops holding back the media of answers with pre-roll ads
             // (see com.newtube.mobile.player.ReadinessGate), to compare against the old behaviour.
             if ("0".equals(getDebugSystemProperty("debug.arc.readiness"))) {
@@ -375,15 +383,15 @@ public class MobileMainApplication extends MainApplication {
         // TV never calls this -> TV keeps the full 13-client ring unchanged.
         VideoInfoService.setSkipTvFallbackClients(true);
 
-        // WEB_EMBED TRIM (mobile-only): skipped since 2026-09-26 because every answer was "Error
-        // code: 152 - 18". That turned out to be the app pairing the embed page's encryptedHostFlags
-        // with the wrong visitor (fixed in YtCfgService.EmbedIdentity), and with the right pair it
-        // serves made-for-kids videos no other client does (issue #5). It stays skipped until the
-        // player-sources rework has measured it in the app: on a Pixel its fresh URLs were refused
-        // for the first seconds (the pre-roll wait, not honoured yet), so switching it on as it is would
-        // still fail some of them, only later. VideoInfoService.setWebEmbedLast is the
-        // switch that puts it back as the last resort. TV never calls this.
-        VideoInfoService.setSkipWebEmbed(true);
+        // WEB_EMBED LAST (mobile-only): the last resort of every walk. It was skipped from
+        // 2026-09-26 because every answer was "Error code: 152 - 18"; that was the app pairing the
+        // embed page's encryptedHostFlags with the wrong visitor (fixed in YtCfgService.EmbedIdentity),
+        // and with the right pair it serves made-for-kids videos no other client does (issue #5).
+        // Its media is held back for the answer's pre-roll wait, which the player now honours
+        // (ReadinessGate): on a Pixel 9 over LTE (2026-09-28) it played _WB5hh7WOb4 in full, first
+        // frame 6.3 s after its /player. Last, so a video anything else serves never reaches it.
+        // TV never calls this.
+        VideoInfoService.setWebEmbedLast(true);
 
         // DEAD-ROUTE MEMORY (mobile-only): the 403 quarantine that demotes an account-bearing
         // client after its media URLs are refused was process-local, so every cold start paid the
