@@ -2,6 +2,40 @@
 
 All notable user-facing changes to NewTube ("SmartTube for phones").
 
+## 1.10.2 — 2026-09-28 — Tip y Coll Edition
+
+"First you pick up the phone. Then you go to Settings…" A fictional homage to
+Tip y Coll and their step-by-step lessons, for a release about telling us what
+broke. It follows reports of "Unknown source error" on every video after a while
+of playback (27 September, a Redmi Note 14 4G on HyperOS 3). It didn't happen on
+an Android 16 emulator, and testers had no way to send a log without a computer.
+
+### Send us what broke
+
+- **Settings → About → Send diagnostic log.** It shares a text file with the
+  app's recent log, about the last hour. It includes the session before a
+  force-close, so the file still holds the failure after you restart the app.
+  A short header comes first: app version, phone model and Android build,
+  whether you're signed in, network type and caption language.
+- **What goes in and what comes out.** The log lists the videos and channels you
+  opened. Before the file is written, the app removes passwords, sign-in tokens,
+  cookies, e-mail addresses, proxy passwords, PO tokens and your IP address from
+  video links. Nothing leaves the phone until you pick an app to share it with.
+
+### Fixed
+
+- **Sign-in secrets stay out of the system log.** OAuth request bodies and the
+  refresh token are no longer logged (a SmartTube fix), nor is the device code
+  when a TV-code sign-in fails. Live-chat messages aren't logged either.
+
+### Still limited
+
+- **"Unknown source error" after a while is not fixed yet.** We couldn't
+  reproduce it, and the diagnostic log is how we'll find it.
+- The scrubber works line by line: a secret split across two log lines would
+  not be recognised. The first 240 characters of a video server's error page
+  stay in the log; they are YouTube's generic error text.
+
 ## 1.10.1 — 2026-09-27 — Gila Edition
 
 “¿Es el enemigo? Que se ponga… rápido.” A fictional homage to Miguel Gila, for

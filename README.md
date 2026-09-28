@@ -9,11 +9,11 @@ for **phones and tablets**: portrait-first layouts, bottom navigation, touch
 gestures, and a minimizable mini-player, instead of SmartTube's TV/D-pad
 (Leanback) UI.
 
-> **Current version: 1.10.1 — Gila Edition.** Actively tested on Android phones,
+> **Current version: 1.10.2 — Tip y Coll Edition.** Actively tested on Android phones,
 > with native touch navigation, Media3 playback and TV casting. Distribution
 > currently follows the existing tester-group APK workflow, not GitHub Releases.
 > See the [changelog](CHANGELOG.md), [novedades en español](CHANGELOG.es.md) and
-> [release record](docs/releases/1.10.1.md), including known playback limitations.
+> [release record](docs/releases/1.10.2.md), including known playback limitations.
 
 ---
 
@@ -70,7 +70,7 @@ Requirements: JDK 17, Android SDK 37 (minimum Android 7/API 24). Point
 Install the universal APK on a connected device:
 
 ```bash
-adb -s DEVICE_SERIAL install -r smarttubetv/build/outputs/renamed_apks/stmobileDebug/NewTube_1.10.1_universal.apk
+adb -s DEVICE_SERIAL install -r smarttubetv/build/outputs/renamed_apks/stmobileDebug/NewTube_1.10.2_universal.apk
 ```
 
 The TV flavors were removed; pre-port source is retained under `tv-legacy`.

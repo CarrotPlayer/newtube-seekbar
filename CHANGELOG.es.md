@@ -3,6 +3,45 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
+## 1.10.2 — 28-09-2026 — Edición Tip y Coll
+
+«Se coge el móvil. Se va a Ajustes…» Homenaje ficticio a Tip y Coll y sus
+lecciones paso a paso, para una versión que va de contarnos qué ha fallado. Llega
+tras los avisos de «Unknown source error» en todos los vídeos al rato de estar
+viéndolos (27 de septiembre, un Redmi Note 14 4G con HyperOS 3). En un emulador
+con Android 16 no pasaba, y sin un ordenador no había forma de mandarnos el
+registro.
+
+### Mándanos lo que ha fallado
+
+- **Ajustes → Acerca de → Enviar registro de diagnóstico.** Comparte un archivo
+  de texto con el registro reciente de la app, más o menos la última hora.
+  Incluye la sesión de antes de forzar el cierre, así que el fallo sigue ahí
+  aunque reinicies la app. Delante va una cabecera corta: versión de la app,
+  modelo del móvil y compilación de Android, si tienes la sesión iniciada, tipo
+  de red e idioma de los subtítulos.
+- **Qué entra y qué sale.** El registro dice qué vídeos y canales has abierto.
+  Antes de escribir el archivo, la app quita contraseñas, tokens de sesión,
+  cookies, correos, contraseñas del proxy, tokens PO y tu dirección IP de los
+  enlaces de vídeo. No sale nada del móvil hasta que eliges con qué app
+  compartirlo.
+
+### Arreglado
+
+- **Los secretos de la sesión no van al registro del sistema.** Ya no se
+  registran el cuerpo de las peticiones OAuth ni el token de refresco (un
+  arreglo de SmartTube), ni el código de dispositivo cuando falla el inicio de
+  sesión con código de TV. Los mensajes del chat en directo, tampoco.
+
+### Todavía limitado
+
+- **El «Unknown source error» al rato aún no está arreglado.** No lo hemos
+  podido reproducir; el registro de diagnóstico es cómo lo vamos a encontrar.
+- La limpieza va línea a línea: un secreto partido en dos líneas del registro
+  no se reconocería. Los primeros 240 caracteres de la página de error de un
+  servidor de vídeo se quedan en el registro; es el texto de error genérico de
+  YouTube.
+
 ## 1.10.1 — 27-09-2026 — Edición Gila
 
 «¿Es el enemigo? Que se ponga… pero rápido.» Homenaje ficticio a Miguel Gila,
