@@ -5105,7 +5105,11 @@ public class MobilePlaybackActivity extends MobileActivity
         if (!TextUtils.isEmpty(item.likeCount)) {
             mWatchLikeCount.setText(item.likeCount);
         }
-        if (!TextUtils.isEmpty(item.dislikeCount)) {
+        // NEWTUBE(ryd-opt-in): also on a same-video bind, so switching the option off hides the count
+        // it showed, and a live /next refresh can't paint its estimate.
+        if (!showsDislikeCount()) {
+            mWatchDislikeCount.setVisibility(View.GONE);
+        } else if (!TextUtils.isEmpty(item.dislikeCount)) {
             mWatchDislikeCount.setText(item.dislikeCount);
         }
         if (!TextUtils.isEmpty(item.subscriberCount)) {
