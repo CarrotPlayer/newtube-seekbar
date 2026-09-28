@@ -225,17 +225,17 @@
     <string name="mobile_cast_searching">Looking for devices…</string>
     <string name="mobile_cast_empty">No devices found on this Wi-Fi network</string>
     <!-- Cast-device row: the default mode's promise, nothing else. -->
-    <string name="mobile_cast_subtitle_no_ads">No ads · quality controls on your phone</string>
+    <string name="mobile_cast_subtitle_no_ads">Quality controls on your phone</string>
     <!-- Lounge-only row (saved screen / DIAL TV): plain statement of what will play. -->
     <string name="mobile_cast_subtitle_youtube_app">YouTube or SmartTube on the TV</string>
     <!-- Chooser header for a Cast device offering both modes; tapping it goes back to the list. -->
     <string name="mobile_cast_chooser_title">Cast to %1$s</string>
     <!-- Chooser option 1 (default, listed first): Route A. Subtitle carries the one real cost. -->
-    <string name="mobile_cast_option_direct_title">Cast without ads</string>
-    <string name="mobile_cast_option_direct_subtitle">Ad-free · quality controlled from your phone · no subtitles</string>
+    <string name="mobile_cast_option_direct_title">Direct cast</string>
+    <string name="mobile_cast_option_direct_subtitle">Quality controlled from your phone · no subtitles</string>
     <!-- Chooser option 2: Lounge via saved screen or the mdx shim. -->
     <string name="mobile_cast_option_app_title">Play through the TV app</string>
-    <string name="mobile_cast_option_app_subtitle">Required for live and subtitles · quality controlled with the TV remote · stock YouTube may show ads</string>
+    <string name="mobile_cast_option_app_subtitle">Required for live and subtitles · quality controlled with the TV remote</string>
     <!-- mdx shim in flight: launching the TV's YouTube app and reading its Lounge screenId. -->
     <string name="mobile_cast_connecting_youtube_app">Connecting to the YouTube app on the TV…</string>
     <!-- Route A load refusals: the session stays up, only this video can't be direct-cast. -->
@@ -257,7 +257,7 @@
     <string name="mobile_cast_code_smarttube">SmartTube</string>
     <string name="mobile_cast_code_smarttube_path">Settings → Remote control</string>
     <string name="mobile_cast_code_helper">Dashes and spaces are okay</string>
-    <string name="mobile_cast_code_smarttube_benefit">Tip: SmartTube keeps playback ad-free and gives you quality and subtitle controls on the TV.</string>
+    <string name="mobile_cast_code_smarttube_benefit">Tip: with SmartTube you get quality and subtitle controls on the TV.</string>
     <string name="mobile_cast_code_positive">Link</string>
     <string name="mobile_cast_code_invalid">The code should have 12 digits</string>
     <string name="mobile_cast_pairing">Linking with the TV…</string>
@@ -272,27 +272,27 @@
     <string name="mobile_cast_channel_name">Casting</string>
     <string name="mobile_cast_channel_desc">Controls for the TV casting session</string>
     <!-- Volume-key routing while a session is connected: lightweight toast indicator. -->
-    <string name="mobile_cast_fallback_switching">Ad-free playback unavailable — opening YouTube, which may show ads…</string>
-    <string name="mobile_cast_trying_smarttube">Trying SmartTube without ads…</string>
-    <string name="mobile_cast_trying_direct">Trying direct cast without ads…</string>
+    <string name="mobile_cast_fallback_switching">Trying YouTube on the TV…</string>
+    <string name="mobile_cast_trying_smarttube">Trying SmartTube on the TV…</string>
+    <string name="mobile_cast_trying_direct">Trying direct cast…</string>
     <string name="mobile_cast_trying_saved">Trying the saved TV app…</string>
-    <string name="mobile_cast_checking_ad_free">Checking for ad-free playback…</string>
-    <string name="mobile_cast_smarttube_title">SmartTube · ad-free</string>
-    <string name="mobile_cast_smarttube_subtitle">SmartTube · no ads · your phone can leave</string>
-    <string name="mobile_cast_youtube_title">YouTube · may show ads</string>
-    <string name="mobile_cast_youtube_subtitle">YouTube · fallback · may show ads</string>
+    <string name="mobile_cast_checking_ad_free">Checking the TV…</string>
+    <string name="mobile_cast_smarttube_title">SmartTube</string>
+    <string name="mobile_cast_smarttube_subtitle">SmartTube · your phone can leave</string>
+    <string name="mobile_cast_youtube_title">YouTube</string>
+    <string name="mobile_cast_youtube_subtitle">YouTube · fallback</string>
     <string name="mobile_cast_unknown_title">Saved TV app</string>
     <string name="mobile_cast_unknown_subtitle">TV app not identified · choose ⋮ to set it</string>
     <string name="mobile_cast_identify_app">Which TV app is this code from?</string>
     <string name="mobile_cast_onboarding_title">SmartTube on your TV?</string>
-    <string name="mobile_cast_onboarding_body">Pair it once for ad-free playback.</string>
+    <string name="mobile_cast_onboarding_body">Pair it once and the videos you cast open in SmartTube.</string>
     <string name="mobile_cast_pair_smarttube">Pair SmartTube</string>
     <string name="mobile_cast_receiver_no_playback">The TV app did not start playback</string>
     <string name="mobile_cast_switching_tv_app">Opening YouTube controls on the TV…</string>
     <string name="mobile_cast_choose_method">Choose casting method</string>
     <string name="mobile_cast_more_options">TV playback options</string>
     <string name="mobile_cast_controls_title">TV playback options</string>
-    <string name="mobile_cast_direct_summary">Direct cast · ad-free · quality from this phone · subtitles need the TV app</string>
+    <string name="mobile_cast_direct_summary">Direct cast · quality from this phone · subtitles need the TV app</string>
     <string name="mobile_cast_app_summary">TV app · subtitles from this phone · quality from the TV remote</string>
     <string name="mobile_cast_quality_auto_1080">Auto (up to 1080p)</string>
     <string name="mobile_cast_quality_cap">Up to %1$sp</string>
@@ -302,7 +302,7 @@
     <string name="mobile_cast_subtitles_sent">Subtitle selection sent to the TV</string>
     <string name="mobile_cast_subtitles_failed">Couldn\'t change subtitles on this receiver</string>
     <string name="mobile_cast_switch_subtitles_title">Use the TV app for subtitles?</string>
-    <string name="mobile_cast_switch_subtitles_message">The TV app supports subtitles and controls quality with the TV remote. We try paired SmartTube first to keep playback ad-free. YouTube is the fallback and may show ads.</string>
+    <string name="mobile_cast_switch_subtitles_message">The TV app supports subtitles and controls quality with the TV remote. We try paired SmartTube first, then YouTube.</string>
     <string name="mobile_cast_switch_subtitles_positive">Switch</string>
     <string name="mobile_cast_tv_volume_label">TV volume</string>
 

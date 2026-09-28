@@ -47,7 +47,7 @@
             android:maxLines="2"
             android:textColor="@color/mobile_color_on_surface_secondary"
             android:textSize="13sp"
-            tools:text="No ads" />
+            tools:text="Quality controls on your phone" />
 
     </LinearLayout>
 
