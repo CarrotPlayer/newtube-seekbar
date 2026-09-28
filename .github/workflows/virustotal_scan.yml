@@ -23,6 +23,8 @@ concurrency:
 
 jobs:
   virustotal_scan:
+    # Pre-releases are skipped: the "latest" update feed holds no APKs.
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
     permissions:
       contents: write
     runs-on: ubuntu-latest

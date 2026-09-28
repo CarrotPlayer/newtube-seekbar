@@ -1,0 +1,68 @@
+# Keeps the in-app update check of NewTube 1.10.3 and older working.
+#
+# Those versions read releases/download/latest/newtube.json: a file on a release whose tag is
+# literally "latest" (the pre-release "In-app update feed"), not on the latest release. When a
+# release is published, this copies its newtube.json (written by release.yml) to that
+# pre-release. Newer versions read releases/latest/download/newtube.json first.
+name: Update feed
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Published release whose newtube.json the feed should serve'
+        required: true
+
+concurrency:
+  group: update-feed
+
+jobs:
+  copy:
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TAG_NAME: ${{ github.event.release.tag_name || inputs.release_tag }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Copy newtube.json to the feed
+        run: |
+          set -euo pipefail
+          case "$TAG_NAME" in
+            v*) ;;
+            *) echo "::error::$TAG_NAME is not a version tag."; exit 1 ;;
+          esac
+          if [ "$(gh release view "$TAG_NAME" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" != "false" ]; then
+            echo "::error::$TAG_NAME is a draft or a pre-release; the feed only serves published releases."
+            exit 1
+          fi
+          newest() { jq '[to_entries[] | select(.key != "package") | .value.versionCode] | max' "$1"; }
+          gh release download "$TAG_NAME" --pattern newtube.json --dir feed
+          jq -e --arg v "${TAG_NAME#v}" 'has($v) and (.package.downloadUrlList | length > 0)' feed/newtube.json
+          # Never move the feed back: an older release published (or dispatched) later would tell
+          # installs newer than it that they're up to date.
+          if gh release download latest --pattern newtube.json --dir current; then
+            if [ "$(newest feed/newtube.json)" -lt "$(newest current/newtube.json)" ]; then
+              echo "::error::$TAG_NAME is older than what the feed serves (versionCode $(newest current/newtube.json))."
+              exit 1
+            fi
+          fi
+          # --clobber deletes the old file before uploading, so a failed upload would leave old
+          # installs with no manifest: retry, then put the previous one back.
+          for attempt in 1 2 3; do
+            if gh release upload latest feed/newtube.json --clobber; then
+              echo "The feed now serves $TAG_NAME."
+              exit 0
+            fi
+            sleep 10
+          done
+          if [ -f current/newtube.json ]; then
+            gh release upload latest current/newtube.json --clobber || true
+          fi
+          echo "::error::Couldn't upload the feed for $TAG_NAME."
+          exit 1

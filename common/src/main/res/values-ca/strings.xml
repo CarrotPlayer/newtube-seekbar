@@ -326,6 +326,7 @@
   <string name="hide_shorts_from_home">	Amaga els pantalons curts de casa</string>
   <string name="finish_on_disconnect">Finalitzeu l\'aplicació després de desconnectar el telèfon/tauleta</string>
   <string name="update_error">	Error d\'actualització</string>
+  <string name="update_check_failed">No s\'han pogut cercar actualitzacions. Torna-ho a provar més tard.</string>
   <string name="hide_shorts_from_history">Amaga els curts de la història</string>
   <string name="disable_screensaver">Desactiva l\'estalvi de pantalla</string>
   <string name="description_not_found">No s\'ha trobat la descripció</string>

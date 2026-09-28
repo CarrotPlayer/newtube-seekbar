@@ -344,6 +344,7 @@
   <string name="hide_shorts_from_home">Ocultar Shorts de Inicio</string>
   <string name="finish_on_disconnect">Finalizar la aplicación después de desconectar el teléfono/tableta</string>
   <string name="update_error">Error de actualización</string>
+  <string name="update_check_failed">No se han podido buscar actualizaciones. Inténtalo más tarde.</string>
   <string name="hide_shorts_from_history">Ocultar Shorts de Historial</string>
   <string name="disable_screensaver">Desactivar salvapantallas</string>
   <string name="description_not_found">Descripción no encontrada</string>

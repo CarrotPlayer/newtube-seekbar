@@ -115,6 +115,15 @@ jobs:
           done
           (cd dist && sha256sum -- *.apk > SHA256SUMS && cat SHA256SUMS)
 
+      # The in-app updater's manifest, served from the release as
+      # releases/latest/download/newtube.json once it's published (update-feed.yml also copies
+      # it to the "latest" pre-release that 1.10.3 and older read).
+      - name: Write the update manifest
+        if: env.TAG != ''
+        run: |
+          python3 tools/update_manifest.py --tag "$TAG" --dist dist --out dist/newtube.json
+          cat dist/newtube.json
+
       - name: Attest the build
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:

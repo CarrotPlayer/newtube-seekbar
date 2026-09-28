@@ -5,6 +5,7 @@ import android.content.Context;
 import com.liskovsoft.appupdatechecker2.AppUpdateChecker;
 import com.liskovsoft.appupdatechecker2.AppUpdateCheckerListener;
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
+import com.liskovsoft.sharedutils.mylogger.Log;
 import com.liskovsoft.smartyoutubetv2.common.R;
 import com.liskovsoft.smartyoutubetv2.common.app.models.errors.ErrorFragmentData;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem;
@@ -21,6 +22,7 @@ import java.util.List;
 
 public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdateCheckerListener {
     @SuppressLint("StaticFieldLeak")
+    private static final String TAG = AppUpdatePresenter.class.getSimpleName();
     private static AppUpdatePresenter sInstance;
     private final AppUpdateChecker mUpdateChecker;
     private final AppDialogPresenter mSettingsPresenter;
@@ -79,8 +81,10 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
             if (AppUpdateCheckerListener.LATEST_VERSION.equals(error.getMessage())) {
                 MessageHelpers.showMessage(getContext(), R.string.update_not_found);
             } else {
-                MessageHelpers.showMessage(getContext(), String.format("%s: %s", getContext().getString(R.string.update_error),
-                        error.getCause() != null ? error.getCause().getMessage() : error.getMessage()));
+                // NEWTUBE(update-check): the cause is a network or parser exception (a missing manifest
+                // read as JSON showed "Value Not of type java.lang.String..."), so it goes to the log.
+                Log.e(TAG, "Update check failed: %s", error);
+                MessageHelpers.showMessage(getContext(), R.string.update_check_failed);
             }
         }
 
