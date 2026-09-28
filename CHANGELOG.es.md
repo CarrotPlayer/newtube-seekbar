@@ -3,7 +3,13 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
-## Sin publicar
+## 1.10.3 — 28-09-2026 — Edición Martes y Trece
+
+«¿Por dónde íbamos?…» Homenaje ficticio a Martes y Trece y al espíritu de sus
+llamadas a la radio, para una versión que va de no perder el sitio. Los ajustes
+recuerdan dónde estabas, la app deja de hablar de anuncios, el contador de «no
+me gusta» pasa a ser opcional y los APK ya se compilan en los servidores de
+GitHub.
 
 ### Cambios
 

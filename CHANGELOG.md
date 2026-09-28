@@ -2,7 +2,12 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
-## Unreleased
+## 1.10.3 — 2026-09-28 — Martes y Trece Edition
+
+"Where were we?…" A fictional homage to Martes y Trece and the spirit of their
+phone-in sketches, for a release about not losing your place. Settings remember
+where you were, the app stops talking about ads, dislike counts become opt-in,
+and the APKs are now built on GitHub's servers.
 
 ### Changed
 
