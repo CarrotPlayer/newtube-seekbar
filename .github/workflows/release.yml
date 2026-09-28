@@ -11,23 +11,21 @@ name: Build release
 # `v*` tags can use: RELEASE_KEYSTORE_BASE64 (the .jks file, base64), RELEASE_KEYSTORE_PASSWORD,
 # RELEASE_KEY_ALIAS and RELEASE_KEY_PASSWORD.
 #
-# Run it by hand with no tag to test a build of a branch: the APKs are attested and kept as a
-# workflow artifact, and no release is touched.
+# It always builds the ref the run itself is on, so the environment's ref rule, the checked-out
+# code and the attestation's commit are the same thing. To rebuild an existing tag by hand, run it
+# ON the tag: gh workflow run release.yml --ref v1.10.3. Run on main, it is a test build: the APKs
+# are attested and kept as a workflow artifact, and no release is touched.
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing tag to build and attach to a draft release (empty: just build the selected branch)"
-        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ inputs.tag || github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -40,7 +38,7 @@ jobs:
       id-token: write      # sign the attestations
       attestations: write
     env:
-      TAG: ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
+      TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
       # SHA-256 of the certificate every NewTube release has been signed with.
       EXPECTED_CERT: 2ef99d76edfad988ad17cdee8ba18c634e230fe1e3cb1fdc6cdb0249370a36c9
       NDK_VERSION: 21.0.6113669   # smarttubetv/build.gradle ndkVersion (strips the .so files)
@@ -48,7 +46,6 @@ jobs:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag || github.ref }}
           submodules: true
           persist-credentials: false
 
