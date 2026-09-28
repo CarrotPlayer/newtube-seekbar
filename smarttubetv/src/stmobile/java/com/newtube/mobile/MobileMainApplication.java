@@ -270,6 +270,14 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "anon-tizen after refusal enabled (debug)");
             }
 
+            // PLANNER SWITCH: "1" takes the /player order from PhoneSourcePlanner (netbench
+            // PLANNER.md) instead of upstream's ring and the phone gates, to measure it on the
+            // device before it becomes a default.
+            if ("1".equals(getDebugSystemProperty("debug.arc.planner"))) {
+                VideoInfoService.setPlannerEnabled(true);
+                android.util.Log.w("NetPath", "source planner enabled (debug)");
+            }
+
             // DELIVERY SWITCH: "1" plays a VOD answer whose adaptive formats are SABR-only over its
             // HLS manifest, from the sources measured to serve it (VodDelivery), to measure it on
             // the device before it becomes a default.
