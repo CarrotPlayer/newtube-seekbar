@@ -333,6 +333,10 @@ public class MobilePlaybackActivity extends MobileActivity
     private Media3PlayerInitializer mPlayerInitializer;
     private Media3PlayerController mExoPlayerController;
     private ExoPlayer mPlayer;
+    // NEWTUBE(bench): position/seek evidence for the in-app source benchmark; null unless
+    // debug.arc.bench=1 on a debug or benchmark build (see BenchTicker).
+    @Nullable
+    private com.newtube.mobile.player.BenchTicker mBenchTicker;
     private boolean mIsEngineBlocked;
 
     private boolean mControlsVisible;
@@ -1028,6 +1032,11 @@ public class MobilePlaybackActivity extends MobileActivity
             });
         }
         mPlayer.setPlayWhenReady(true);
+        mBenchTicker = com.newtube.mobile.player.BenchTicker.startIfEnabled(
+                BuildConfig.DEBUG || BuildConfig.BENCHMARK, mPlayer, () -> {
+                    Video video = getVideo();
+                    return video != null ? video.videoId : null;
+                });
 
         // Bounded-tolerance seeking as the player-wide default (scrub release, position restore -
         // every plain seekTo); see MOBILE_SEEK_PARAMETERS for the measurements behind it.
@@ -1149,6 +1158,10 @@ public class MobilePlaybackActivity extends MobileActivity
             mPresenter.onEngineReleased();
         }
 
+        if (mBenchTicker != null) {
+            mBenchTicker.stop();
+            mBenchTicker = null;
+        }
         mPlayerView.setPlayer(null);
         mExoPlayerController.release();
         mPlayer = null;

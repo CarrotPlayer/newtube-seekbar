@@ -247,16 +247,28 @@ public class MobileMainApplication extends MainApplication {
         // Web-minted token can never be appended to a non-Web client's media URLs.
         // Re-measure with: adb shell setprop debug.arc.player_pot 1 (then force-stop).
 
-        // 403 PLAYGROUND (debug builds only): force one /player client and disable the fallback
-        // ring so client/token behavior is independently measurable on the connected device.
-        // Re-read on process start; device-soak.sh sets the property then force-stops the app.
-        if (com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG) {
+        // 403 PLAYGROUND (debug and benchmark builds): force one /player client and disable the
+        // fallback ring so client/token behavior is independently measurable on the connected
+        // device. Benchmark builds too since the in-app source benchmark (netbench phase 1): only
+        // they time like a release. Re-read on process start; the scripts set the property, then
+        // force-stop the app. Nothing here is read unless its property is set.
+        if (com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG
+                || com.liskovsoft.smartyoutubetv2.tv.BuildConfig.BENCHMARK) {
             String forcedClient = getDebugSystemProperty("debug.arc.player_client");
             // Android's setprop cannot reliably clear a property with an empty value, so the
             // playground uses "none" as its explicit off sentinel.
             if (!forcedClient.isEmpty() && !"none".equalsIgnoreCase(forcedClient)
                     && !VideoInfoService.setDebugForcedClient(forcedClient)) {
                 android.util.Log.w("NetPath", "unknown debug.arc.player_client=" + forcedClient);
+            }
+
+            // SOURCE BENCHMARK: devicePlaybackCapabilities.supportXhr for every client -
+            // "true" / "false", or "absent" to omit the block (yt-dlp's shape). WEB_EMBED only
+            // gets URLs with it off; whether other clients do is what the benchmark measures.
+            String supportXhr = getDebugSystemProperty("debug.arc.support_xhr").toLowerCase(java.util.Locale.US);
+            if (supportXhr.equals("true") || supportXhr.equals("false") || supportXhr.equals("absent")) {
+                com.liskovsoft.youtubeapi.common.helpers.DebugRequestOverrides.setSupportXhr(supportXhr);
+                android.util.Log.w("NetPath", "bench supportXhr override=" + supportXhr);
             }
 
             // TTFF PLAYGROUND (debug builds only): "0" restores warming the media host only after
