@@ -13,7 +13,7 @@ import com.liskovsoft.youtubeapi.videoinfo.V2.VideoInfoService;
  * NEWTUBE(botwall): persists VideoInfoService's bot-wall book (the walled network attachments,
  * their probe backoff, and the account route's benches) across process restarts, within one boot.
  *
- * <p>Deliberately dumb, like AuthRouteQuarantineStore: one string, validated on the way back in by
+ * <p>Deliberately dumb: one string, validated on the way back in by
  * MediaServiceCore's {@code BotWallBook.restore} (another boot, a damaged or stale value restores
  * nothing). The preferences file is opened by {@link #load()}, which VideoInfoService calls once
  * on its own restore thread, so neither the main thread nor the first /player waits for the disk;

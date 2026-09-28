@@ -207,23 +207,26 @@ public class MobileMainApplication extends MainApplication {
         // pushed into the legacy engine here (ExoPlayerInitializer.set*Override) moved into the
         // media3 engine itself - see Media3PlayerInitializer (back 120s, start gate 1000/2500ms).
 
-        // GVS 403 HYBRID (mobile): use repaired ANDROID_VR as the ordinary anonymous VOD fast path.
-        // Pixel 9 isolation on shared Wi-Fi proved
-        // the failures were not CGNAT, HTTP Range syntax, Cronet/QUIC reuse, or an appended Web PO
-        // token: replaying the exact app-minted URL on the host still returned 403, while yt-dlp's
-        // same-client URL returned 206. The Android VR root cause was request identity: NewTube
-        // reused visitorData extracted from /tv under a Fire TV user agent. Reusing the fresh Web
-        // visitor in both /player JSON and X-Goog-Visitor-Id made the same forced VR deep ranges
-        // survive and was ~0.98s faster to first frame at the median. Web-family clients immediately
-        // follow VR for restricted content and error recovery; platform-token-dependent iOS stays
-        // late in the ring.
+        // PLAYER SOURCES (mobile-only): the phone's /player walk, signed in and signed out, asks
+        // the sources in the order PhoneSourcePlanner writes down (netbench LANES.md, measured on
+        // the Pixel over LTE and Wi-Fi and, signed in, on the owner's account):
+        //   VISIONOS -> TV_TIZEN -> WEB_EMBED -> ANDROID_VR -> an unproven tail.
+        // Signed in, TV_TIZEN carries the account and is always second: the one account shape that
+        // serves (ordinary, both kinds of 18+ and made for kids, 4 of 4, 2026-09-29), where the old
+        // heads TV_DOWNGRADED / TV answered with media that 403s or SABR only on every video.
+        // Signed out, TV_TIZEN is asked without the account only after a content refusal
+        // (made-for-kids videos, issue #5: 11 of 11 on LTE at the second request). An age gate
+        // WEB_EMBED cannot serve either is settled there instead of walking eight clients. It
+        // replaces upstream's ring bent by a stack of phone gates. TV never calls this.
         VideoInfoService.setPreferNoPotClient(true);
 
-        // WEB-FAMILY RECOVERY (mobile-only): the normal route is VR -> Web family -> other platform
-        // clients. On an error-driven reload, start directly at the Web partition and defer the
-        // failed winner, preventing a deterministic GVS rejection from selecting VR again. The
-        // recovery cursor is one-shot; TV boxes keep their historical ordering.
-        VideoInfoService.setPreferAttestedWebFallback(true);
+        // HLS FOR VOD (mobile-only): an answer whose adaptive formats carry no URL (SABR-only) but
+        // that carries an HLS manifest plays over the manifest, from the sources measured to serve
+        // it (VodDelivery: WEB_EMBED, about one answer in three), with the manifest's throttling
+        // challenge solved and behind the pre-roll readiness gate. Until now such an answer was
+        // unplayable. Pixel LTE 2026-09-29: dQw4w9WgXcQ and wGltuo1B1sM played over HLS at the
+        // pre-roll time. Rollback in debug and benchmark builds: setprop debug.arc.hls_vod 0.
+        com.liskovsoft.youtubeapi.videoinfo.models.VodDelivery.setHlsEnabled(true);
 
         // SIGNATURE-SOLVER RUNTIME (mobile-only): the solver disposed its V8 runtime after EVERY
         // solve, so each open rebuilt the heap and re-evaluated the solver lib on the critical path
@@ -270,28 +273,11 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "unknown debug.arc.player_client=" + forcedClient);
             }
 
-            // PLANNER SWITCH: "1" asks TV_TIZEN without the account right after a client refuses
-            // the video (VideoInfoService.setAnonTizenAfterRefusal), to measure it on the device
-            // before it becomes a default.
-            if ("1".equals(getDebugSystemProperty("debug.arc.anon_tizen"))) {
-                VideoInfoService.setAnonTizenAfterRefusal(true);
-                android.util.Log.w("NetPath", "anon-tizen after refusal enabled (debug)");
-            }
-
-            // PLANNER SWITCH: "1" takes a signed-out walk's /player order from PhoneSourcePlanner
-            // (docs/player-sources/PLANNER.md) instead of upstream's ring and the phone gates, with
-            // TV_TIZEN asked after a refusal, to measure it on the device before it becomes a default.
-            if ("1".equals(getDebugSystemProperty("debug.arc.planner"))) {
-                VideoInfoService.setPlannerEnabled(true);
-                android.util.Log.w("NetPath", "source planner enabled (debug)");
-            }
-
-            // DELIVERY SWITCH: "1" plays a VOD answer whose adaptive formats are SABR-only over its
-            // HLS manifest, from the sources measured to serve it (VodDelivery), to measure it on
-            // the device before it becomes a default.
-            if ("1".equals(getDebugSystemProperty("debug.arc.hls_vod"))) {
-                com.liskovsoft.youtubeapi.videoinfo.models.VodDelivery.setHlsEnabled(true);
-                android.util.Log.w("NetPath", "hls for vod enabled (debug)");
+            // DELIVERY ROLLBACK: "0" stops playing SABR-only VOD answers over their HLS manifest
+            // (see HLS FOR VOD above), to compare against the old behaviour.
+            if ("0".equals(getDebugSystemProperty("debug.arc.hls_vod"))) {
+                com.liskovsoft.youtubeapi.videoinfo.models.VodDelivery.setHlsEnabled(false);
+                android.util.Log.w("NetPath", "hls for vod disabled (debug)");
             }
 
             // READINESS ROLLBACK: "0" stops holding back the media of answers with pre-roll ads
@@ -384,11 +370,12 @@ public class MobileMainApplication extends MainApplication {
             com.newtube.mobile.player.DebugBotWall.install();
         }
 
-        // LIVE ROUTING (mobile-only): WEB_EMBED answers live videos HLS-only (no dashManifestUrl
-        // -> no LiveDashManifestParser DVR), and on pot-enforcing networks its HLS segments 403
-        // instantly regardless of client-side pot placement (manifest /pot/ path param AND
-        // per-URL pot= both verified dead on-device). Walk on to a dash-manifest client
-        // (ANDROID_VR/TV) for live; VOD keeps the WEB_EMBED-first order above.
+        // LIVE ROUTING (mobile-only): VISIONOS and WEB_EMBED answer live videos HLS-only (no
+        // dashManifestUrl -> no LiveDashManifestParser DVR), and on pot-enforcing networks WEB_EMBED's
+        // HLS segments 403 instantly regardless of client-side pot placement (manifest /pot/ path
+        // param AND per-URL pot= both verified dead on-device). Hold the HLS answer and walk on to
+        // the dash-manifest client (ANDROID_VR) for live. TV_TIZEN's live answer (formats only, no
+        // manifest) does not play in this app (signed in, 2026-09-29), so it is never a live route.
         VideoInfoService.setPreferDashManifestForLive(true);
 
         // LIVE DASH-INFO PROBE (mobile-only): every live open used to fire up to six serial
@@ -400,32 +387,10 @@ public class MobileMainApplication extends MainApplication {
         // live keeps the synchronous probe. TV never calls this.
         VideoInfoService.setSkipLiveDashInfoWithManifest(true);
 
-        // /player FAN-OUT TRIM (mobile-only): skip the four TV-app fallback clients (TV_LEGACY,
-        // TV_DOWNGRADED, TV_EMBED, TV_SIMPLY) on the getVideoInfo failover ring. They only earn
-        // their keep on TV boxes; on a phone they just add up to 4 extra /player round-trips when
-        // a hard video walks the ring (AppClient.TV itself stays - it's the auth-capable client).
+        // /player FAN-OUT TRIM (mobile-only): the TV-app fallback clients (TV_LEGACY,
+        // TV_DOWNGRADED, TV_EMBED, TV_SIMPLY) are never asked, even by a stale recovery cursor.
         // TV never calls this -> TV keeps the full 13-client ring unchanged.
         VideoInfoService.setSkipTvFallbackClients(true);
-
-        // WEB_EMBED LAST (mobile-only): the last resort of every walk. It was skipped from
-        // 2026-09-26 because every answer was "Error code: 152 - 18"; that was the app pairing the
-        // embed page's encryptedHostFlags with the wrong visitor (fixed in YtCfgService.EmbedIdentity),
-        // and with the right pair it serves made-for-kids videos no other client does (issue #5).
-        // Its media is held back for the answer's pre-roll wait, which the player now honours
-        // (ReadinessGate): on a Pixel 9 over LTE (2026-09-28) it played _WB5hh7WOb4 in full, first
-        // frame 6.3 s after its /player. Last, so a video anything else serves never reaches it.
-        // TV never calls this.
-        VideoInfoService.setWebEmbedLast(true);
-
-        // DEAD-ROUTE MEMORY (mobile-only): the 403 quarantine that demotes an account-bearing
-        // client after its media URLs are refused was process-local, so every cold start paid the
-        // same proven-dead probe again -- 5.48s to first frame against 2.80s when the working
-        // client leads (Pixel 9, LTE, 2026-09-07, Fo89b8zAIE4). Persisting it keeps the cooldown,
-        // its per-transport keying and its strike count (the cooldown escalates 10 min x 4^n up to
-        // 24 h on each re-quarantine - see AuthRouteQuarantineBook), so the route is still
-        // re-probed when it expires; it just is not re-probed once per process launch, per
-        // reconnect, or every ten minutes. TV never calls this.
-        VideoInfoService.setAuthRouteQuarantineStore(new AuthRouteQuarantineStore(this));
 
         // BOT-WALL MEMORY (mobile-only): the walled network attachments, their probe backoff and
         // the account route's benches survive a restart within the boot, so a cold open under a
