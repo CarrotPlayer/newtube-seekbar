@@ -12,7 +12,6 @@ Sign in with a code, keep it playing in the background, save videos for offline,
 and cast to SmartTube on your TV.
 
 [![Latest release](https://img.shields.io/github/v/release/aleixrodriala/newtube?style=flat-square&label=release&color=1E2A78)](https://github.com/aleixrodriala/newtube/releases/latest)
-[![GitHub stars](https://img.shields.io/github/stars/aleixrodriala/newtube?style=flat-square&label=stars&color=1E2A78)](https://github.com/aleixrodriala/newtube/stargazers)
 [![Android 7.0+](https://img.shields.io/badge/Android-7.0%2B-1E2A78?style=flat-square)](#download)
 [![License: MIT](https://img.shields.io/badge/license-MIT-1E2A78?style=flat-square)](LICENSE)
 [![Built on SmartTube](https://img.shields.io/badge/built_on-SmartTube-1E2A78?style=flat-square)](https://github.com/yuliskov/SmartTube)
@@ -267,6 +266,16 @@ The [changelog](CHANGELOG.md) covers every release, with a
 ## License
 
 [MIT](LICENSE), the same as SmartTube. © yuliskov (SmartTube) and NewTube contributors.
+
+## Star history
+
+<a href="https://www.star-history.com/#aleixrodriala/newtube&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=aleixrodriala/newtube&type=Date&theme=dark">
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=aleixrodriala/newtube&type=Date">
+    <img alt="NewTube's GitHub stars over time" src="https://api.star-history.com/svg?repos=aleixrodriala/newtube&type=Date" width="600">
+  </picture>
+</a>
 
 ---
 
