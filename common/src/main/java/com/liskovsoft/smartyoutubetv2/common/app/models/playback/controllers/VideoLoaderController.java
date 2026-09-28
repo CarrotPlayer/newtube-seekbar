@@ -46,11 +46,8 @@ public class VideoLoaderController extends BasePlayerController {
     private Disposable mFormatInfoAction;
     private long mPlaybackGeneration;
     private final PreMediaRetryGate mPreMediaRetry = new PreMediaRetryGate();
-    // NEWTUBE(autoplay-budget): see UnplayableAutoplayBudget. mAdvancingPastUnplayable is true
-    // only while mLoadNextPastUnplayable opens the next video, so onNewVideo can tell that skip
-    // from a video the user opened.
+    // NEWTUBE(autoplay-budget): see UnplayableAutoplayBudget.
     private final UnplayableAutoplayBudget mUnplayableBudget = new UnplayableAutoplayBudget();
-    private boolean mAdvancingPastUnplayable;
     /**
      * NEWTUBE(upcoming-poll): a scheduled live stream / premiere is re-opened until /player answers
      * with media. That used to happen every 30 s regardless of the schedule, visibility or how long
@@ -83,12 +80,10 @@ public class VideoLoaderController extends BasePlayerController {
     };
     private final Runnable mLoadNext = this::loadNext;
     private final Runnable mLoadNextPastUnplayable = () -> {
-        mAdvancingPastUnplayable = true;
-        try {
-            loadNext();
-        } finally {
-            mAdvancingPastUnplayable = false;
-        }
+        // Before loadNext: the open it leads to may land later (suggestions still loading, or a
+        // playlist item resolved first).
+        mUnplayableBudget.onAdvance(SystemClock.elapsedRealtime());
+        loadNext();
     };
     private final Runnable mMetadataSync = () -> {
         if (getPlayer() != null) {
@@ -132,9 +127,7 @@ public class VideoLoaderController extends BasePlayerController {
     @Override
     public void onNewVideo(Video item) {
         mPreMediaRetry.clear();
-        if (!mAdvancingPastUnplayable) {
-            mUnplayableBudget.onUserOpen();
-        }
+        mUnplayableBudget.onOpen(mReloadDispatching, SystemClock.elapsedRealtime());
         if (!mReloadDispatching) {
             mUpcomingVideoId = null; // NEWTUBE(upcoming-poll): a user open starts a fresh streak
         }
@@ -251,6 +244,7 @@ public class VideoLoaderController extends BasePlayerController {
     }
 
     public void loadPrevious() {
+        mUnplayableBudget.onUserPick();
         if (getPlayer() == null) {
             return;
         }
@@ -299,6 +293,7 @@ public class VideoLoaderController extends BasePlayerController {
 
     @Override
     public void onSuggestionItemClicked(Video item) {
+        mUnplayableBudget.onUserPick();
         openVideoInt(item);
 
         if (getPlayer() != null)
