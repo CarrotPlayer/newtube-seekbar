@@ -19,6 +19,10 @@ versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 ### Arreglado
 
+- **Los ajustes no pierden el sitio.** Marcar una casilla o elegir una opción a
+  media página ya no te devuelve arriba del todo, y al volver de una subpágina
+  regresas a donde estabas
+  ([#2](https://github.com/aleixrodriala/newtube/issues/2)).
 - **Android antiguos.** En móviles con una versión anterior a Android 10, una
   clase que solo existe desde Android 10 podía impedir que NewTube obtuviera el
   token que pide YouTube, y entonces todos los vídeos fallaban con «Can't get

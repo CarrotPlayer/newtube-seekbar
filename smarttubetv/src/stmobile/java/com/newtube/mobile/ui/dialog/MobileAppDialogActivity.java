@@ -4,6 +4,7 @@ import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Parcelable;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.View;
@@ -20,6 +21,7 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionCategory;
@@ -106,6 +108,8 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
     private static final class DialogLevel {
         final List<OptionCategory> categories;
         final CharSequence title;
+        /** NEWTUBE(settings-scroll): where this level's list was when a level was opened over it. */
+        Parcelable listState;
 
         DialogLevel(List<OptionCategory> categories, CharSequence title) {
             this.categories = categories;
@@ -154,7 +158,7 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
             // Mirrors AppPreferenceManager.initSingleSelectListPreference(): only the newly picked
             // item gets onSelect(true); siblings are intentionally left untouched.
             item.onSelect(true);
-            renderTopLevel();
+            renderTopLevel(SCROLL_KEEP);
         }
 
         @Override
@@ -184,7 +188,7 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
             }
 
             item.onSelect(newSelected);
-            renderTopLevel();
+            renderTopLevel(SCROLL_KEEP);
         }
 
         @Override
@@ -338,7 +342,17 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         mRecyclerView.setAdapter(mAdapter);
     }
 
-    private void renderTopLevel() {
+    /**
+     * NEWTUBE(settings-scroll): every render used to jump the list to the top, so ticking a box or
+     * picking an option halfway down a long settings page threw the person back to its first row
+     * (issue #2). Only a newly opened level starts at the top; a re-render keeps its place, and
+     * going back returns to where that level was left.
+     */
+    private static final int SCROLL_TOP = 0;
+    private static final int SCROLL_KEEP = 1;
+    private static final int SCROLL_RESTORE = 2;
+
+    private void renderTopLevel(int scroll) {
         if (mLevels.isEmpty()) {
             return;
         }
@@ -357,7 +371,12 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
                         ? R.dimen.mobile_dialog_title_inset_with_back : R.dimen.mobile_dialog_title_inset),
                 mTitleView.getPaddingTop(), mTitleView.getPaddingEnd(), mTitleView.getPaddingBottom());
         mAdapter.submit(level.categories, mRadioOverrides);
-        mRecyclerView.scrollToPosition(0);
+        RecyclerView.LayoutManager layoutManager = mRecyclerView.getLayoutManager();
+        if (scroll == SCROLL_RESTORE && level.listState != null && layoutManager != null) {
+            layoutManager.onRestoreInstanceState(level.listState);
+        } else if (scroll != SCROLL_KEEP) {
+            mRecyclerView.scrollToPosition(0);
+        }
     }
 
     /**
@@ -519,12 +538,15 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
             // A recreated instance already holds its stack (onCreate); the presenter's re-show of
             // the top level after recreation is that same level, not a new one.
             if (!stackWasEmpty && mLevels.get(mLevels.size() - 1).categories == categories) {
-                renderTopLevel();
+                renderTopLevel(SCROLL_KEEP);
                 return;
             }
 
+            if (!stackWasEmpty && mRecyclerView.getLayoutManager() != null) {
+                mLevels.get(mLevels.size() - 1).listState = mRecyclerView.getLayoutManager().onSaveInstanceState();
+            }
             mLevels.add(new DialogLevel(categories, title));
-            renderTopLevel();
+            renderTopLevel(SCROLL_TOP);
         });
     }
 
@@ -547,7 +569,7 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         runOnUiThread(() -> {
             if (canGoBack()) {
                 mLevels.remove(mLevels.size() - 1);
-                renderTopLevel();
+                renderTopLevel(SCROLL_RESTORE);
             } else {
                 finish();
             }

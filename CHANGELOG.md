@@ -16,6 +16,10 @@ All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
 ### Fixed
 
+- **Settings keep their place.** Ticking a box or picking an option halfway down
+  a long settings page no longer throws you back to its top, and going back from
+  a sub-page returns you to where you were
+  ([#2](https://github.com/aleixrodriala/newtube/issues/2)).
 - **Older Android versions.** On phones older than Android 10, a class that only
   exists from Android 10 on could stop NewTube from getting the token YouTube
   asks for, and then every video failed with "Can't get video info" (seen by
