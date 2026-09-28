@@ -16,11 +16,11 @@ SponsorBlock skips sponsor segments, DeArrow swaps clickbait titles and thumbnai
 Pair with SmartTube on the TV using its Remote control code, play straight to a Chromecast from the phone (no live streams or subtitles in that mode), or use the TV's own YouTube app.
 
 <b>Also</b>
-• Up to 4K and HDR where the video and the phone allow (1080p by default)
+• Up to 4K where the video and the phone allow (1080p by default)
 • Subtitles, including auto-translated tracks
 • Playback speed from 0.25x to 2x
 • Playlists, queue, several accounts
-• Comments, live chat, chapters and dubbed audio tracks
+• Read comments and live chat; chapters and dubbed audio tracks
 • Picture-in-picture on Android 8 and later
 • No analytics, no crash reporting, no ad SDKs. MIT licensed.
 

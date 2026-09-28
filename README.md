@@ -91,13 +91,13 @@ YouTube app.
 <details>
 <summary><b>Everything else</b></summary>
 
-- Up to 4K and HDR where the video and the phone allow (1080p by default), with codec choice
+- Up to 4K where the video and the phone allow (1080p by default), with codec choice
 - Subtitles, including auto-translated tracks, and caption style and size
 - Playback speed from 0.25x to 2x, plus finer steps
 - Playlists: Play all, Shuffle, Save to playlist, New playlist, a queue with "Playing from…"
 - Several accounts, with a switcher, or none at all
 - Picture-in-picture on Android 8 and later
-- Comments, live chat, chapters and dubbed audio tracks
+- Read comments and live chat; chapters and dubbed audio tracks
 - Playback that waits out tunnels and dead zones and resumes where it stopped
 - English and Spanish
 
@@ -140,7 +140,7 @@ YouTube app.
 3. Come back. Sign-in finishes by itself.
 
 Your password is only ever typed into Google's page, never into NewTube. The login token is
-stored only on your phone. You can revoke it at any time at
+stored on your phone and never sent to the developer. You can revoke it at any time at
 [myaccount.google.com/security](https://myaccount.google.com/security), under
 *Your connections to third-party apps & services*.
 

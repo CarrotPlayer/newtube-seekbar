@@ -27,9 +27,10 @@ any information about you or your usage.
   sign in, NewTube uses Google's official OAuth 2.0 **device-code flow** — you
   authorize the app on Google's own page; your password is never seen by, or
   shared with, the developer.
-- **Tokens stay on your device.** Authentication tokens are stored only in the
+- **Tokens stay on your device.** Authentication tokens are stored in the
   app's local storage on your device. They are never transmitted to, or stored
-  by, the developer.
+  by, the developer. Android's own device backup, if you have it on, and the
+  app's optional Backup & restore can copy them to your backup location.
 - **Direct connection.** Video streams, search, and account data are fetched
   directly from YouTube/Google servers to your device. Your use of YouTube's
   services through NewTube is also subject to Google's and YouTube's own terms
