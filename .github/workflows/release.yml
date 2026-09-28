@@ -1,0 +1,145 @@
+name: Build release
+
+# Builds the signed release APKs on GitHub's servers from a version tag, publishes a build
+# attestation for every file, and attaches them to a DRAFT GitHub Release. Publishing the
+# draft stays a manual step, and publishing is what starts the VirusTotal scan.
+#
+# The attestation lets anyone check that an APK was built here, from the tagged source:
+#   gh attestation verify NewTube_<version>_arm64-v8a.apk -R aleixrodriala/newtube
+#
+# The signing key only exists in the `release` environment's secrets, which only `main` and
+# `v*` tags can use: RELEASE_KEYSTORE_BASE64 (the .jks file, base64), RELEASE_KEYSTORE_PASSWORD,
+# RELEASE_KEY_ALIAS and RELEASE_KEY_PASSWORD.
+#
+# Run it by hand with no tag to test a build of a branch: the APKs are attested and kept as a
+# workflow artifact, and no release is touched.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and attach to a draft release (empty: just build the selected branch)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: write      # create the draft release
+      id-token: write      # sign the attestations
+      attestations: write
+    env:
+      TAG: ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
+      # SHA-256 of the certificate every NewTube release has been signed with.
+      EXPECTED_CERT: 2ef99d76edfad988ad17cdee8ba18c634e230fe1e3cb1fdc6cdb0249370a36c9
+      NDK_VERSION: 21.0.6113669   # smarttubetv/build.gradle ndkVersion (strips the .so files)
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          submodules: true
+          persist-credentials: false
+
+      # No Gradle cache on purpose: a release build starts from nothing another run could have left.
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install the NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" > /dev/null
+
+      - name: Configure signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::The release environment has no RELEASE_KEYSTORE_BASE64 secret."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > keystore.properties
+
+      - name: Build the release APKs
+        run: ./gradlew --no-daemon --stacktrace :smarttubetv:assembleStmobileRelease
+
+      - name: Remove the signing key
+        if: always()
+        run: rm -f keystore.properties "$RUNNER_TEMP/release.jks"
+
+      - name: Check names, version and signature
+        run: |
+          set -euo pipefail
+          mkdir dist
+          cp smarttubetv/build/outputs/renamed_apks/stmobileRelease/NewTube_*.apk dist/
+          ls -l dist
+          if [ -n "$TAG" ]; then
+            version="${TAG#v}"
+            for apk in dist/*.apk; do
+              case "$(basename "$apk")" in
+                "NewTube_${version}_"*) ;;
+                *) echo "::error::$(basename "$apk") doesn't match tag $TAG. Bump versionName first."; exit 1 ;;
+              esac
+            done
+          fi
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          for apk in dist/*.apk; do
+            cert="$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+            if [ "$cert" != "$EXPECTED_CERT" ]; then
+              echo "::error::$(basename "$apk") is signed with $cert, not NewTube's certificate."
+              exit 1
+            fi
+          done
+          (cd dist && sha256sum -- *.apk > SHA256SUMS && cat SHA256SUMS)
+
+      - name: Attest the build
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+
+      - name: Keep the APKs as a workflow artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: NewTube-${{ env.TAG || github.sha }}
+          path: dist/
+          retention-days: 14
+
+      - name: Attach to a draft release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --json isDraft --jq .isDraft > draft.txt 2>/dev/null; then
+            if [ "$(cat draft.txt)" != "true" ]; then
+              echo "::error::Release $TAG is already published; not replacing its files."
+              exit 1
+            fi
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --draft --verify-tag --title "NewTube ${TAG#v}" \
+              --notes "Built by GitHub Actions run ${{ github.run_id }} from $TAG. Write the notes, then publish."
+          fi
