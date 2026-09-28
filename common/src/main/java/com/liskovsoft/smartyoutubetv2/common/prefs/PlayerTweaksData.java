@@ -93,6 +93,9 @@ public class PlayerTweaksData implements ProfileChangeListener {
     private int mScreenOffDimmingPercents;
     private boolean mIsUIAnimationsEnabled;
     private boolean mIsLikesCounterEnabled;
+    // NEWTUBE(ryd-opt-in): Return YouTube Dislike is a third-party host that learns every video
+    // you open, so asking it is opt-in (off by default); the likes counter above stays on.
+    private boolean mIsReturnYouTubeDislikeEnabled;
     private boolean mIsChapterNotificationEnabled;
     private boolean mIsPlayerUiOnNextEnabled;
     private boolean mIsPlayerAutoVolumeEnabled;
@@ -523,6 +526,15 @@ public class PlayerTweaksData implements ProfileChangeListener {
         persistData();
     }
 
+    public boolean isReturnYouTubeDislikeEnabled() {
+        return mIsReturnYouTubeDislikeEnabled;
+    }
+
+    public void setReturnYouTubeDislikeEnabled(boolean enable) {
+        mIsReturnYouTubeDislikeEnabled = enable;
+        persistData();
+    }
+
     public boolean isChapterNotificationEnabled() {
         return mIsChapterNotificationEnabled;
     }
@@ -762,6 +774,7 @@ public class PlayerTweaksData implements ProfileChangeListener {
         mIsQuickSkipVideosAltEnabled = Helpers.parseBoolean(split, 58, false);
         mIsAudioTimeStretchingEnabled = Helpers.parseBoolean(split, 59, true);
         mIsQueueRespectsPlaybackMode = Helpers.parseBoolean(split, 60, false);
+        mIsReturnYouTubeDislikeEnabled = Helpers.parseBoolean(split, 61, false);
 
         updateDefaultValues();
     }
@@ -789,7 +802,8 @@ public class PlayerTweaksData implements ProfileChangeListener {
                 mIsUnsafeAudioFormatsEnabled, null, mIsLoopShortsEnabled, mIsQuickSkipShortsEnabled, mIsRememberPositionOfLiveVideosEnabled,
                 mIsOculusQuestFixEnabled, null, mIsExtraLongSpeedListEnabled, mIsQuickSkipVideosEnabled, mIsNetworkErrorFixingDisabled, mIsCommentsPlacedLeft,
                 null, mIsAudioFocusEnabled, mIsDontResizeVideoToFitDialogEnabled, mIsSuggestionsHorizontallyScrolled,
-                mIsQuickSkipShortsAltEnabled, mIsQuickSkipVideosAltEnabled, mIsAudioTimeStretchingEnabled, mIsQueueRespectsPlaybackMode
+                mIsQuickSkipShortsAltEnabled, mIsQuickSkipVideosAltEnabled, mIsAudioTimeStretchingEnabled, mIsQueueRespectsPlaybackMode,
+                mIsReturnYouTubeDislikeEnabled
                 ));
     }
 

@@ -1399,6 +1399,15 @@ public class SuggestionsController extends BasePlayerController {
             return;
         }
 
+        // NEWTUBE(ryd-opt-in): without Return YouTube Dislike there is no real dislike count, only
+        // /next's estimate (likes x 3.2%). Show YouTube's like count and no dislike number rather
+        // than a made-up one.
+        if (!getPlayerTweaksData().isReturnYouTubeDislikeEnabled()) {
+            video.dislikeCount = null;
+            getPlayer().setVideo(video);
+            return;
+        }
+
         // NEWTUBE(ryd-cache): at most MAX_DISLIKE_FETCHES_PER_VIDEO asks per video.
         String videoId = video.videoId;
         if (!mDislikeCache.tryBeginFetch(videoId)) {
@@ -1428,7 +1437,8 @@ public class SuggestionsController extends BasePlayerController {
      * @return true if the counts came from the cache (nothing to fetch)
      */
     private boolean applyCachedDislikes(Video video) {
-        if (video == null || !getPlayerTweaksData().isLikesCounterEnabled()) {
+        if (video == null || !getPlayerTweaksData().isLikesCounterEnabled()
+                || !getPlayerTweaksData().isReturnYouTubeDislikeEnabled()) {
             return false;
         }
 

@@ -116,6 +116,7 @@ import com.newtube.mobile.player.Media3SubtitleManager;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerTweaksData;
 import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
 import com.liskovsoft.smartyoutubetv2.common.utils.ClickbaitRemover;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
@@ -5132,7 +5133,8 @@ public class MobilePlaybackActivity extends MobileActivity
         mWatchSubs.setVisibility(View.INVISIBLE);
         mWatchAvatar.setImageResource(R.drawable.ic_watch_channel_placeholder);
         mWatchLikeCount.setVisibility(View.VISIBLE);
-        mWatchDislikeCount.setVisibility(View.VISIBLE);
+        // NEWTUBE(ryd-opt-in): no Return YouTube Dislike, no dislike number - just the thumb, as on YouTube.
+        mWatchDislikeCount.setVisibility(showsDislikeCount() ? View.VISIBLE : View.GONE);
 
         // New video: clear comments/chat availability and any buffered chat until metadata returns.
         mCommentsKey = null;
@@ -5243,7 +5245,9 @@ public class MobilePlaybackActivity extends MobileActivity
             if (isCountUnset(mWatchLikeCount) && !TextUtils.isEmpty(metadata.getLikeCount())) {
                 mWatchLikeCount.setText(metadata.getLikeCount());
             }
-            if (isCountUnset(mWatchDislikeCount) && !TextUtils.isEmpty(metadata.getDislikeCount())) {
+            // NEWTUBE(ryd-opt-in): metadata's dislike count is only an estimate from the likes.
+            if (showsDislikeCount() && isCountUnset(mWatchDislikeCount)
+                    && !TextUtils.isEmpty(metadata.getDislikeCount())) {
                 mWatchDislikeCount.setText(metadata.getDislikeCount());
             }
 
@@ -5265,6 +5269,10 @@ public class MobilePlaybackActivity extends MobileActivity
                 mWatchChatEntry.setVisibility(View.VISIBLE);
             }
         }
+    }
+
+    private boolean showsDislikeCount() {
+        return PlayerTweaksData.instance(this).isReturnYouTubeDislikeEnabled();
     }
 
     private boolean isCountUnset(TextView view) {

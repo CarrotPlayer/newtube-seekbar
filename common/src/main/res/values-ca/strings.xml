@@ -506,6 +506,7 @@
   <string name="disable_history">Desactiva l\'historial</string>
   <string name="enable_history">Activeu l\'historial</string>
   <string name="diagnostic_log_send">Envia el registre de diagnòstic</string>
+  <string name="player_return_youtube_dislike">Comptador de no m\'agrada (Return YouTube Dislike)</string>
   <string name="diagnostic_log_send_desc">Per informar d\'errors. Inclou els vídeos i canals que has obert; se\'n treuen les contrasenyes i les dades d\'inici de sessió</string>
   <string name="diagnostic_log_subject">Registre de diagnòstic de %1$s %2$s</string>
   <string name="diagnostic_log_failed">No s\'ha pogut crear el registre de diagnòstic</string>

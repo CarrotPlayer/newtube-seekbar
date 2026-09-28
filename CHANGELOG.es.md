@@ -3,6 +3,20 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
+## Sin publicar
+
+### Cambios
+
+- **El contador de «no me gusta» ahora es opcional.** Return YouTube Dislike es
+  un servicio comunitario que sabe qué vídeos abres, así que NewTube ya no le
+  pregunta salvo que actives Ajustes → Configuración del reproductor → Contador
+  de no me gusta. Sin él, la página del vídeo muestra los «me gusta» de YouTube
+  y un botón de «no me gusta» sin número, en vez de una estimación sacada de los
+  «me gusta».
+- **Las pantallas de enviar a la TV describen cada opción por lo que hace**
+  (dónde se controlan la calidad y los subtítulos, qué app de la TV lo
+  reproduce) y no por los anuncios.
+
 ## 1.10.2 — 28-09-2026 — Edición Tip y Coll
 
 «Se coge el móvil. Se va a Ajustes…» Homenaje ficticio a Tip y Coll y sus

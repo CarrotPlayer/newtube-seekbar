@@ -47,7 +47,7 @@ or other personal identifiers:
 - **DeArrow** (`sponsor.ajay.app`, `dearrow-thumb.ajay.app`) — de-clickbait
   titles and thumbnails.
 - **Return YouTube Dislike** (`returnyoutubedislikeapi.com`) — estimated dislike
-  counts.
+  counts. Off by default from version 1.10.3 (Settings → Player → Dislike counts).
 
 Each of these can be turned off in Settings. They are operated by their
 respective projects under their own privacy policies, not by NewTube.

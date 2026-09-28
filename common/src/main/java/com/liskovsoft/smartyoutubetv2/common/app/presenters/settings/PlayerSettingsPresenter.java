@@ -481,6 +481,11 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
                 option -> mPlayerTweaksData.setLikesCounterEnabled(option.isSelected()),
                 mPlayerTweaksData.isLikesCounterEnabled()));
 
+        // NEWTUBE(ryd-opt-in): dislike counts from the third-party Return YouTube Dislike host.
+        options.add(UiOptionItem.from(getContext().getString(R.string.player_return_youtube_dislike),
+                option -> mPlayerTweaksData.setReturnYouTubeDislikeEnabled(option.isSelected()),
+                mPlayerTweaksData.isReturnYouTubeDislikeEnabled()));
+
         options.add(UiOptionItem.from(getContext().getString(R.string.player_show_tooltips),
                 option -> mPlayerData.setTooltipsEnabled(option.isSelected()),
                 mPlayerData.isTooltipsEnabled()));

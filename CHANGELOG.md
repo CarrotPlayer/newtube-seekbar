@@ -2,6 +2,18 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## Unreleased
+
+### Changed
+
+- **Dislike counts are now opt-in.** Return YouTube Dislike is a community
+  service that learns which videos you open, so NewTube no longer asks it
+  unless you turn on Settings → Player → Dislike counts. Without it the watch
+  page shows YouTube's like count and a plain dislike button, instead of an
+  estimate made up from the likes.
+- **The cast screens describe each option by what it does** (where quality and
+  subtitles are controlled, which TV app plays) instead of by ads.
+
 ## 1.10.2 — 2026-09-28 — Tip y Coll Edition
 
 "First you pick up the phone. Then you go to Settings…" A fictional homage to
