@@ -227,6 +227,10 @@ android {
             signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
             if (!keystorePropertiesFile.exists()) {
                 applicationIdSuffix ".debug"
+            } else if (project.hasProperty('sideBySide')) {
+                // Device checks on the owner's phone (-PsideBySide): its own app id, data and (no)
+                // account next to the daily driver, so a test never plays on his account.
+                applicationIdSuffix ".check"
             }
         }
     }

@@ -356,9 +356,14 @@ public class MobileMainApplication extends MainApplication {
         // TV never calls this -> TV keeps the full 13-client ring unchanged.
         VideoInfoService.setSkipTvFallbackClients(true);
 
-        // WEB_EMBED TRIM (mobile-only): it answers "Error code: 152 - 18" to every request on every
-        // network (yt-dlp's web_embedded too, 2026-09-26), so it is skipped; age-gated videos go
-        // to the signed-in account route. See VideoInfoService.sSkipWebEmbed. TV never calls this.
+        // WEB_EMBED TRIM (mobile-only): skipped since 2026-09-26 because every answer was "Error
+        // code: 152 - 18". That turned out to be the app pairing the embed page's encryptedHostFlags
+        // with the wrong visitor (fixed in YtCfgService.EmbedIdentity), and with the right pair it
+        // serves made-for-kids videos no other client does (issue #5). It stays skipped until the
+        // player-sources rework has measured it in the app: on a Pixel its fresh URLs were refused
+        // for the first seconds (the pre-roll wait, not honoured yet), so switching it on as it is would
+        // still fail some of them, only later. VideoInfoService.setWebEmbedLast is the
+        // switch that puts it back as the last resort. TV never calls this.
         VideoInfoService.setSkipWebEmbed(true);
 
         // DEAD-ROUTE MEMORY (mobile-only): the 403 quarantine that demotes an account-bearing
