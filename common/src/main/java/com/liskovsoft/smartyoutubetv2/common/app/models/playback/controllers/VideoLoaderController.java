@@ -46,6 +46,11 @@ public class VideoLoaderController extends BasePlayerController {
     private Disposable mFormatInfoAction;
     private long mPlaybackGeneration;
     private final PreMediaRetryGate mPreMediaRetry = new PreMediaRetryGate();
+    // NEWTUBE(autoplay-budget): see UnplayableAutoplayBudget. mAdvancingPastUnplayable is true
+    // only while mLoadNextPastUnplayable opens the next video, so onNewVideo can tell that skip
+    // from a video the user opened.
+    private final UnplayableAutoplayBudget mUnplayableBudget = new UnplayableAutoplayBudget();
+    private boolean mAdvancingPastUnplayable;
     /**
      * NEWTUBE(upcoming-poll): a scheduled live stream / premiere is re-opened until /player answers
      * with media. That used to happen every 30 s regardless of the schedule, visibility or how long
@@ -77,6 +82,14 @@ public class VideoLoaderController extends BasePlayerController {
         }
     };
     private final Runnable mLoadNext = this::loadNext;
+    private final Runnable mLoadNextPastUnplayable = () -> {
+        mAdvancingPastUnplayable = true;
+        try {
+            loadNext();
+        } finally {
+            mAdvancingPastUnplayable = false;
+        }
+    };
     private final Runnable mMetadataSync = () -> {
         if (getPlayer() != null) {
             waitMetadataSync(getVideo(), false);
@@ -119,6 +132,9 @@ public class VideoLoaderController extends BasePlayerController {
     @Override
     public void onNewVideo(Video item) {
         mPreMediaRetry.clear();
+        if (!mAdvancingPastUnplayable) {
+            mUnplayableBudget.onUserOpen();
+        }
         if (!mReloadDispatching) {
             mUpcomingVideoId = null; // NEWTUBE(upcoming-poll): a user open starts a fresh streak
         }
@@ -529,6 +545,7 @@ public class VideoLoaderController extends BasePlayerController {
         }
 
         if (!formatInfo.isUnplayable()) {
+            mUnplayableBudget.onPlayable();
             // Clear a persistent mobile error only after /player has produced a usable result.
             // Same-video retries keep the previous reason visible while the retry is in flight.
             player.showPlaybackNotice(null);
@@ -561,7 +578,14 @@ public class VideoLoaderController extends BasePlayerController {
             } else {
                 mSuggestionsController.loadSuggestions(getVideo());
                 // 18+ video or the video is hidden/removed
-                loadNextVideo(5_000);
+                if (mUnplayableBudget.onUnplayable()) {
+                    loadNextVideoPastUnplayable(5_000);
+                } else {
+                    // NEWTUBE(autoplay-budget): the second unplayable video in a row autoplay
+                    // reached - stop here instead of walking the related list (issue #5 storm).
+                    NetPath.log(NetPath.context() + " autoplay-stop reason=unplayable-streak skips="
+                            + mUnplayableBudget.skips());
+                }
             }
 
             //if (formatInfo.isUnknownError()) { // the bot error or the video not available
@@ -707,14 +731,14 @@ public class VideoLoaderController extends BasePlayerController {
         mUpcomingPollDueAtMs = nowMs + delayMs;
     }
 
-    private void loadNextVideo(int delayMs) {
+    private void loadNextVideoPastUnplayable(int delayMs) {
         if (getPlayer() == null) {
             return;
         }
 
         if (getPlayer().isEngineInitialized()) {
             Log.d(TAG, "Starting the next video...");
-            Utils.postDelayed(mLoadNext, delayMs);
+            Utils.postDelayed(mLoadNextPastUnplayable, delayMs);
         }
     }
 
@@ -767,7 +791,8 @@ public class VideoLoaderController extends BasePlayerController {
     private void disposeActions() {
         MediaServiceManager.instance().disposeActions();
         RxHelper.disposeActions(mFormatInfoAction);
-        Utils.removeCallbacks(mReloadVideo, mLoadNext, mRestartEngine, mMetadataSync, mNextPrefetchDue);
+        Utils.removeCallbacks(mReloadVideo, mLoadNext, mLoadNextPastUnplayable, mRestartEngine,
+                mMetadataSync, mNextPrefetchDue);
         mUpcomingPollDueAtMs = 0; // NEWTUBE(upcoming-poll): its reload was just removed above
     }
 
