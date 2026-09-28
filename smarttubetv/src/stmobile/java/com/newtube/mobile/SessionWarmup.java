@@ -100,9 +100,10 @@ public final class SessionWarmup {
                 trace("fetch-start");
                 // Blocking on purpose: this thread IS the background executor. The result is
                 // discarded - every expensive stage behind it stays cached for the real playback.
+                // Speculative: the warmup video is not one the user opened (walk-role).
                 MediaItemFormatInfo formatInfo = YouTubeServiceManager.instance()
                         .getMediaItemService()
-                        .getFormatInfo(WARMUP_VIDEO_ID);
+                        .getSpeculativeFormatInfo(WARMUP_VIDEO_ID);
                 if (formatInfo != null) {
                     Log.d(TAG, "session warmup: done");
                     trace("fetch-done elapsedMs=" + (SystemClock.elapsedRealtime() - startedMs));

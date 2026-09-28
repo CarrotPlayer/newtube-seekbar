@@ -267,7 +267,8 @@ public class MediaServiceManager implements OnAccountChange {
     /**
      * NEWTUBE(next-prefetch): {@link #loadFormatInfo(Video, OnFormatInfo)} that also reports a
      * failure - an error, or a flight that completed without an answer (canceled) - so the caller
-     * can retry. {@code onError} receives null for the no-answer case.
+     * can retry. {@code onError} receives null for the no-answer case. The next-video preload's own:
+     * a speculative fetch, which leaves the watched video's routing state alone (walk-role).
      */
     public void loadFormatInfo(Video item, OnFormatInfo onFormatInfo, OnError onError) {
         if (item == null) {
@@ -277,7 +278,7 @@ public class MediaServiceManager implements OnAccountChange {
         RxHelper.disposeActions(mFormatInfoAction);
 
         boolean[] answered = {false};
-        mFormatInfoAction = mItemService.getFormatInfoObserve(item.videoId)
+        mFormatInfoAction = mItemService.getSpeculativeFormatInfoObserve(item.videoId)
                 .subscribe(
                         info -> {
                             answered[0] = true;
@@ -357,7 +358,7 @@ public class MediaServiceManager implements OnAccountChange {
         }
 
         mSpeculativeVideoId = item.videoId;
-        mSpeculativeAction = mItemService.getFormatInfoObserve(item.videoId)
+        mSpeculativeAction = mItemService.getSpeculativeFormatInfoObserve(item.videoId)
                 .subscribe(
                         info -> { /* cached by the service; the tap reads it from there */ },
                         error -> Log.e(TAG, "speculativePrefetchFormatInfo error: %s", error.getMessage())
