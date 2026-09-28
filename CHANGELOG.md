@@ -14,6 +14,23 @@ All notable user-facing changes to NewTube, the phone app built on SmartTube.
 - **The cast screens describe each option by what it does** (where quality and
   subtitles are controlled, which TV app plays) instead of by ads.
 
+### Fixed
+
+- **Older Android versions.** On phones older than Android 10, a class that only
+  exists from Android 10 on could stop NewTube from getting the token YouTube
+  asks for, and then every video failed with "Can't get video info" (seen by
+  SmartTube on Android 7.1; their fix).
+- **A slow start of YouTube's bot check no longer leaves a broken token
+  generator behind.** If it isn't ready within 20 seconds, NewTube now gives up
+  cleanly and tries again the next time it needs a token.
+
+### Behind the scenes
+
+- **Release APKs are built on GitHub's servers** from the tagged source, with a
+  build attestation for every file: `gh attestation verify <file>.apk -R
+  aleixrodriala/newtube`. They're also about 20 MB smaller, because the
+  JavaScript engine's library no longer ships with its debug symbols.
+
 ## 1.10.2 — 2026-09-28 — Tip y Coll Edition
 
 "First you pick up the phone. Then you go to Settings…" A fictional homage to

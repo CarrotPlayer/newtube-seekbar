@@ -17,6 +17,24 @@ versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
   (dónde se controlan la calidad y los subtítulos, qué app de la TV lo
   reproduce) y no por los anuncios.
 
+### Arreglado
+
+- **Android antiguos.** En móviles con una versión anterior a Android 10, una
+  clase que solo existe desde Android 10 podía impedir que NewTube obtuviera el
+  token que pide YouTube, y entonces todos los vídeos fallaban con «Can't get
+  video info» (lo vio SmartTube en Android 7.1; es su arreglo).
+- **Si la comprobación antibots de YouTube tarda en arrancar, ya no queda un
+  generador de tokens a medias.** Si no está listo en 20 segundos, NewTube lo
+  deja limpiamente y lo vuelve a intentar la próxima vez que necesite un token.
+
+### Entre bastidores
+
+- **Los APK se compilan en los servidores de GitHub** a partir del código de la
+  etiqueta, con una atestación de compilación para cada archivo: `gh attestation
+  verify <archivo>.apk -R aleixrodriala/newtube`. Además pesan unos 20 MB menos,
+  porque la biblioteca del motor de JavaScript ya no lleva sus símbolos de
+  depuración.
+
 ## 1.10.2 — 28-09-2026 — Edición Tip y Coll
 
 «Se coge el móvil. Se va a Ajustes…» Homenaje ficticio a Tip y Coll y sus
