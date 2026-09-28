@@ -131,6 +131,9 @@ final class DownloadJob {
                 // rotate the client, mint fresh links for the same itags.
                 Log.w(TAG, "links refused (route " + attempt + "/" + MAX_ROUTE_ATTEMPTS + "), rotating client: " + refused);
                 NetPath.log("download route-refused attempt=" + attempt + " video=" + mItem.videoId);
+                // Blame the client that served THIS item's links, not whatever the player or a
+                // preload resolved last (netbench audit C-12).
+                VideoInfoService.instance().anchorRouteToVideo(mItem.videoId);
                 VideoInfoService.instance().markCurrentPlaybackRouteForbidden();
                 YouTubeServiceManager.instance().applyNoPlaybackFix();
                 resolveUrls();

@@ -356,6 +356,8 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
         if (Helpers.startsWithAny(errorContent, "Unable to connect to")) {
             // No internet connection or WRONG DATE on the device
             // Recently this message starting to show for other reasons
+            // NEWTUBE(recovery-blame): the rotation blames this video's client, not a prefetch's.
+            VideoInfoService.instance().anchorRouteToVideo(getVideo() != null ? getVideo().videoId : null);
             YouTubeServiceManager.instance().applyNoPlaybackFix(); // ?
             //switchNextEngine(); // ?
             //restartEngine = false;
@@ -590,6 +592,9 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
 
         if (Helpers.containsAny(message, "Unexpected token", "Syntax error", "invalid argument") || // temporal fix
                 Helpers.equalsAny(className, "PoTokenException", "BadWebViewException")) {
+            // NEWTUBE(recovery-blame): as in the source-error branch - an unresolved video leaves no
+            // anchor, and a stale one from another video must not steer this rotation.
+            VideoInfoService.instance().anchorRouteToVideo(getVideo() != null ? getVideo().videoId : null);
             YouTubeServiceManager.instance().applyNoPlaybackFix();
             scheduleAutoReload();
         } else if (Helpers.containsAny(message, "is not defined")) {
