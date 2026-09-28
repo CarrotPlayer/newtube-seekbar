@@ -1,7 +1,10 @@
 # NewTube website
 
-The landing page for NewTube, served by GitHub Pages at
-<https://aleixrodriala.github.io/newtube/>.
+The landing page for NewTube, served at <https://newtube-app.github.io/>.
+`.github/workflows/pages.yml` copies this folder to the
+[newtube-app/newtube-app.github.io](https://github.com/newtube-app/newtube-app.github.io) repo,
+which GitHub Pages serves, and turns the old address
+(aleixrodriala.github.io/newtube) into a redirect. Edit the site here, never in that repo.
 
 It is a plain static site: `index.html`, `styles.css`, a small `main.js` and
 `assets/`. There is no framework, no build step, no web fonts and no analytics.

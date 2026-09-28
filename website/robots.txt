@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://aleixrodriala.github.io/newtube/sitemap.xml
+Sitemap: https://newtube-app.github.io/sitemap.xml

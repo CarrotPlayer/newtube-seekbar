@@ -1,4 +1,10 @@
-name: Deploy website to GitHub Pages
+name: Deploy website
+
+# The site lives at https://newtube-app.github.io/, served from the
+# newtube-app/newtube-app.github.io repo. This workflow copies website/ there,
+# using a deploy key that can write to that one repo only (SITE_DEPLOY_KEY), and
+# turns this repo's own Pages site, aleixrodriala.github.io/newtube/, into a
+# redirect so links to the old address keep working.
 
 on:
   push:
@@ -10,32 +16,84 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      - name: Copy website/ to newtube-app.github.io
+        env:
+          SITE_DEPLOY_KEY: ${{ secrets.SITE_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SITE_DEPLOY_KEY" > ~/.ssh/site_key
+          chmod 600 ~/.ssh/site_key
+          # GitHub's published ed25519 host key, pinned instead of trusting ssh-keyscan.
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/site_key -o IdentitiesOnly=yes"
+          git clone -q --depth 1 git@github.com:newtube-app/newtube-app.github.io.git site
+          # website/README.md documents the source; the site repo keeps its own README.
+          rsync -a --delete --exclude .git --exclude README.md website/ site/
+          touch site/.nojekyll
+          cd site
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Site already up to date."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Publish website from aleixrodriala/newtube@${GITHUB_SHA::8}"
+          git push -q origin HEAD
+
+  redirect:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Build the redirect page
+        run: |
+          mkdir redirect
+          cat > redirect/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>NewTube has moved</title>
+            <link rel="canonical" href="https://newtube-app.github.io/">
+            <meta name="robots" content="noindex">
+            <meta http-equiv="refresh" content="0; url=https://newtube-app.github.io/">
+            <script>location.replace("https://newtube-app.github.io/" + location.hash);</script>
+          </head>
+          <body>
+            <p>NewTube's site is now at <a href="https://newtube-app.github.io/">newtube-app.github.io</a>.</p>
+          </body>
+          </html>
+          HTML
+          cp redirect/index.html redirect/404.html
+
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
-      - name: Upload the website folder
+      - name: Upload the redirect page
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: website
+          path: redirect
 
       - name: Deploy
         id: deployment
