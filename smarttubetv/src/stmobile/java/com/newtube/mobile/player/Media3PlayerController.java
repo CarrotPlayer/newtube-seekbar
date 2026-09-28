@@ -201,7 +201,9 @@ public class Media3PlayerController implements Player.Listener {
         Log.e(TAG, "openSabr: SABR-only response on the media3 engine; trying the LQ url list");
 
         if (formatInfo.containsUrlFormats()) {
-            openMediaSource(mMediaSourceFactory.fromUrlList(formatInfo.createUrlList()), "sabr-fallback");
+            mReadinessAnswer = formatInfo;
+            openMediaSource(mMediaSourceFactory.fromUrlList(formatInfo.createUrlList(),
+                    ReadinessGate.forAnswer(formatInfo)), "sabr-fallback");
         } else {
             // Feed the regular error path (ErrorFixer -> reload) instead of hanging silently.
             mEventListener.onEngineError(
@@ -378,6 +380,23 @@ public class Media3PlayerController implements Player.Listener {
     public void openUrlList(List<String> urlList) {
         mReadinessAnswer = null;
         openMediaSource(mMediaSourceFactory.fromUrlList(urlList), "progressive");
+    }
+
+    /**
+     * NEWTUBE(delivery): a VOD answer with no usable adaptive formats, over its HLS manifest
+     * (VodDelivery), behind the answer's readiness gate like generated DASH.
+     */
+    public void openHlsVod(MediaItemFormatInfo formatInfo) {
+        mReadinessAnswer = formatInfo;
+        openMediaSource(mMediaSourceFactory.fromHlsPlaylist(formatInfo.getHlsManifestUrl(),
+                ReadinessGate.forAnswer(formatInfo)), "hls-vod");
+    }
+
+    /** NEWTUBE(readiness): the answer's progressive formats, behind its readiness gate. */
+    public void openProgressive(MediaItemFormatInfo formatInfo) {
+        mReadinessAnswer = formatInfo;
+        openMediaSource(mMediaSourceFactory.fromUrlList(formatInfo.createUrlList(),
+                ReadinessGate.forAnswer(formatInfo)), "progressive");
     }
 
     public void openMerged(MediaItemFormatInfo formatInfo, String hlsPlaylistUrl) {

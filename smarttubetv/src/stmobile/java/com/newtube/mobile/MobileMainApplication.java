@@ -270,6 +270,14 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "anon-tizen after refusal enabled (debug)");
             }
 
+            // DELIVERY SWITCH: "1" plays a VOD answer whose adaptive formats are SABR-only over its
+            // HLS manifest, from the sources measured to serve it (VodDelivery), to measure it on
+            // the device before it becomes a default.
+            if ("1".equals(getDebugSystemProperty("debug.arc.hls_vod"))) {
+                com.liskovsoft.youtubeapi.videoinfo.models.VodDelivery.setHlsEnabled(true);
+                android.util.Log.w("NetPath", "hls for vod enabled (debug)");
+            }
+
             // READINESS ROLLBACK: "0" stops holding back the media of answers with pre-roll ads
             // (see com.newtube.mobile.player.ReadinessGate), to compare against the old behaviour.
             if ("0".equals(getDebugSystemProperty("debug.arc.readiness"))) {

@@ -42,10 +42,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * after it is retried on the same URL after 3 and 6 s (the estimate may be short), never past
  * {@code readyAt + RETRY_WINDOW_MS}. After that - or once anything was served - a 403 surfaces as
  * before and ErrorFixerController's route recovery takes over. The waits run on media3's loader
- * thread; a cancelled load interrupts them. Generated DASH only (also the DASH half of a merged
- * source), the route these clients take: HLS and progressive must take the same gate when they are
- * enabled for them (netbench DESIGN phase 5). Until then the "force legacy codecs" progressive route
- * is ungated and a held-back answer there falls to route recovery, as before.
+ * thread; a cancelled load interrupts them. Every route that plays an answer's own media takes the
+ * gate: generated DASH (also the DASH half of a merged source), the answer's progressive formats and
+ * its HLS manifest when the answer is VOD (VodDelivery). Only media ({@code /videoplayback}) counts
+ * as served: an HLS playlist from manifest.googlevideo.com says nothing about the segments.
  */
 @UnstableApi
 public final class ReadinessGate {
@@ -164,10 +164,19 @@ public final class ReadinessGate {
                 long startedAtMs = mClock.now();
                 try {
                     long length = mUpstream.open(dataSpec);
-                    if (!mServed.get()) {
-                        mServedAtMs = mClock.now();
+                    if (!isMedia(dataSpec.uri)) {
+                        return length;
                     }
-                    if (mServed.compareAndSet(false, true) && mRefused) {
+                    boolean first;
+                    synchronized (mServed) {
+                        // The first success sets the time; a later one must not move it forward.
+                        first = !mServed.get();
+                        if (first) {
+                            mServedAtMs = mClock.now();
+                            mServed.set(true);
+                        }
+                    }
+                    if (first && mRefused) {
                         NetPath.log(NetPath.context() + " readiness-served sinceReadyMs="
                                 + (mClock.now() - readyAtMs) + " prerollMs=" + prerollMs);
                     }
@@ -185,8 +194,10 @@ public final class ReadinessGate {
                         // Held back, as announced: wait the announced time out.
                         sleep = readyAtMs - now;
                         if (mWaitLogged.compareAndSet(false, true)) {
+                            // media=n: an HLS playlist was refused (is it held back too? phase 5).
                             NetPath.log(NetPath.context() + " readiness-wait ms=" + sleep
-                                    + " prerollMs=" + prerollMs);
+                                    + " prerollMs=" + prerollMs
+                                    + " media=" + (isMedia(dataSpec.uri) ? "y" : "n"));
                         }
                     } else {
                         sleep = retries < RETRY_BACKOFF_MS.length ? RETRY_BACKOFF_MS[retries] : -1;
@@ -195,7 +206,8 @@ public final class ReadinessGate {
                         }
                         retries++;
                         NetPath.log(NetPath.context() + " readiness-retry code=403 attempt=" + retries
-                                + " inMs=" + sleep + " sinceReadyMs=" + (now - readyAtMs));
+                                + " inMs=" + sleep + " sinceReadyMs=" + (now - readyAtMs)
+                                + " media=" + (isMedia(dataSpec.uri) ? "y" : "n"));
                     }
                     try {
                         mUpstream.close();
@@ -227,6 +239,12 @@ public final class ReadinessGate {
         public void close() throws IOException {
             mUpstream.close();
         }
+    }
+
+    /** Media, as opposed to a playlist or manifest: googlevideo's /videoplayback, any host. */
+    static boolean isMedia(@Nullable Uri uri) {
+        String path = uri != null ? uri.getPath() : null;
+        return path != null && path.startsWith("/videoplayback");
     }
 
     /** The HTTP status in this failure's cause chain, or -1. */

@@ -5936,6 +5936,16 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     @Override
+    public void openHlsVod(MediaItemFormatInfo formatInfo) {
+        mExoPlayerController.openHlsVod(formatInfo);
+    }
+
+    @Override
+    public void openProgressive(MediaItemFormatInfo formatInfo) {
+        mExoPlayerController.openProgressive(formatInfo);
+    }
+
+    @Override
     public void openMerged(MediaItemFormatInfo formatInfo, String hlsPlaylistUrl) {
         mExoPlayerController.openMerged(formatInfo, hlsPlaylistUrl);
     }

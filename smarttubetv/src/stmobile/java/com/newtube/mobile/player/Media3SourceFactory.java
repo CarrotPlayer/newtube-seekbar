@@ -1158,7 +1158,15 @@ public class Media3SourceFactory {
 
     /** Live HLS from the master playlist URL. */
     MediaSource fromHlsPlaylist(String hlsPlaylistUrl) {
-        return new HlsMediaSource.Factory(mHttpDataSourceFactory)
+        return fromHlsPlaylist(hlsPlaylistUrl, null);
+    }
+
+    /**
+     * HLS from the master playlist URL: live, or NEWTUBE(delivery) a VOD answer with no usable
+     * adaptive formats (VodDelivery), whose playlists and segments then wait out its pre-roll hold.
+     */
+    MediaSource fromHlsPlaylist(String hlsPlaylistUrl, @Nullable ReadinessGate gate) {
+        return new HlsMediaSource.Factory(gate != null ? gate.wrap(mHttpDataSourceFactory) : mHttpDataSourceFactory)
                 .setAllowChunklessPreparation(true)
                 .setLoadErrorHandlingPolicy(newLoadErrorPolicy())
                 .createMediaSource(new MediaItem.Builder()
@@ -1170,6 +1178,12 @@ public class Media3SourceFactory {
     /** Legacy LQ fallback: progressive playback of the first (best) muxed URL. */
     @Nullable
     MediaSource fromUrlList(List<String> urlList) {
+        return fromUrlList(urlList, null);
+    }
+
+    /** The same, NEWTUBE(readiness) behind the answer's gate when it announced a pre-roll hold. */
+    @Nullable
+    MediaSource fromUrlList(List<String> urlList, @Nullable ReadinessGate gate) {
         if (urlList == null || urlList.isEmpty()) {
             return null;
         }
@@ -1182,7 +1196,8 @@ public class Media3SourceFactory {
                     .createMediaSource(MediaItem.fromUri(uri));
         }
 
-        return new ProgressiveMediaSource.Factory(mCachedDataSourceFactory)
+        return new ProgressiveMediaSource.Factory(
+                        gate != null ? cachedOver(gate.wrap(mHttpDataSourceFactory)) : mCachedDataSourceFactory)
                 .setLoadErrorHandlingPolicy(newLoadErrorPolicy())
                 .createMediaSource(MediaItem.fromUri(uri));
     }

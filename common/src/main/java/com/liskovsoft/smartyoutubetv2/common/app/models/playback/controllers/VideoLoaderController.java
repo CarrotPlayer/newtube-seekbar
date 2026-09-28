@@ -620,9 +620,14 @@ public class VideoLoaderController extends BasePlayerController {
         } else if (formatInfo.isLive() && formatInfo.containsHlsUrl()) {
             Log.d(TAG, "Loading live video (current or past live stream) in hls format...");
             player.openHlsUrl(formatInfo.getHlsManifestUrl());
+        } else if (formatInfo.isHlsVodSelected()
+                && !(getPlayerData().isLegacyCodecsForced() && formatInfo.containsUrlFormats())) {
+            // NEWTUBE(delivery): SABR-only adaptive formats, but the answer carries HLS (VodDelivery).
+            Log.d(TAG, "Loading regular video in hls format (no adaptive links)...");
+            player.openHlsVod(formatInfo);
         } else if (formatInfo.containsUrlFormats()) {
             Log.d(TAG, "Loading url list video. This is always LQ...");
-            player.openUrlList(formatInfo.createUrlList());
+            player.openProgressive(formatInfo);
         } else {
             Log.d(TAG, "Empty format info received. Seems future live translation. No video data to pass to the player.");
             player.setTitle(formatInfo.getPlayabilityReason());

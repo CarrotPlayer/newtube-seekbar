@@ -210,6 +210,25 @@ public class ReadinessGateTest {
     }
 
     @Test
+    public void aServedPlaylistIsNotServedMedia() throws IOException {
+        // HLS: the playlist comes from manifest.googlevideo.com at once; the segments are held back.
+        FakeClock clock = new FakeClock(0);
+        ReadinessGate gate = new ReadinessGate(5_000, 5_000, clock);
+        DataSpec playlist = new DataSpec(Uri.parse("https://manifest.googlevideo.com/api/manifest/"
+                + "hls_playlist/expire/1/id/x/itag/230/playlist/index.m3u8"));
+        gate.wrap(() -> new Googlevideo(clock, 0)).createDataSource().open(playlist);
+        assertEquals(15_000, gate.holdLeftMs());
+
+        clock.now += 1;
+        Googlevideo segments = new Googlevideo(clock, 5_000);
+        DataSpec segment = new DataSpec(Uri.parse("https://rr1---sn-x.googlevideo.com/videoplayback/"
+                + "id/x/itag/230/sq/1/goap/clen%3D1/file/seg.ts"));
+        gate.wrap(() -> segments).createDataSource().open(segment);
+        assertEquals(Arrays.asList(1L, 5_000L), segments.openedAt);
+        assertEquals(0, gate.holdLeftMs());
+    }
+
+    @Test
     public void otherFailuresAreNotRetried() {
         FakeClock clock = new FakeClock(0);
         ReadinessGate gate = new ReadinessGate(5_000, 5_000, clock);

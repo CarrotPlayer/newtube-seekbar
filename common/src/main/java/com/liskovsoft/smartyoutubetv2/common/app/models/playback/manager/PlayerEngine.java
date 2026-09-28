@@ -28,6 +28,13 @@ public interface PlayerEngine extends PlayerConstants {
     void openDashUrl(String dashManifestUrl);
     void openHlsUrl(String hlsPlaylistUrl);
     void openUrlList(List<String> urlList);
+    /**
+     * NEWTUBE(delivery): a VOD answer with no usable adaptive formats, over its HLS manifest
+     * ({@link MediaItemFormatInfo#isHlsVodSelected()}). Engines that do not know it open the URL.
+     */
+    default void openHlsVod(MediaItemFormatInfo formatInfo) { openHlsUrl(formatInfo.getHlsManifestUrl()); }
+    /** NEWTUBE(readiness): the answer's progressive formats; an engine may gate them on the answer. */
+    default void openProgressive(MediaItemFormatInfo formatInfo) { openUrlList(formatInfo.createUrlList()); }
     void openMerged(MediaItemFormatInfo formatInfo, String hlsPlaylistUrl);
     void openMerged(InputStream dashManifest, String hlsPlaylistUrl);
     long getPositionMs();

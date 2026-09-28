@@ -78,7 +78,8 @@ public class VideoLoaderControllerRetryTest {
                         case "showOverlay":
                         case "showBackground":
                         case "setTitle": return null;
-                        case "openUrlList": sourcesOpened++; containsMedia = true; return null;
+                        case "openUrlList":
+                        case "openProgressive": sourcesOpened++; containsMedia = true; return null;
                         default: throw new AssertionError("Unexpected player call: " + method.getName());
                     }
                 });
