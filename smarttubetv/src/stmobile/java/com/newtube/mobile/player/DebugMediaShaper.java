@@ -33,6 +33,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   adb shell setprop debug.arc.poison_itag 137     # itag=137 opens fail with a synthetic 403 ("" = off)
  *   adb shell setprop debug.arc.poison_once_itag any # fail one playback episode, then recovery can play
  *   adb shell setprop debug.arc.timeout_once_itag any # zero-byte read timeout, then clean recovery
+ *   adb shell setprop debug.arc.poison_wall_s 60     # the one-minute wall: 403 past 60 s of media,
+ *                                                     # except a re-rolled playback visitor's answers
  * </pre>
  *
  * <p>Wired by {@link Media3SourceFactory} around the leaf transport ONLY under
@@ -63,6 +65,7 @@ final class DebugMediaShaper implements DataSource {
     private static final String PROP_POISON_ITAG = "debug.arc.poison_itag";
     private static final String PROP_POISON_ONCE_ITAG = "debug.arc.poison_once_itag";
     private static final String PROP_TIMEOUT_ONCE_ITAG = "debug.arc.timeout_once_itag";
+    private static final String PROP_POISON_WALL_S = "debug.arc.poison_wall_s";
     private static final AtomicBoolean sPoisonOnceDisarmed = new AtomicBoolean();
     private static final AtomicBoolean sTimeoutOnceDisarmed = new AtomicBoolean();
 
@@ -95,6 +98,22 @@ final class DebugMediaShaper implements DataSource {
         String poisonOnceItag = prop(PROP_POISON_ONCE_ITAG);
         if (!sPoisonOnceDisarmed.get() && matchesItag(poisonOnceItag, itag)) {
             throw synthetic403(dataSpec, PROP_POISON_ONCE_ITAG, poisonOnceItag);
+        }
+
+        // NEWTUBE(playback-identity): the synthetic one-minute wall. The answer the URL came from
+        // (its ei) must be walled - every answer but a re-rolled visitor's, see MediaServiceCore's
+        // DebugPlaybackWall (enabled from MobileMainApplication with the same property) - and the
+        // request must start past the wall, mapped to bytes by the URL's clen and dur.
+        int wallSeconds = propInt(PROP_POISON_WALL_S, 0);
+        if (wallSeconds > 0) {
+            long wallByte = wallByte(dataSpec.uri, wallSeconds);
+            if (wallByte >= 0 && dataSpec.position >= wallByte
+                    && com.liskovsoft.youtubeapi.videoinfo.V2.DebugPlaybackWall.isWalledEi(
+                            dataSpec.uri.getQueryParameter("ei"))) {
+                android.util.Log.d(TAG, "shaper wall property=" + PROP_POISON_WALL_S + " s="
+                        + wallSeconds + " itag=" + itag + " -> synthetic 403");
+                throw synthetic403(dataSpec, PROP_POISON_WALL_S, itag);
+            }
         }
 
         String timeoutOnceItag = prop(PROP_TIMEOUT_ONCE_ITAG);
@@ -133,6 +152,30 @@ final class DebugMediaShaper implements DataSource {
         if (!timeoutConfigured.isEmpty() && !"none".equalsIgnoreCase(timeoutConfigured)
                 && sTimeoutOnceDisarmed.compareAndSet(false, true)) {
             android.util.Log.d(TAG, "shaper one-shot timeout disarmed for recovery");
+        }
+    }
+
+    /**
+     * The byte where {@code wallSeconds} of media start in a googlevideo stream: its length
+     * ({@code clen}) times the wall's share of its duration ({@code dur}, seconds). -1 without both.
+     * Proportional, so a VBR stream's wall lands a few seconds either side (PlaybackWallTracker's
+     * tolerance covers that).
+     */
+    static long wallByte(Uri uri, int wallSeconds) {
+        try {
+            String clen = uri.getQueryParameter("clen");
+            String dur = uri.getQueryParameter("dur");
+            if (clen == null || dur == null) {
+                return -1;
+            }
+            double length = Double.parseDouble(clen);
+            double duration = Double.parseDouble(dur);
+            if (length <= 0 || duration <= wallSeconds) {
+                return -1;
+            }
+            return (long) (length * wallSeconds / duration);
+        } catch (RuntimeException e) {
+            return -1;
         }
     }
 

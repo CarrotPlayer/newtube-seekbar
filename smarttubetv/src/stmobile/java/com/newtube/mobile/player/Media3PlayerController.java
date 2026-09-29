@@ -145,6 +145,8 @@ public class Media3PlayerController implements Player.Listener {
     static final androidx.media3.exoplayer.SeekParameters RESUME_SNAP_PARAMETERS =
             androidx.media3.exoplayer.SeekParameters.PREVIOUS_SYNC;
     private final ResumeSeekSnap mResumeSnap = new ResumeSeekSnap();
+    /** NEWTUBE(wall-memory): this open's media requests, for the one-minute wall's signature. */
+    private final MediaRequestLedger mMediaRequests = new MediaRequestLedger();
     /** elapsedRealtime of this open's first audio media request, to quantify a snap's audio cost. */
     private long mAudioChunkStartedAtMs;
     /** Media start time of that request (its audio segment), to see if a snap crosses into the previous one. */
@@ -164,6 +166,28 @@ public class Media3PlayerController implements Player.Listener {
                         mAudioChunkStartMs = mediaLoadData.mediaStartTimeMs;
                     } else if (mediaLoadData.trackType == C.TRACK_TYPE_VIDEO) {
                         onVideoChunkStart(mediaLoadData.mediaStartTimeMs, mediaLoadData.mediaEndTimeMs);
+                    }
+                }
+
+                @Override
+                public void onLoadCompleted(EventTime eventTime,
+                        androidx.media3.exoplayer.source.LoadEventInfo loadEventInfo,
+                        androidx.media3.exoplayer.source.MediaLoadData mediaLoadData) {
+                    if (mediaLoadData.dataType == C.DATA_TYPE_MEDIA && loadEventInfo.bytesLoaded > 0
+                            && mediaLoadData.mediaStartTimeMs != C.TIME_UNSET && isCurrentPeriod(eventTime)) {
+                        mMediaRequests.onServed(mediaLoadData.mediaStartTimeMs);
+                    }
+                }
+
+                @Override
+                public void onLoadError(EventTime eventTime,
+                        androidx.media3.exoplayer.source.LoadEventInfo loadEventInfo,
+                        androidx.media3.exoplayer.source.MediaLoadData mediaLoadData, java.io.IOException error,
+                        boolean wasCanceled) {
+                    if (mediaLoadData.dataType == C.DATA_TYPE_MEDIA
+                            && mediaLoadData.mediaStartTimeMs != C.TIME_UNSET && isCurrentPeriod(eventTime)
+                            && MediaRequestLedger.isForbidden(error)) {
+                        mMediaRequests.onForbidden(mediaLoadData.mediaStartTimeMs);
                     }
                 }
             };
@@ -492,6 +516,7 @@ public class Media3PlayerController implements Player.Listener {
         mResumeSnap.onPrepare();
         mAudioChunkStartedAtMs = 0;
         mAudioChunkStartMs = C.TIME_UNSET;
+        mMediaRequests.reset();
         PlayerInfrastructureWarmup.onPlaybackPreparing();
         mPlayer.setMediaSource(mediaSource);
         mPlayer.prepare();
@@ -515,6 +540,11 @@ public class Media3PlayerController implements Player.Listener {
         }
 
         return mPlayer.getCurrentPosition();
+    }
+
+    /** NEWTUBE(wall-memory): this open's media requests (see PlayerEngine.getForbiddenMediaStartMs). */
+    public MediaRequestLedger getMediaRequests() {
+        return mMediaRequests;
     }
 
     public void setPositionMs(long positionMs) {

@@ -105,7 +105,10 @@ class ReplayFixturesTest(unittest.TestCase):
         self.assertEqual((tizen["adaptive"], tizen["regular"], tizen["usableAdaptive"], tizen["srvAuth"],
                           tizen["reason"]), (26, 1, 26, False, None))
         self.assertEqual(visionos["atMs"], 430)  # from the case's first line of this app: 40.517
-        self.assertEqual(failure, {"type": "media-failure", "atMs": 902, "video": K, "http403": True})
+        self.assertEqual(failure, {"type": "media-failure", "atMs": 902, "video": K, "http403": True,
+                                   # v22: the media 403's request starts (none logged in this sample)
+                                   "media403": {"forbiddenStartMs": -1, "lowestServedStartMs": -1,
+                                                "highestServedStartMs": -1, "exact": False}})
         self.assertEqual((recovery["suspect"], recovery["expect"]["asked"], recovery["expect"]["client"]),
                          ("TV_TIZEN", ["VISIONOS", "WEB_EMBED"], "WEB_EMBED"))
         self.assertEqual((preload["video"], preload["role"]), ("TfOzK0rn0zI", "speculative"))

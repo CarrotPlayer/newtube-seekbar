@@ -58,6 +58,15 @@ ADOPTED = re.compile(r"player-ring speculative-adopted video=(\S+) client=(" + C
 COOLDOWN = re.compile(r"bot-check cooldown video=(\S+)")
 RECOVERY = re.compile(r"ep=\d+ video=(\S+) recovery-source http403=([yn]) freshUrls=([yn])(.*)")
 RESTORE = re.compile(r"player-ring botwall restore records=(\d+)")
+# NEWTUBE(wall-memory): what the engine saw of an episode's media requests, for the one-minute wall's
+# signature. v22 logs it exactly (playback-media403); older logs give the episode's first media loads
+# (media-load chunk), its served chunks (media-chunk done) and where the error stopped it.
+EPISODE = re.compile(r"ep=(\d+) video=(\S+) ")
+MEDIA_LOAD = re.compile(r"ep=(\d+) video=\S+ media-load chunk \+\d+ track=\S+ .*?start=(\d+)")
+MEDIA_DONE = re.compile(r"ep=(\d+) video=\S+ media-chunk done \+\d+ .*?start=(\d+)")
+RECOVERY_ERROR = re.compile(r"ep=(\d+) video=\S+ recovery-error .*?pos=(\d+)")
+MEDIA403 = re.compile(r"playback-media403 video=(\S+) client=(" + CLIENT + r") forbiddenStartMs=(-?\d+)"
+                      r" servedStartMs=(-?\d+)\.\.(-?\d+)")
 VIDEO = re.compile(r"video=(\S+)")
 URL = re.compile(r"https?://\S+")
 
@@ -276,6 +285,13 @@ def parse_open(path, video, base=None, prev_pid=None, network=None):
             del walks[walk.video]
 
     restart = None
+    # NEWTUBE(wall-memory): per player episode, its media request starts (see EPISODE).
+    episodes = {}
+    exact403 = None
+
+    def episode(number):
+        return episodes.setdefault(number, {"loads": [], "served": [], "pos": -1})
+
     for at, line_pid, body in parsed:
         if line_pid != pid:  # the app restarted inside the cell
             if current is not None and not current.done:
@@ -343,14 +359,33 @@ def parse_open(path, video, base=None, prev_pid=None, network=None):
         if m:
             steps.append({"type": "adopt", "atMs": at - base, "video": m.group(1)})
             continue
+        m = MEDIA_LOAD.search(body)
+        if m:
+            episode(m.group(1))["loads"].append(int(m.group(2)))
+        m = MEDIA_DONE.search(body)
+        if m:
+            episode(m.group(1))["served"].append(int(m.group(2)))
+        m = RECOVERY_ERROR.search(body)
+        if m:
+            episode(m.group(1))["pos"] = int(m.group(2))
+        m = MEDIA403.search(body)
+        if m:
+            exact403 = {"forbiddenStartMs": int(m.group(3)), "lowestServedStartMs": int(m.group(4)),
+                        "highestServedStartMs": int(m.group(5)), "exact": True}
+            continue
         m = RECOVERY.search(body)
         if m:
-            # ErrorFixerController: anchorRouteToVideo, then markCurrentPlaybackRouteForbidden on a
-            # media 403, then applyNoPlaybackFix (switchNextFormat). A transport-only blame just
-            # re-mints the URLs and calls none of them.
+            # ErrorFixerController: anchorRouteToVideo, then markCurrentPlaybackRouteForbidden and
+            # notePlaybackMedia403 on a media 403, then applyNoPlaybackFix (switchNextFormat). A
+            # transport-only blame just re-mints the URLs and calls none of them.
             if "blame=transport" not in m.group(4):
-                steps.append({"type": "media-failure", "atMs": at - base, "video": m.group(1),
-                              "http403": m.group(2) == "y"})
+                failure = {"type": "media-failure", "atMs": at - base, "video": m.group(1),
+                           "http403": m.group(2) == "y"}
+                if failure["http403"]:
+                    failure["media403"] = exact403 or media403_of(episodes.get(
+                        (EPISODE.search(body) or [None, None])[1]))
+                exact403 = None
+                steps.append(failure)
             continue
         for regex, template in MARKERS:
             mm = regex.search(body)
@@ -391,6 +426,21 @@ def parse_open(path, video, base=None, prev_pid=None, network=None):
         "markers": markers, "droppedWalks": dropped,
         "steps": [s.to_json(base) if isinstance(s, Walk) else s for s in steps],
     }, base, pid
+
+
+def media403_of(ep):
+    """An older log's media 403, rebuilt for notePlaybackMedia403: the refused request started at the
+    later of where the error stopped the player and the episode's last logged media load (the first
+    loads and those after a resume are logged, the rest are not); served: the episode's done chunks.
+    -1 where the log says nothing."""
+    if not ep:
+        return {"forbiddenStartMs": -1, "lowestServedStartMs": -1, "highestServedStartMs": -1,
+                "exact": False}
+    loads = ep["loads"]
+    return {"forbiddenStartMs": max([ep["pos"]] + loads[-1:]),
+            "lowestServedStartMs": min(ep["served"]) if ep["served"] else -1,
+            "highestServedStartMs": max(ep["served"]) if ep["served"] else -1,
+            "exact": False}
 
 
 PROP = re.compile(r"debug\.arc\.[a-z0-9_]+")

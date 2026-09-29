@@ -80,6 +80,24 @@ public class MobileMainApplication extends MainApplication {
     private static final boolean TOKEN_WARMUP_AFTER_OPEN = true;
     /** The longest a WEB enrichment waits for the open's first frame. */
     private static final long ENRICHMENT_MAX_HOLD_MS = 4_000;
+    /**
+     * NEWTUBE(wall-memory): the answer to the one-minute wall's "Unknown source error" (r11: a walled
+     * visitor's VISIONOS and ANDROID_VR media 403 at 60.0 s; the recovery alternated them to the
+     * reload cap), three switches, all on. Wall memory: every source whose media 403'd on a video
+     * goes last for its recovery, and a wall benches (visitor, source) for 6 h, persisted
+     * (VideoInfoService.setWallMemoryEnabled). VOD order: TV_TIZEN (anonymous signed out) and
+     * ANDROID_REEL before ANDROID_VR, live unchanged (setVodVrLateEnabled). Re-roll + keep: the first
+     * wall of VISIONOS or ANDROID_VR re-rolls the playback identity (the web session's visitor, not
+     * the app's), budget 2 per 6 h, and the fresh one is kept for the next opens
+     * (setPlaybackRerollEnabled, setPlaybackKeepEnabled). Debug and benchmark builds, rollback:
+     * debug.arc.wall_memory 0, debug.arc.vod_vr_late 0, debug.arc.playback_reroll 0 (or all: signed
+     * in too), debug.arc.playback_keep 0; also debug.arc.wall_memory_ttl_min N,
+     * debug.arc.playback_reroll_budget N, debug.arc.poison_wall_s 60 (the synthetic wall).
+     */
+    private static final boolean WALL_MEMORY = true;
+    private static final boolean VOD_VR_LATE = true;
+    private static final boolean PLAYBACK_REROLL = true;
+    private static final boolean PLAYBACK_KEEP = true;
 
     static {
         // HTTP/2 (mobile-only): unpin the API OkHttp client from HTTP/1.1. The pin dodges a
@@ -522,6 +540,61 @@ public class MobileMainApplication extends MainApplication {
         } else {
             com.liskovsoft.youtubeapi.innertube.ytcfg.EmbedIdentityPersistence.setStore(
                     new com.newtube.mobile.player.EmbedIdentityPrefsStore(this));
+        }
+
+        // THE ONE-MINUTE WALL (mobile-only, see WALL_MEMORY): wall memory, the VOD order, and the
+        // playback identity re-roll + keep. The app's persistent visitor (Home, /next, search,
+        // TV_TIZEN/IOS/ANDROID_REEL) is never re-rolled. Walls, budget and the kept identity are
+        // persisted beside the route records.
+        VideoInfoService.setWallMemoryStore(new com.newtube.mobile.player.PlaybackIdentityPrefsStore(
+                this, com.newtube.mobile.player.PlaybackIdentityPrefsStore.KEY_WALLS));
+        VideoInfoService.setPlaybackIdentityStore(
+                new com.newtube.mobile.player.PlaybackIdentityPrefsStore(this));
+        VideoInfoService.setWallMemoryEnabled(WALL_MEMORY);
+        VideoInfoService.setVodVrLateEnabled(VOD_VR_LATE);
+        VideoInfoService.setPlaybackRerollEnabled(PLAYBACK_REROLL);
+        VideoInfoService.setPlaybackKeepEnabled(PLAYBACK_KEEP);
+        if (com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG
+                || com.liskovsoft.smartyoutubetv2.tv.BuildConfig.BENCHMARK) {
+            String wallMemory = getDebugSystemProperty("debug.arc.wall_memory");
+            if ("1".equals(wallMemory) || "0".equals(wallMemory)) {
+                VideoInfoService.setWallMemoryEnabled("1".equals(wallMemory));
+                android.util.Log.w("NetPath", "wall-memory " + ("1".equals(wallMemory) ? "on" : "off") + " (debug)");
+            }
+            String wallTtl = getDebugSystemProperty("debug.arc.wall_memory_ttl_min");
+            if (wallTtl.matches("[0-9]{1,4}")) {
+                VideoInfoService.setWallMemoryTtlMs(Long.parseLong(wallTtl) * 60_000L);
+                android.util.Log.w("NetPath", "wall-memory ttl=" + wallTtl + "min (debug)");
+            }
+            String reroll = getDebugSystemProperty("debug.arc.playback_reroll");
+            if ("1".equals(reroll) || "on".equals(reroll) || "all".equals(reroll)) {
+                VideoInfoService.setPlaybackRerollEnabled(true);
+                VideoInfoService.setPlaybackRerollSignedIn("all".equals(reroll));
+                android.util.Log.w("NetPath", "playback identity re-roll on (debug) lanes="
+                        + ("all".equals(reroll) ? "both" : "signed-out"));
+            } else if ("0".equals(reroll)) {
+                VideoInfoService.setPlaybackRerollEnabled(false);
+                android.util.Log.w("NetPath", "playback identity re-roll off (debug)");
+            }
+            String keep = getDebugSystemProperty("debug.arc.playback_keep");
+            if ("1".equals(keep) || "0".equals(keep)) {
+                VideoInfoService.setPlaybackKeepEnabled("1".equals(keep));
+                android.util.Log.w("NetPath", "playback identity keep " + ("1".equals(keep) ? "on" : "off") + " (debug)");
+            }
+            String budget = getDebugSystemProperty("debug.arc.playback_reroll_budget");
+            if (budget.matches("[0-9]{1,2}")) {
+                VideoInfoService.setPlaybackRerollBudget(Integer.parseInt(budget));
+            }
+            String vodVrLate = getDebugSystemProperty("debug.arc.vod_vr_late");
+            if ("1".equals(vodVrLate) || "0".equals(vodVrLate)) {
+                VideoInfoService.setVodVrLateEnabled("1".equals(vodVrLate));
+                android.util.Log.w("NetPath", "vod-vr-late " + ("1".equals(vodVrLate) ? "on" : "off") + " (debug)");
+            }
+            String wall = getDebugSystemProperty("debug.arc.poison_wall_s");
+            if (wall.matches("[0-9]{1,4}") && Integer.parseInt(wall) > 0) {
+                VideoInfoService.setDebugPlaybackWall(true);
+                android.util.Log.w("NetPath", "synthetic playback wall at " + wall + " s (debug)");
+            }
         }
 
         // GUEST IDENTITY: a bot challenge on the anonymous partition keeps the visitor the app

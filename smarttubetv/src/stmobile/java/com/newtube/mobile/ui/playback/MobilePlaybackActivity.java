@@ -6083,6 +6083,21 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     @Override
+    public long getForbiddenMediaStartMs() {
+        return mExoPlayerController != null ? mExoPlayerController.getMediaRequests().forbiddenStartMs() : -1;
+    }
+
+    @Override
+    public long getLowestServedMediaStartMs() {
+        return mExoPlayerController != null ? mExoPlayerController.getMediaRequests().lowestServedStartMs() : -1;
+    }
+
+    @Override
+    public long getHighestServedMediaStartMs() {
+        return mExoPlayerController != null ? mExoPlayerController.getMediaRequests().highestServedStartMs() : -1;
+    }
+
+    @Override
     public void setPositionMs(long positionMs) {
         mExoPlayerController.setPositionMs(positionMs);
     }
