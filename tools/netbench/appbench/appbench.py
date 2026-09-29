@@ -650,10 +650,19 @@ def main():
         for key in ("debug.arc.player_client", "debug.arc.support_xhr", "debug.arc.anon_tizen",
                     "debug.arc.bench", "debug.arc.bench_seek", *extra_props(args)):
             setprop(key, None)
+        now = None
         if vol is not None:
-            set_media_volume(vol)
+            # Verified: one restore on the Mi 8 (Android 15, adb over Wi-Fi) did not take, and the
+            # next run then read 0 as the owner's volume.
+            for _ in range(3):
+                set_media_volume(vol)
+                time.sleep(0.5)
+                now = media_volume()
+                if now == vol:
+                    break
         print(f"appbench {args.run_id}: done" + (f", STOPPED: {stopped}" if stopped else "")
-              + f"; media volume restored to {vol}", flush=True)
+              + f"; media volume restored to {now}" + (f" (WANTED {vol})" if now != vol else ""),
+              flush=True)
     if stopped:
         sys.exit(2)  # a stop ends the whole sequence (the wrapper then restores Wi-Fi)
 
