@@ -187,5 +187,56 @@ class SenderTurnTest(unittest.TestCase):
         finally:
             appbench.shell = real
 
+
+# The LTE bot wall of 2026-09-29 (v16) and a private video's sign-in text (v17: not a wall).
+WALL = ['09-29 09:59:46.637 D/NetPath (29152): bot-check walk-on client=WEB_EMBED signal=explicit attempt=2']
+PRIVATE = ['09-29 10:25:40.100 D/NetPath ( 3346): bot-check walk-on client=ANDROID_VR signal=repeated-login attempt=3',
+           '09-29 10:25:40.200 D/NetPath ( 3346): repeated-login unconfirmed reason=one-video']
+
+
+class WalkTurnTest(unittest.TestCase):
+    """Phones on one network never walk at once, but play at once; a bot check stops them all."""
+
+    def setUp(self):
+        import tempfile
+        appbench.SENDER_LOCK = os.path.join(tempfile.mkdtemp(), "sender.lock")
+        appbench.SERIAL = "test-serial"
+
+    def tearDown(self):
+        appbench.SENDER_LOCK = None
+
+    def test_the_walk_is_decided_by_a_frame_or_a_refusal(self):
+        self.assertTrue(appbench.walk_decided(LOG, V))
+        self.assertTrue(appbench.walk_decided(REFUSED, M))
+        self.assertFalse(appbench.walk_decided(LOG[:5], V))
+
+    def test_a_released_turn_lets_the_other_run_walk_while_this_one_plays(self):
+        import subprocess
+        import time
+        with appbench.sender_turn() as turn:
+            turn.release()
+            t = time.time()
+            other = subprocess.run([sys.executable, "-c",
+                "import fcntl\n"
+                f"fh=open({appbench.SENDER_LOCK!r},'a'); fcntl.flock(fh, fcntl.LOCK_EX); print('walked')"],
+                capture_output=True, timeout=10)
+            self.assertEqual(other.stdout.strip(), b"walked")
+            self.assertLess(time.time() - t, 1.0)
+
+    def test_only_youtubes_bot_check_counts(self):
+        self.assertIn("signal=explicit", appbench.bot_signal(LOG + WALL))
+        self.assertIsNone(appbench.bot_signal(LOG + PRIVATE))
+        self.assertIsNone(appbench.bot_signal(REFUSED + AUTOPLAY))
+
+    def test_a_host_stop_stops_every_run(self):
+        self.assertIsNone(appbench.host_stopped())
+        appbench.stop_host("v17-mi8-cat X: bot-check walk-on client=IOS signal=explicit")
+        self.assertIn("test-serial", appbench.host_stopped())
+
+        class Args:
+            min_battery = 8
+        r = appbench.run_cell(Args, "RING", V, 1, None)
+        self.assertTrue(r["stop"].startswith("host STOP"), r)
+
 if __name__ == "__main__":
     unittest.main()

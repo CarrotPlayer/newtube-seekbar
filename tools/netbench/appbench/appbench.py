@@ -14,9 +14,12 @@ the check app; if anything else takes it (the owner picked the phone up), the ce
 the run stops. Intents always name the check package. No logcat -c. Media volume is set to 0 for
 the run and restored after.
 
-One sender at a time: every open holds a host-wide lock (--sender-lock) from its guard check to
-its end, so two phones and the emulator on one network take turns per open instead of doubling
-the /player rate from its IP. A phone under --min-battery percent stops the run.
+One walk at a time: every open holds a host-wide lock (--sender-lock) from its guard check until
+its /player walk is decided (a first frame, a refusal, an error, or 25 s), so phones on one network
+never walk at the same moment; playback then overlaps, as in a home with several screens. The first
+explicit bot check (YouTube's "confirm you're not a bot"), a trip or an established wall on any
+phone writes the host STOP file next to the lock, which stops every run until a person removes it.
+A phone under --min-battery percent stops its run.
 
 Usage:
   NETBENCH_SERIAL=<adb serial> appbench.py --network lte --sources TV_TIZEN,WEB_EMBED \
@@ -63,23 +66,86 @@ SENDER_LOCK = None  # main(): --sender-lock, None = off
 DEFAULT_SENDER_LOCK = os.path.expanduser("~/.cache/netbench/sender.lock")
 
 
+WALK_TURN_MAX_S = 25  # a walk that decided nothing by then releases the turn anyway
+
+
+class Turn:
+    """A held sender turn; release() once the open's walk is decided (idempotent)."""
+
+    def __init__(self, fh):
+        self.fh = fh
+
+    @property
+    def held(self):
+        return self.fh is not None
+
+    def release(self):
+        if self.fh is not None:
+            fcntl.flock(self.fh, fcntl.LOCK_UN)
+            self.fh.close()
+            self.fh = None
+
+
 @contextlib.contextmanager
 def sender_turn():
-    """This host's turn to open a video: the lock is flock(2), so it dies with the process."""
+    """This host's turn to walk: the lock is flock(2), so it dies with the process."""
     if not SENDER_LOCK:
-        yield
+        yield Turn(None)
         return
     os.makedirs(os.path.dirname(SENDER_LOCK), exist_ok=True)
-    with open(SENDER_LOCK, "a") as fh:
-        t = time.time()
+    fh = open(SENDER_LOCK, "a")
+    t = time.time()
+    try:
         fcntl.flock(fh, fcntl.LOCK_EX)
-        if time.time() - t > 1:
-            print(f"  (waited {time.time() - t:.0f}s for the sender turn)", flush=True)
-        try:
-            yield
-        finally:
-            fcntl.flock(fh, fcntl.LOCK_UN)
+    except BaseException:
+        fh.close()
+        raise
+    if time.time() - t > 1:
+        print(f"  (waited {time.time() - t:.0f}s for the sender turn)", flush=True)
+    turn = Turn(fh)
+    try:
+        yield turn
+    finally:
+        turn.release()
     time.sleep(1.5)  # flock is not FIFO: give a waiting run the next turn
+
+
+def host_stop_path():
+    return os.path.join(os.path.dirname(SENDER_LOCK), "STOP") if SENDER_LOCK else None
+
+
+def host_stopped():
+    """The reason in the host STOP file, or None."""
+    path = host_stop_path()
+    if path and os.path.exists(path):
+        with open(path, errors="replace") as fh:
+            return fh.read().strip() or "STOP file present"
+    return None
+
+
+def stop_host(reason):
+    path = host_stop_path()
+    if path:
+        with open(path, "a") as fh:
+            fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {SERIAL} {reason}\n")
+
+
+def walk_decided(lines, video):
+    """The open's /player walk is over: a first frame, a media-less answer, an error, a trip."""
+    res = parse(lines, video)
+    info = res["info"]
+    return (res["first_frame_ms"] is not None or bool(res["errors"]) or res.get("bot_trip", False)
+            or bool(info and "dash=0 hls=n" in info["detail"]))
+
+
+def bot_signal(lines):
+    """The first line of this open that says YouTube challenged the IP, or None. A private video's
+    repeated sign-in text is signal=repeated-login and does not count."""
+    for ln in lines:
+        if ("bot-check" in ln and "signal=explicit" in ln) or "bot-check trip" in ln \
+                or "botwall established" in ln:
+            return ln.split("NetPath", 1)[-1].strip(" ():0123456789")[:160]
+    return None
 
 
 def battery_level():
@@ -399,6 +465,9 @@ def wait_for_guard(max_wait_s=120):
 
 
 def run_cell(args, source, video, trial, out):
+    stopped = host_stopped()
+    if stopped:
+        return {"stop": f"host STOP ({host_stop_path()}): {stopped}"}
     level = battery_level()
     if level is not None and level < args.min_battery:
         return {"stop": f"battery {level}% < {args.min_battery}%"}
@@ -406,15 +475,19 @@ def run_cell(args, source, video, trial, out):
         ok, why = wait_for_guard()
         if not ok:
             return {"stop": f"guard before open: {why}"}
-        with sender_turn():
-            # The turn may have taken a while: check the phone again right before the intent.
+        with sender_turn() as turn:
+            # The turn may have taken a while: the other phone may have met a wall, and this phone
+            # may have been picked up. Check both again right before the intent.
+            stopped = host_stopped()
+            if stopped:
+                return {"stop": f"host STOP ({host_stop_path()}): {stopped}"}
             ok, why = guard("start")
             if ok:
-                return open_cell(args, source, video, trial, out)
+                return open_cell(args, source, video, trial, out, turn)
         time.sleep(5)
 
 
-def open_cell(args, source, video, trial, out):
+def open_cell(args, source, video, trial, out, turn):
     setprop("debug.arc.player_client", None if source == "RING" else source)
     setprop("debug.arc.support_xhr", None if args.support_xhr == "none" else args.support_xhr)
     setprop("debug.arc.anon_tizen", "1" if args.anon_tizen else None)
@@ -442,17 +515,22 @@ def open_cell(args, source, video, trial, out):
     # Settle cells end early when they can, so their deadline can afford a slow walk or an ad.
     deadline = t0 + args.play_s + (40 if args.settle else 20)
     SETTLE_INFO_SEEN.pop(video, None)
-    time.sleep(3 if args.settle else 8)
+    # The focus is checked from 6 s after the intent (a cold start on a slow phone shows the launcher
+    # for a few seconds); the log is read from the first second, to hand the turn on early.
+    time.sleep(1)
     while time.time() < deadline:
-        f = focus()
-        if PKG + "/" not in f:
-            aborted = f"focus left the check app: {f}"
+        if time.time() - t0 >= 6:
+            f = focus()
+            if PKG + "/" not in f:
+                aborted = f"focus left the check app: {f}"
+                break
+        with open(raw, errors="replace") as fh:
+            lines = fh.read().replace("\x00", "").splitlines()
+        if turn.held and (walk_decided(lines, video) or time.time() - t0 >= WALK_TURN_MAX_S):
+            turn.release()
+        if args.settle and settled(lines, video, args.play_s):
             break
-        if args.settle:
-            with open(raw, errors="replace") as fh:
-                if settled(fh.read().replace("\x00", "").splitlines(), video, args.play_s):
-                    break
-        time.sleep(2 if args.settle else 10)
+        time.sleep(1 if turn.held else 2 if args.settle else 10)
     if not args.keep_process:
         shell(f"am force-stop {PKG}")
     time.sleep(1)
@@ -464,7 +542,12 @@ def open_cell(args, source, video, trial, out):
     raw_fh.close()
     with open(raw, errors="replace") as fh:
         lines = fh.read().splitlines()
+    turn.release()
     res = parse(lines, video, args.play_s if args.settle else None)
+    wall = bot_signal(lines)
+    if wall:
+        stop_host(f"{args.run_id} {video}: {wall}")
+        aborted = aborted or f"bot signal: {wall}"
     if args.settle:
         res["window_s"] = args.play_s
         res["cell_s"] = round(time.time() - t0, 1)
