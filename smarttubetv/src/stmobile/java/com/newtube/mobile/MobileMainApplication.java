@@ -280,6 +280,17 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "hls for vod disabled (debug)");
             }
 
+            // TOKEN SWITCH: "v4" builds the web-pot session with PoTokenWebView4 (upstream's port of
+            // bgutil PR #243: the youtube.com homepage's challenge with that page's ytcfg/EVENT_ID,
+            // then /att/get, then the current generator) instead of PoTokenWebView's WAA Create, to
+            // measure it on the device before it becomes a default. The web-pot-session line says
+            // which challenge minted (challenge=homepage|att-get|legacy). Set before the warm-up below.
+            if ("v4".equals(getDebugSystemProperty("debug.arc.pot_gen"))) {
+                com.liskovsoft.youtubeapi.app.potokennp2.misc.PoTokenGeneratorSwitch.select(
+                        com.liskovsoft.youtubeapi.app.potokennp2.misc.PoTokenGeneratorSwitch.V4);
+                android.util.Log.w("NetPath", "pot generator v4 enabled (debug)");
+            }
+
             // READINESS ROLLBACK: "0" stops holding back the media of answers with pre-roll ads
             // (see com.newtube.mobile.player.ReadinessGate), to compare against the old behaviour.
             if ("0".equals(getDebugSystemProperty("debug.arc.readiness"))) {
