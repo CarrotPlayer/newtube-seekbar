@@ -92,6 +92,15 @@
    ]
   },
   {
+   "name": "emu-kids-recovery-after-a-bench",
+   "note": "v20 on the emulator (Wi-Fi, signed out, synthetic media 403 on the first itag of each open): the kids video's TV_TIZEN 403 benches it; a later process (the book restored) walks VISIONOS then WEB_EMBED, whose media 403 sends a recovery walk.",
+   "logs": ["v20-emu-check-recovery.RING._WB5hh7WOb4.t1.log", "v20-emu-check-recovery.RING.dQw4w9WgXcQ.t1.log", "v20-emu-check-recovery.RING._WB5hh7WOb4.t2.log"],
+   "changed": [
+    {"log": "v20-emu-check-recovery.RING._WB5hh7WOb4.t2.log", "walk": 2, "asked": ["WEB_EMBED"],
+     "why": "the recovery of a video VISIONOS refused as made for kids asks only TV_TIZEN (benched here) and WEB_EMBED before the sources that never serve kids videos (router v21, recovery-kids): v20 asked ANDROID_VR, IOS, ANDROID_REEL, MWEB, WEB and WEB_SAFARI first, 8.3 s to the first frame"}
+   ]
+  },
+  {
    "name": "private-v16-tripped",
    "note": "The private video on v16 (Pixel LTE).",
    "logs": ["v16-lte-neg.RING.yZIXLfi8CZQ.t1.log"],

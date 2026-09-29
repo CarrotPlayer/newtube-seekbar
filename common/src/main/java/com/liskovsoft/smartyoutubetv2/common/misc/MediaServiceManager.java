@@ -377,9 +377,17 @@ public class MediaServiceManager implements OnAccountChange {
      * VISIONOS refused and TV_TIZEN served then has its next video asked of TV_TIZEN first: one
      * /player instead of two (VideoInfoService.noteVideoChannel). Live and upcoming videos are
      * not named: TV_TIZEN is never a live route. No request; any thread.
+     *
+     * <p>NEWTUBE(live-card): and whether the item says live, so a live open asks the live-DASH
+     * source first (VideoInfoService.noteVideoLive); a later item of the same video that says
+     * otherwise (the /player answer's own flag, once synced) takes the note back.
      */
     public static void noteChannel(Video item) {
-        if (item != null && !item.isLive && !item.isUpcoming) {
+        if (item == null) {
+            return;
+        }
+        VideoInfoService.noteVideoLive(item.videoId, item.isLive && !item.isUpcoming);
+        if (!item.isLive && !item.isUpcoming) {
             VideoInfoService.noteVideoChannel(item.videoId, item.channelId);
         }
     }

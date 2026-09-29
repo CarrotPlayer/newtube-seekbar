@@ -71,6 +71,15 @@ import com.newtube.mobile.ui.webbrowser.MobileWebBrowserActivity;
 public class MobileMainApplication extends MainApplication {
     /** BotGuard warmup for a process whose first Activity never draws (see onCreate). */
     private static final long TOKEN_WARMUP_FALLBACK_MS = 4_000;
+    /**
+     * NEWTUBE(token-warmup): the static switch. true = the BotGuard warm-up (and the WEB
+     * enrichment that would build the WebView on its own) waits for the open in flight to show its
+     * first frame or fail; false = the warm-up runs after the first screen's frame, as in v20.
+     * Debug and benchmark builds: setprop debug.arc.token_warmup frame (rollback) | open.
+     */
+    private static final boolean TOKEN_WARMUP_AFTER_OPEN = true;
+    /** The longest a WEB enrichment waits for the open's first frame. */
+    private static final long ENRICHMENT_MAX_HOLD_MS = 4_000;
 
     static {
         // HTTP/2 (mobile-only): unpin the API OkHttp client from HTTP/1.1. The pin dodges a
@@ -241,6 +250,30 @@ public class MobileMainApplication extends MainApplication {
         // debug.arc.kids_channel 0.
         VideoInfoService.setKidsChannelHintEnabled(true);
 
+        // LIVE CARD (mobile-only): a video opened from an item that says "live" (the card's badge,
+        // the next-video slot) asks ANDROID_VR, the live-DASH source, first and VISIONOS second;
+        // every live walk used to spend a VISIONOS round trip on an HLS answer it never played
+        // (11 of 11, ~110-200 ms on Wi-Fi, 240-350 on LTE). A stale flag costs one request.
+        // Rollback in debug and benchmark builds: setprop debug.arc.live_card 0.
+        VideoInfoService.setLiveCardHintEnabled(true);
+
+        // KIDS RECOVERY ORDER (mobile-only): the reload after a media failure of a video VISIONOS or
+        // ANDROID_VR refused as made for kids moments ago asks only TV_TIZEN and WEB_EMBED before
+        // the rest (v20 emulator: six SABR-only answers first, 8.3 s to the first frame). On in
+        // the engine; rollback in debug and benchmark builds: setprop debug.arc.recovery_kids 0.
+
+        // EMBED IDENTITY RE-ROLL (mobile-only): a WEB_EMBED answer that is SABR-only (HLS only) is
+        // the embed visitor's bucket, not the video's (11 of 60 visitors, every time); it plays as
+        // it is, and the identity is replaced in the background, at most once per 6 h, so the next
+        // WEB_EMBED open gets DASH (~550 ms sooner on the Pixel's 18+ opens). Rollback in debug and
+        // benchmark builds: setprop debug.arc.embed_reroll 0.
+        VideoInfoService.setEmbedRerollEnabled(true);
+
+        // HLS CHALLENGE FOLD (mobile-only): the HLS-for-VOD manifest's "/n/" challenge is solved in
+        // the answer's bulk solve instead of a second V8 run (65-195 ms on the Pixel). Rollback in
+        // debug and benchmark builds: setprop debug.arc.hls_n_fold 0.
+        VideoInfoService.setFoldHlsChallenge(true);
+
         // SIGNATURE-SOLVER RUNTIME (mobile-only): the solver disposed its V8 runtime after EVERY
         // solve, so each open rebuilt the heap and re-evaluated the solver lib on the critical path
         // -- and the existing async warmup was undone by the very first video. Keep it alive and
@@ -365,6 +398,24 @@ public class MobileMainApplication extends MainApplication {
             if ("0".equals(getDebugSystemProperty("debug.arc.kids_channel"))) {
                 VideoInfoService.setKidsChannelHintEnabled(false);
                 android.util.Log.w("NetPath", "kids channel memory disabled (debug)");
+            }
+
+            // v21 ROLLBACKS: "0" restores the v20 behaviour of each (see the switches above).
+            if ("0".equals(getDebugSystemProperty("debug.arc.live_card"))) {
+                VideoInfoService.setLiveCardHintEnabled(false);
+                android.util.Log.w("NetPath", "live card hint disabled (debug)");
+            }
+            if ("0".equals(getDebugSystemProperty("debug.arc.recovery_kids"))) {
+                VideoInfoService.setRecoveryKidsOrderEnabled(false);
+                android.util.Log.w("NetPath", "kids recovery order disabled (debug)");
+            }
+            if ("0".equals(getDebugSystemProperty("debug.arc.embed_reroll"))) {
+                VideoInfoService.setEmbedRerollEnabled(false);
+                android.util.Log.w("NetPath", "embed identity re-roll disabled (debug)");
+            }
+            if ("0".equals(getDebugSystemProperty("debug.arc.hls_n_fold"))) {
+                VideoInfoService.setFoldHlsChallenge(false);
+                android.util.Log.w("NetPath", "hls challenge fold disabled (debug)");
             }
 
             // PLAYER-POT PLAYGROUND: "1" attests ANDROID_VR's /player request. Opt-IN, because
@@ -652,10 +703,39 @@ public class MobileMainApplication extends MainApplication {
             // (seconds into a ring walk) still finds the generator warm or warming - it starts
             // ~0.1-0.2 s later than before - and demand initialization is unchanged. The 4 s
             // fallback covers processes started without any UI.
+            // NEWTUBE(token-warmup): ...and, when an open is in flight (a share-link start, or a tap
+            // before the warm-up ran), not before that open's first frame or failure either: on a
+            // slow phone the WebView's construction landed on the main thread with the open's
+            // answer (Mi 8: answer -> first media request 280 ms beside it, 107 without; netbench
+            // r11 analysis, 3.4a). The 4 s fallback from process start still bounds it, and a WEB
+            // enrichment that would build the WebView on its own waits with it (see
+            // VideoInfoService.setEnrichmentGate). Rollback: debug.arc.token_warmup=frame.
+            final boolean holdForOpen = tokenWarmupAfterOpen();
+            final java.util.concurrent.atomic.AtomicBoolean warmupStarted =
+                    new java.util.concurrent.atomic.AtomicBoolean();
+            final java.util.function.Consumer<String> startWarmup = after -> {
+                if (warmupStarted.compareAndSet(false, true)) {
+                    LaunchMilestones.log("token-warmup start after=" + after);
+                    VideoInfoService.warmUpPoTokenGate();
+                }
+            };
             LaunchMilestones.runAfterFirstFrame(TOKEN_WARMUP_FALLBACK_MS, () -> {
-                LaunchMilestones.log("token-warmup start");
-                VideoInfoService.warmUpPoTokenGate();
+                if (holdForOpen && com.liskovsoft.smartyoutubetv2.common.misc.OpenSettle.isOpenInFlight()) {
+                    LaunchMilestones.log("token-warmup hold reason=open");
+                    com.liskovsoft.smartyoutubetv2.common.misc.OpenSettle.runWhenSettled(
+                            TOKEN_WARMUP_FALLBACK_MS, () -> startWarmup.accept("open"));
+                } else {
+                    startWarmup.accept("frame");
+                }
             });
+            if (holdForOpen) {
+                // The 4 s fallback, whatever the open does.
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                        () -> startWarmup.accept("fallback"), TOKEN_WARMUP_FALLBACK_MS);
+                VideoInfoService.setEnrichmentGate(task ->
+                        com.liskovsoft.smartyoutubetv2.common.misc.OpenSettle.runWhenSettled(
+                                ENRICHMENT_MAX_HOLD_MS, task));
+            }
         }
 
         // POOL EVICTION (mobile-only): with H2 on, every InnerTube call rides ONE connection, and
@@ -856,6 +936,25 @@ public class MobileMainApplication extends MainApplication {
      * Hidden API access is confined to debug A/B knobs (callers check BuildConfig.DEBUG) and
      * degrades to unset.
      */
+    /**
+     * NEWTUBE(token-warmup): {@link #TOKEN_WARMUP_AFTER_OPEN}, or debug.arc.token_warmup in debug and
+     * benchmark builds ("frame": after the first screen's frame, v20; "open": after the open).
+     */
+    private static boolean tokenWarmupAfterOpen() {
+        if (com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG
+                || com.liskovsoft.smartyoutubetv2.tv.BuildConfig.BENCHMARK) {
+            String mode = getDebugSystemProperty("debug.arc.token_warmup");
+            if ("frame".equals(mode)) {
+                android.util.Log.w("NetPath", "token warm-up after the first screen's frame (debug)");
+                return false;
+            }
+            if ("open".equals(mode)) {
+                return true;
+            }
+        }
+        return TOKEN_WARMUP_AFTER_OPEN;
+    }
+
     public static String getDebugSystemProperty(String key) {
         try {
             Class<?> properties = Class.forName("android.os.SystemProperties");

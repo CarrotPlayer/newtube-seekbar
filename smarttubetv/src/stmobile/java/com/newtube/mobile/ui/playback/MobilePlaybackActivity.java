@@ -3262,6 +3262,13 @@ public class MobilePlaybackActivity extends MobileActivity
             mStillAwaitFrame = false;
             hideVideoStill();
         }
+
+        @Override
+        public void onRenderedFirstFrame() {
+            // NEWTUBE(still-lift): the controller's AnalyticsListener saw this event first, so
+            // OpenFirstFrame already knows whether it was this open's; the texture may have it.
+            maybeLiftStillAtFrame();
+        }
     };
 
     // ---------------------------------------------------------------------------------
@@ -3364,6 +3371,10 @@ public class MobilePlaybackActivity extends MobileActivity
         @Override
         public void onSurfaceTextureUpdated(SurfaceTexture texture) {
             mLastTextureFrameRealtimeMs = android.os.SystemClock.elapsedRealtime();
+            // NEWTUBE(still-lift): this open's first frame reached the texture before READY.
+            if (maybeLiftStillAtFrame()) {
+                return;
+            }
             // A real frame just rendered behind the still: lift it.
             if (mStillAwaitFrame && !mStillAwaitReady) {
                 mStillAwaitFrame = false;
@@ -3402,6 +3413,44 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         return firstFrameOnTexture(mExoPlayerController.getOpenFirstFrameRealtimeMs(),
                 mStillArmedRealtimeMs, mLastTextureFrameRealtimeMs);
+    }
+
+    /**
+     * NEWTUBE(still-lift): lift a new selection's still at this open's first rendered frame, before
+     * READY (SwitchExperiments.StillLift.FRAME, the default): the picture shows while the player
+     * finishes buffering to READY (the analysis measured first frame -> picture visible at 67-74 ms
+     * on the Pixel, 20-48 on the Mi 8, all of it this wait). The same per-open marker as the READY
+     * path guards it: the controller saw THIS open's first frame (its fence and generation, see
+     * OpenFirstFrame), rendered after the still began waiting, and the texture consumed a frame
+     * since. Called from the first-frame event and from each texture update while the still waits
+     * for READY; whichever comes second lifts it.
+     */
+    private boolean maybeLiftStillAtFrame() {
+        // Cheap state first: the switch reads a property (once per process) only while a new
+        // selection's still waits.
+        if (!mStillAwaitReady || !mNewVideoStill || mExoPlayerController == null
+                || !com.newtube.mobile.player.SwitchExperiments.stillLiftAtFrame()) {
+            return false;
+        }
+        if (!canLiftStillAtFrame(true, true, mBackgroundAudioMode,
+                mExoPlayerController.getOpenFirstFrameRealtimeMs(), mStillArmedRealtimeMs,
+                mLastTextureFrameRealtimeMs)) {
+            return false;
+        }
+        mStillAwaitReady = false;
+        mStillAwaitFrame = false;
+        liftLoadingStill("frame");
+        return true;
+    }
+
+    /**
+     * NEWTUBE(still-lift): the FRAME lift's rule. A new selection's still that waits for READY, not
+     * in background audio, and this open's first frame on the texture (see firstFrameOnTexture).
+     */
+    static boolean canLiftStillAtFrame(boolean awaitingReady, boolean newVideoStill,
+            boolean backgroundAudio, long firstFrameAtMs, long stillArmedAtMs, long lastTextureFrameAtMs) {
+        return awaitingReady && newVideoStill && !backgroundAudio
+                && firstFrameOnTexture(firstFrameAtMs, stillArmedAtMs, lastTextureFrameAtMs);
     }
 
     /**
@@ -3585,16 +3634,17 @@ public class MobilePlaybackActivity extends MobileActivity
         hideVideoStill(false, "texture");
     }
 
-    /** @param lift {@code ready} or {@code texture}: which still-lift path revealed the new video. */
+    /** @param lift {@code frame}, {@code ready} or {@code texture}: which still-lift path revealed the new video. */
     private void hideVideoStill(boolean revealNewVideo, String lift) {
         mNewVideoStill = false;
         if (revealNewVideo) {
             boolean hidden = hideLoadingStillImmediately(mVideoStill);
             if (hidden && mVideoArea != null && mVideoArea.isShown()) {
-                // UI visibility milestone after READY + a texture update of this open's frames, not
-                // a compositor-present timestamp. There is no remaining still-fade interval after
-                // this event. lift=ready: that update came before READY (NEWTUBE(still-lift));
-                // lift=texture: it is the first one after READY.
+                // UI visibility milestone after a texture update of this open's frames, not a
+                // compositor-present timestamp. There is no remaining still-fade interval after
+                // this event. lift=frame: at this open's first frame, before READY; lift=ready: at
+                // READY, that update came before it (NEWTUBE(still-lift)); lift=texture: it is the
+                // first one after READY.
                 NetPath.log(NetPath.context() + " picture-visible +" + NetPath.elapsedMs()
                         + " state=ready-texture-overlay-gone lift=" + lift);
             }
