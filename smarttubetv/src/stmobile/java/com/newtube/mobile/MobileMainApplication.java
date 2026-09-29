@@ -344,8 +344,8 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "player PO token enabled for ANDROID_VR (debug)");
             }
 
-            // WEB-AUTH PLAYGROUND: "1" lets WEB_EMBED carry the account on /player, and leads the
-            // fallback walk with it -- yt-dlp's signed-in head since 2026-08-18 (commit 5d5b634).
+            // WEB-AUTH PLAYGROUND: "1" lets WEB_EMBED carry the account on /player, in its usual
+            // place in the walk -- yt-dlp's signed-in head since 2026-08-18 (commit 5d5b634).
             // MEASURED 2026-09-07 ON THE PIXEL 9 -- IT DOES NOT WORK. Keep it off.
             //
             // The motivation was real: every authenticated TVHTML5 request currently answers
@@ -364,9 +364,9 @@ public class MobileMainApplication extends MainApplication {
             // Restoring authenticated playback needs a different credential, not a different
             // client, so that is the thread to pull next -- not this flag.
             //
-            // Left in place because it is cheap and self-correcting: when on, WEB_EMBED leads,
-            // burns one round trip on the 400 and falls through to VISIONOS, which still plays
-            // (verified). Re-run it if YouTube's auth handling changes. The verdict signal is
+            // Left in place because it is cheap and self-correcting: when on, WEB_EMBED burns one
+            // round trip on the 400 and the walk goes on to the next source. Re-run it if
+            // YouTube's auth handling changes. The verdict signal is
             // srvAuth= on the player-result line, NOT auth= (that is only what we sent).
             // "1" keeps its original meaning (WEB_EMBED). A client NAME points the same gate
             // somewhere else: the 400 above was only ever measured on WEB_EMBED, so it is equally
@@ -412,11 +412,6 @@ public class MobileMainApplication extends MainApplication {
         // then (NetPath: live-dashinfo skipped reason=dash-manifest|hls-manifest); manifest-less
         // live keeps the synchronous probe. TV never calls this.
         VideoInfoService.setSkipLiveDashInfoWithManifest(true);
-
-        // /player FAN-OUT TRIM (mobile-only): the TV-app fallback clients (TV_LEGACY,
-        // TV_DOWNGRADED, TV_EMBED, TV_SIMPLY) are never asked, even by a stale recovery cursor.
-        // TV never calls this -> TV keeps the full 13-client ring unchanged.
-        VideoInfoService.setSkipTvFallbackClients(true);
 
         // BOT-WALL MEMORY (mobile-only): the walled network attachments, their probe backoff and
         // the account route's benches survive a restart within the boot, so a cold open under a
