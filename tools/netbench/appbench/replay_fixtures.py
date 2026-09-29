@@ -47,7 +47,9 @@ RESULT = re.compile(r"player-result video=(\S+) client=(" + CLIENT + r") attempt
                     r"formats=(\d+)\+(\d+) usableAdaptive=(\d+) dash=([yn]) hls=([yn]) sabr=([yn]) "
                     r"reason=\"(.*)\")\s*$")
 # The exact playability line (debug builds with MediaServiceCore's PlayabilityLog on): see exact().
-PLAYABILITY = re.compile(r"player-playability video=(\S+) client=(" + CLIENT + r") attempt=(\d+) (\{.*\})\s*$")
+# From router v20 the line ends with the answer's channel tag (channel=<tag>|none), outside the JSON.
+PLAYABILITY = re.compile(r"player-playability video=(\S+) client=(" + CLIENT + r") attempt=(\d+) (\{.*\})"
+                         r"(?: channel=\S+)?\s*$")
 PLAN = re.compile(r"player-ring plan video=(\S+) lane=(signed-in|signed-out)(.*?) order=\[(.*?)\]")
 WALLED = re.compile(r"player-ring botwall route video=(\S+) order=\[(.*?)\] probe=([yn]).*? auth=([yn])")
 TRANSFORM = re.compile(r"player-transform video=(\S+) client=(" + CLIENT + r")")
@@ -420,10 +422,11 @@ def props_of(row):
     return props
 
 
-def build_case(results, name, logs, note=None, exclude=None, prior_state=None):
+def build_case(results, name, logs, note=None, exclude=None, prior_state=None, changed=None):
     """The logs, in order, as one case (one simulated device). exclude: why the current code is
     expected to disagree (the case is skipped with it); prior_state: why state the device restored
-    from before the case's first open (a saved bot-wall book) cannot change its walks."""
+    from before the case's first open (a saved bot-wall book) cannot change its walks; changed: walks
+    the current code asks differently on purpose (see apply_change)."""
     opens, base, pid = [], None, None
     for log in logs:
         path = log if os.path.isabs(log) else os.path.join(results, log)
@@ -434,16 +437,43 @@ def build_case(results, name, logs, note=None, exclude=None, prior_state=None):
         entry, base, pid = parse_open(path, m.group("video"), base, pid, row.get("network"))
         entry["props"] = props_of(row)
         opens.append(entry)
+    for change in changed or []:
+        apply_change(name, opens, change)
     builds = sorted({o["build"] for o in opens})
     return {"name": name, "build": builds[0] if len(builds) == 1 else builds, "note": note,
             "exclude": exclude, "priorState": prior_state, "opens": opens}
+
+
+def apply_change(case, opens, change):
+    """One walk the current code asks differently on purpose, from the manifest: {log, walk (1-based,
+    the open's walks in order), asked (the clients the current walk asks), why}. The device's own
+    record stays as it was; the change goes beside it (expect.changed), and the replay expects it
+    instead, saying why. Every client of the new order must have a device answer in that walk: a
+    change can only drop or reorder asks, never invent an answer."""
+    where = f"{case}: change {change.get('log')} walk {change.get('walk')}"
+    if not change.get("why"):
+        raise ValueError(f"{where}: says no why")
+    entry = next((o for o in opens if o["log"] == change.get("log")), None)
+    if entry is None:
+        raise ValueError(f"{where}: no such log in the case")
+    walks = [s for s in entry["steps"] if s["type"] == "walk"]
+    if not 1 <= change.get("walk", 0) <= len(walks):
+        raise ValueError(f"{where}: the open has {len(walks)} walks")
+    walk = walks[change["walk"] - 1]
+    answered = [a["client"] + ("+auth" if a.get("auth") else "") for a in walk["answers"]]
+    for client in change.get("asked") or []:
+        if client not in answered:
+            raise ValueError(f"{where}: no device answer for {client} (answered: {answered})")
+    if not change.get("asked"):
+        raise ValueError(f"{where}: asks no one")
+    walk["expect"]["changed"] = {"asked": list(change["asked"]), "why": change["why"]}
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Walk-replay fixtures from appbench per-open logs.")
     ap.add_argument("--results", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "results"),
                     help="appbench results directory (the per-open logs and the runs' .jsonl)")
-    ap.add_argument("--manifest", help="JSON {cases: [{name, logs: [...], note, exclude, priorState}]}")
+    ap.add_argument("--manifest", help="JSON {cases: [{name, logs: [...], note, exclude, priorState, changed}]}")
     ap.add_argument("--case", help="replay the logs given as ONE case with this name")
     ap.add_argument("--out", help="write here instead of stdout")
     ap.add_argument("logs", nargs="*")
@@ -454,7 +484,7 @@ def main(argv=None):
             manifest = json.load(fh)
         for c in manifest["cases"]:
             cases.append(build_case(args.results, c["name"], c["logs"], c.get("note"), c.get("exclude"),
-                                    c.get("priorState")))
+                                    c.get("priorState"), c.get("changed")))
     if args.case:
         cases.append(build_case(args.results, args.case, args.logs))
     elif args.logs:

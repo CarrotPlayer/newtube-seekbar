@@ -85,7 +85,11 @@
   {
    "name": "lte-bot-wall-after-a-kids-403",
    "note": "The Pixel's LTE run with a one-shot synthetic media 403 (debug.arc.poison_once_itag=any), v16, four processes: an ordinary video recovers from VISIONOS to WEB_EMBED; the kids video's TV_TIZEN media 403 benches the account route for that video (persisted) and the recovery walk finds WEB_EMBED; the ordinary video again; then the kids video in a new process: the restored bench keeps TV_TIZEN out, WEB_EMBED, IOS and ANDROID_REEL answer 'not a bot', the wall is established mid-walk and the circuit trips at the fifth request.",
-   "logs": ["v16-lte-recovery.RING.dQw4w9WgXcQ.t1.log", "v16-lte-recovery.RING._WB5hh7WOb4.t1.log", "v16-lte-recovery.RING.dQw4w9WgXcQ.t2.log", "v16-lte-recovery.RING._WB5hh7WOb4.t2.log"]
+   "logs": ["v16-lte-recovery.RING.dQw4w9WgXcQ.t1.log", "v16-lte-recovery.RING._WB5hh7WOb4.t1.log", "v16-lte-recovery.RING.dQw4w9WgXcQ.t2.log", "v16-lte-recovery.RING._WB5hh7WOb4.t2.log"],
+   "changed": [
+    {"log": "v16-lte-recovery.RING._WB5hh7WOb4.t1.log", "walk": 2, "asked": ["WEB_EMBED"],
+     "why": "the recovery asks a source that refused the video moments ago after everything else (router v20, RecentRefusals): VISIONOS refused the kids video half a second before TV_TIZEN's media 403, so the recovery goes straight to WEB_EMBED instead of re-asking it"}
+   ]
   },
   {
    "name": "private-v16-tripped",

@@ -114,6 +114,7 @@ only debug and benchmark builds read at process start:
 | `debug.arc.poison_once_itag` | `--prop debug.arc.poison_once_itag=any` | refuse one media request with a synthetic 403 (then the app's recovery runs) |
 | `debug.arc.still_lift` | `--prop debug.arc.still_lift=texture` | the loading still waits for the next texture frame after READY again (default: it lifts at READY once this open's first frame is on the texture) |
 | `debug.arc.embed_persist` | `--prop debug.arc.embed_persist=0` | WEB_EMBED's embed identity in memory only again (default: persisted, 6 h TTL) |
+| `debug.arc.kids_channel` | `--prop debug.arc.kids_channel=0` | the kids channel memory off (default on from v20: a channel whose video VISIONOS refused and TV_TIZEN served sends its next named video to TV_TIZEN first) |
 
 Every property is reset to `none` at the end. Then, from `tools/netbench`:
 ```bash
@@ -149,7 +150,10 @@ into the fixtures of MediaServiceCore's `VideoInfoReplayTest`
 `appbench/replay_seed.json`), which replays YouTube's recorded answers through the real walk and
 checks the same clients in the same order and the same outcome. Run it first after a planner
 change; phones then only measure time and playback. Debug and benchmark builds log a
-`player-playability` line per answer so new fixtures are exact.
+`player-playability` line per answer so new fixtures are exact (from v20 it ends with the answer's
+channel as a hash, `channel=<tag>|none`). A walk the planner now asks differently on purpose is
+listed in its case's `changed` (`{log, walk, asked, why}`): the device's record stays, the replay
+checks the new order and prints the why; a change can only drop or reorder asks the device answered.
 
 **Acceptance (planner and HLS for VOD).** `appbench/accept.sh <wifi|lte> smoke|rest` runs the matrix
 of `docs/player-sources/PLANNER.md` section 4, each switch on against the same build with it off (LTE

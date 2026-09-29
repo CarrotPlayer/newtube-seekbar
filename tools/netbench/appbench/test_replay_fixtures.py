@@ -50,7 +50,7 @@ KIDS = f"""\
 ADULT = f"""\
 09-29 09:44:14.302 D/NetPath (23070): player-ring plan video={A} lane=signed-out order=[VISIONOS, WEB_EMBED, ANDROID_VR, IOS, ANDROID_REEL, MWEB, WEB, WEB_SAFARI]
 09-29 09:44:14.654 D/NetPath (23070): player-result video={A} client=VISIONOS attempt=1 status=LOGIN_REQUIRED playable=n auth=n srvAuth=? formats=0+0 usableAdaptive=0 dash=n hls=n sabr=n reason="Inicia sesión y confirma tu edad • Puede que este vídeo no sea adecuado para algunos usuarios. https://support.google.com/youtube/answer/2802167 "más""
-09-29 09:44:14.655 D/NetPath (23070): player-playability video={A} client=VISIONOS attempt=1 {{"status":"LOGIN_REQUIRED","reason":"Inicia sesión y confirma tu edad","subreason":"Puede que este vídeo no sea adecuado para algunos usuarios. <url> \\"más\\"","desktopLegacyAgeGateReason":1,"live":false,"liveContent":false,"liveStart":false,"trailer":false,"cut":false}}
+09-29 09:44:14.655 D/NetPath (23070): player-playability video={A} client=VISIONOS attempt=1 {{"status":"LOGIN_REQUIRED","reason":"Inicia sesión y confirma tu edad","subreason":"Puede que este vídeo no sea adecuado para algunos usuarios. <url> \\"más\\"","desktopLegacyAgeGateReason":1,"live":false,"liveContent":false,"liveStart":false,"trailer":false,"cut":false}} channel=none
 09-29 09:44:14.988 D/NetPath (23070): player-result video={A} client=WEB_EMBED attempt=2 status=UNPLAYABLE playable=n auth=n srvAuth=n formats=0+0 usableAdaptive=0 dash=n hls=n sabr=n reason="Este contenido tiene restricción de edad"
 09-29 09:44:14.990 D/NetPath (23070): player-ring age-gate-settled video={A} refused=[WEB_EMBED, VISIONOS] attempts=2 skipped=6
 09-29 09:44:14.990 D/NetPath (23070): player-transform video={A} client=VISIONOS ms=0
@@ -135,6 +135,11 @@ class ReplayFixturesTest(unittest.TestCase):
         self.assertTrue(visionos["exactSubreason"].startswith("Puede que este vídeo"))
         self.assertTrue(visionos["reason"].startswith("Inicia sesión y confirma tu edad • "))
         self.assertEqual((embed["exact"], embed["ageGate"]), (False, False))  # an embed refusal, not a gate
+        # Builds before router v20 end the line with the JSON (no channel tag): read the same.
+        old = [ln.replace("}} channel=none", "}}").replace("} channel=none", "}") for ln in ADULT]
+        write(self.dir, f"v17-wifi-old.RING.{A}.t1.log", old)
+        (walk,) = self.case(f"v17-wifi-old.RING.{A}.t1.log")["opens"][0]["steps"]
+        self.assertEqual((walk["answers"][0]["exact"], walk["answers"][0]["ageGateFrom"]), (True, "logged"))
 
     def test_age_gate_without_the_debug_line(self):
         lines = [ln for ln in ADULT if "player-playability" not in ln]
@@ -204,6 +209,21 @@ class ReplayFixturesTest(unittest.TestCase):
         self.assertEqual(doc["schema"], replay_fixtures.SCHEMA)
         self.assertEqual([(c["name"], c["exclude"], c["priorState"]) for c in doc["cases"]],
                          [("kids", None, "a record of another attachment"), ("old", "changed on purpose", None)])
+
+    def test_a_walk_changed_on_purpose(self):
+        log = f"v16-lte-recovery.RING.{K}.t1.log"
+        change = {"log": log, "walk": 2, "asked": ["WEB_EMBED"], "why": "asks what just refused it last"}
+        case = replay_fixtures.build_case(self.dir, "c", [log], changed=[change])
+        walks = [s for s in case["opens"][0]["steps"] if s["type"] == "walk"]
+        self.assertEqual(walks[1]["expect"]["asked"], ["VISIONOS", "WEB_EMBED"])  # the device's record
+        self.assertEqual(walks[1]["expect"]["changed"],
+                         {"asked": ["WEB_EMBED"], "why": "asks what just refused it last"})
+        self.assertNotIn("changed", walks[0]["expect"])
+        # A change only drops or reorders asks the device answered, in a walk that exists, with a why.
+        for bad in (dict(change, asked=["ANDROID_VR"]), dict(change, asked=[]), dict(change, walk=9),
+                    dict(change, why=""), dict(change, log=f"v17-wifi-cat.RING.{A}.t1.log")):
+            with self.assertRaises(ValueError):
+                replay_fixtures.build_case(self.dir, "c", [log], changed=[bad])
 
 
 if __name__ == "__main__":
