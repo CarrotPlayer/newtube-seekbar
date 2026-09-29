@@ -424,6 +424,22 @@ public class MobileMainApplication extends MainApplication {
         // thread; see VideoInfoService.setBotWallStore. TV never calls this.
         VideoInfoService.setBotWallStore(new com.newtube.mobile.player.BotWallPrefsStore(this));
 
+        // EMBED IDENTITY MEMORY (mobile-only): WEB_EMBED's embed-page identity (flags + the visitor
+        // they are bound to) survives a restart inside its 6 h TTL, so a new process's first
+        // WEB_EMBED /player no longer waits for the embed page: 218-236 ms after a warm connection,
+        // ~390 ms cold (Pixel 9 LTE, netbench ttff-analysis 2026-09-29). Read on that first ask,
+        // from the file the bot-wall restore above already loads; a refused (152) pair is dropped
+        // from disk too. Setting the store does not load YtCfgService, so the shared OkHttp client
+        // is not built here. Debug A/B: setprop debug.arc.embed_persist 0. TV never calls this.
+        if ((com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG
+                || com.liskovsoft.smartyoutubetv2.tv.BuildConfig.BENCHMARK)
+                && "0".equals(getDebugSystemProperty("debug.arc.embed_persist"))) {
+            android.util.Log.w("NetPath", "embed identity persistence disabled (debug)");
+        } else {
+            com.liskovsoft.youtubeapi.innertube.ytcfg.EmbedIdentityPersistence.setStore(
+                    new com.newtube.mobile.player.EmbedIdentityPrefsStore(this));
+        }
+
         // GUEST IDENTITY: a bot challenge on the anonymous partition keeps the visitor the app
         // already has, like TV; the anonymous cooldown reorders the ring and BotWallBook limits
         // walled requests. VideoInfoService.setRotateVisitorOnAnonChallenge(true) used to be called
