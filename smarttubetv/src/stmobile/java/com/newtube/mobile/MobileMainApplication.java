@@ -321,6 +321,13 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "sig-runtime keep-alive disabled (debug)");
             }
 
+            // SIGNED-IN HEAD A/B: "1" asks the account route (TV_TIZEN with the account) first instead
+            // of second when signed in (netbench LANES.md section 2.1). Off by default.
+            if ("1".equals(getDebugSystemProperty("debug.arc.account_first"))) {
+                VideoInfoService.setAccountRouteFirst(true);
+                android.util.Log.w("NetPath", "account route first (debug)");
+            }
+
             // V8 PLAYER MEMO ROLLBACK: "0" re-evaluates the whole player JS on every signature/n
             // solve, as before (206-240 ms per TV_TIZEN / WEB_EMBED / MWEB answer on the Pixel 9;
             // see VideoInfoService.setSigSolverMemoEnabled). Compare memo=hit|miss|off on v8-run.
