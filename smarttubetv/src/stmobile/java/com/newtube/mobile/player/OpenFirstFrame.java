@@ -27,19 +27,38 @@ final class OpenFirstFrame {
     private int mGeneration = NONE;
     private boolean mFenced;
     private long mRenderedAtMs;
+    /** System.nanoTime() when this open's fence came back; 0 = not yet. */
+    private long mFenceNanos;
 
     /** At {@code prepare()}, under the generation this open now runs in; the fence goes out next. */
     void onPrepare(int generation) {
         mGeneration = generation;
         mFenced = false;
         mRenderedAtMs = 0;
+        mFenceNanos = 0;
     }
 
     /** The fence sent after that prepare came back through the playback thread. */
     void onFence(int generation) {
+        onFence(generation, System.nanoTime());
+    }
+
+    void onFence(int generation, long nowNanos) {
         if (generation == mGeneration) {
             mFenced = true;
+            mFenceNanos = nowNanos;
         }
+    }
+
+    /**
+     * NEWTUBE(still-lift): {@code System.nanoTime()} when this open's fence came back to the main
+     * thread; 0 when not (yet), or stale. The previous stream's renderer released every frame it
+     * ever will before the playback thread handled this open's stop, so before the fence: a buffer
+     * on the texture whose producer timestamp (MediaCodec's release time, the same monotonic
+     * clock) is at or after this instant is this stream's.
+     */
+    long fenceNanos(int currentGeneration) {
+        return currentGeneration == mGeneration && mFenced ? mFenceNanos : 0;
     }
 
     /**
