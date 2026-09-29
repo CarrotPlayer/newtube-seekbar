@@ -20,6 +20,17 @@ public class SwitchExperimentsTest {
     @After
     public void tearDown() {
         ShadowSystemProperties.override("debug.arc.touch_prefetch_ms", "");
+        ShadowSystemProperties.override("debug.arc.still_lift", "");
+    }
+
+    @Test
+    public void stillLiftsAtReadyUnlessRolledBack() {
+        ShadowSystemProperties.override("debug.arc.still_lift", "");
+        assertEquals(true, SwitchExperiments.stillLiftAtReady());
+        ShadowSystemProperties.override("debug.arc.still_lift", "none");
+        assertEquals(true, SwitchExperiments.stillLiftAtReady());
+        ShadowSystemProperties.override("debug.arc.still_lift", "texture");
+        assertEquals(false, SwitchExperiments.stillLiftAtReady());
     }
 
     @Test

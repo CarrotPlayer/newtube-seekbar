@@ -1227,7 +1227,7 @@ public class MobilePlaybackActivity extends MobileActivity
             if (fromMini) {
                 // The old stream is still producing frames after its texture was re-parented.
                 // Keep those frames behind the selected video's thumbnail until the new load wins.
-                mStillAwaitReady = true;
+                armStillForReady();
             }
             startOpenMorph(launch.sourceBounds, 300);
         } else if (fromMini && mContainer != null) {
@@ -3207,11 +3207,17 @@ public class MobilePlaybackActivity extends MobileActivity
                     // background warmup or this very load did the work). Persists; kills the
                     // first-run hint for good.
                     SessionWarmup.markWarm(MobilePlaybackActivity.this);
-                    // LOADING STILL: the NEW stream is ready - the very next rendered frame is the
-                    // new video, so let onSurfaceTextureUpdated lift the thumbnail then.
+                    // LOADING STILL: the NEW stream is ready. NEWTUBE(still-lift): when this open's
+                    // first frame is already on the texture, lift now; otherwise the very next
+                    // rendered frame is the new video, so let onSurfaceTextureUpdated lift it then.
                     if (mStillAwaitReady) {
                         mStillAwaitReady = false;
-                        mStillAwaitFrame = true;
+                        if (canLiftStillAtReady()) {
+                            mStillAwaitFrame = false;
+                            liftLoadingStill("ready");
+                        } else {
+                            mStillAwaitFrame = true;
+                        }
                     }
                     // READY can precede the first rendered frame. Only an audio-only stream has
                     // no video frame to wait for; visible video releases its header when the new
@@ -3288,6 +3294,16 @@ public class MobilePlaybackActivity extends MobileActivity
     /** New selections reveal instantly once ready; mini-player handoffs retain their short fade. */
     private boolean mNewVideoStill;
     private String mStillVideoId;
+    /** NEWTUBE(still-lift): elapsedRealtime of the last frame the video texture consumed. */
+    private long mLastTextureFrameRealtimeMs;
+    /** NEWTUBE(still-lift): elapsedRealtime at which the still last started waiting for READY. */
+    private long mStillArmedRealtimeMs;
+
+    /** The still waits for the NEW stream's READY (see canLiftStillAtReady). */
+    private void armStillForReady() {
+        mStillAwaitReady = true;
+        mStillArmedRealtimeMs = android.os.SystemClock.elapsedRealtime();
+    }
 
     /** Build the code-managed video texture + still inside the PlayerView's content frame. */
     private void setupVideoSurface() {
@@ -3347,17 +3363,57 @@ public class MobilePlaybackActivity extends MobileActivity
 
         @Override
         public void onSurfaceTextureUpdated(SurfaceTexture texture) {
+            mLastTextureFrameRealtimeMs = android.os.SystemClock.elapsedRealtime();
             // A real frame just rendered behind the still: lift it.
             if (mStillAwaitFrame && !mStillAwaitReady) {
                 mStillAwaitFrame = false;
-                hideVideoStill(mNewVideoStill);
-                // The persistent Surface can deliver the previous video's queued renderer event
-                // after a new selection. Reuse the still's new-stream READY + texture-frame gate
-                // instead of letting an unconditional onRenderedFirstFrame release its metadata.
-                releaseWatchMetadata();
+                liftLoadingStill("texture");
             }
         }
     };
+
+    private void liftLoadingStill(String lift) {
+        hideVideoStill(mNewVideoStill, lift);
+        // The persistent Surface can deliver the previous video's queued renderer event
+        // after a new selection. Reuse the still's new-stream READY + texture-frame gate
+        // instead of letting an unconditional onRenderedFirstFrame release its metadata.
+        releaseWatchMetadata();
+    }
+
+    /**
+     * NEWTUBE(still-lift): at the new stream's READY, is its first frame already on screen behind
+     * the still? The still used to wait for the NEXT texture frame after READY - frame 2, released on
+     * the audio clock - which hid a decoded picture for 128 / 148 ms (median / p90, READY to
+     * picture-visible, n=67 Pixel 9 LTE opens, 2026-09-29); the first frame came before READY in
+     * 67 of 67. All of this must hold, so a stale frame of the previous video on this reused
+     * surface can never be revealed: the controller saw THIS open's first frame (its generation,
+     * delivered after the open's fence through the playback thread - see OpenFirstFrame), rendered
+     * after the still began waiting (so an old stream re-reaching READY before the new open resets
+     * it never counts); the texture consumed a frame since that render time; and READY itself,
+     * which media3 reports with a surface attached only after the new stream's first frame was
+     * released. Otherwise, or with
+     * debug.arc.still_lift=texture, the texture-frame path (onSurfaceTextureUpdated after READY)
+     * stays in charge.
+     */
+    private boolean canLiftStillAtReady() {
+        if (mExoPlayerController == null || mBackgroundAudioMode
+                || !com.newtube.mobile.player.SwitchExperiments.stillLiftAtReady()) {
+            return false;
+        }
+        return firstFrameOnTexture(mExoPlayerController.getOpenFirstFrameRealtimeMs(),
+                mStillArmedRealtimeMs, mLastTextureFrameRealtimeMs);
+    }
+
+    /**
+     * @param firstFrameAtMs when this open's first frame was released (0 = not yet, or stale)
+     * @param stillArmedAtMs when the still started waiting for the new stream's READY
+     * @param lastTextureFrameAtMs when the texture last consumed a frame (all one clock)
+     */
+    static boolean firstFrameOnTexture(long firstFrameAtMs, long stillArmedAtMs,
+            long lastTextureFrameAtMs) {
+        return firstFrameAtMs > 0 && firstFrameAtMs >= stillArmedAtMs
+                && lastTextureFrameAtMs >= firstFrameAtMs;
+    }
 
     /** Session-long video texture, handed to the Browse mini card (see MiniPlayerBridge). */
     SurfaceTexture getSessionTexture() {
@@ -3412,7 +3468,7 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         mStillVideoId = item.videoId;
         mNewVideoStill = true;
-        mStillAwaitReady = true; // the OLD stream is still READY; wait for the new one
+        armStillForReady(); // the OLD stream is still READY; wait for the new one
         mStillAwaitFrame = false;
         mVideoStill.animate().cancel();
         mVideoStill.setImageDrawable(null); // solid black until the thumbnail lands
@@ -3470,7 +3526,7 @@ public class MobilePlaybackActivity extends MobileActivity
     // So the whole activity-scoped RequestManager is paused for the open and resumed when the
     // loading still lifts, i.e. at the first rendered frame of the new video. Nothing is cancelled -
     // Glide re-runs the pending requests on resume. Blank-forever is guarded three ways: the still
-    // always converges on hideVideoStill() (STATE_READY -> next frame, or onPlayerError), a watchdog
+    // always converges on hideVideoStill() (STATE_READY or its next frame, or onPlayerError), a watchdog
     // releases the hold regardless, and Glide's own activity lifecycle resumes the manager on every
     // onStart.
     //
@@ -3526,18 +3582,21 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     private void hideVideoStill() {
-        hideVideoStill(false);
+        hideVideoStill(false, "texture");
     }
 
-    private void hideVideoStill(boolean revealNewVideo) {
+    /** @param lift {@code ready} or {@code texture}: which still-lift path revealed the new video. */
+    private void hideVideoStill(boolean revealNewVideo, String lift) {
         mNewVideoStill = false;
         if (revealNewVideo) {
             boolean hidden = hideLoadingStillImmediately(mVideoStill);
             if (hidden && mVideoArea != null && mVideoArea.isShown()) {
-                // UI visibility milestone after READY + a texture update, not a compositor-present
-                // timestamp. There is no remaining still-fade interval after this event.
+                // UI visibility milestone after READY + a texture update of this open's frames, not
+                // a compositor-present timestamp. There is no remaining still-fade interval after
+                // this event. lift=ready: that update came before READY (NEWTUBE(still-lift));
+                // lift=texture: it is the first one after READY.
                 NetPath.log(NetPath.context() + " picture-visible +" + NetPath.elapsedMs()
-                        + " state=ready-texture-overlay-gone");
+                        + " state=ready-texture-overlay-gone lift=" + lift);
             }
             releaseImageRequests("picture-visible");
             return;
@@ -3557,7 +3616,10 @@ public class MobilePlaybackActivity extends MobileActivity
         }).start();
     }
 
-    /** Only called for a new stream after the caller observed READY and its next texture frame. */
+    /**
+     * Only called for a new stream after the caller observed READY and a texture frame of it: the
+     * next one after READY, or one since this open's first frame (canLiftStillAtReady).
+     */
     static boolean hideLoadingStillImmediately(@Nullable ImageView still) {
         if (still == null || still.getVisibility() != View.VISIBLE) {
             return false;

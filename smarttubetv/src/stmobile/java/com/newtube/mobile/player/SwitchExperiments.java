@@ -27,4 +27,18 @@ public final class SwitchExperiments {
         int value = DebugMediaShaper.propInt("debug.arc.touch_prefetch_ms", 0);
         return value <= 0 ? 0 : Math.min(value, MAX_TOUCH_PREFETCH_MS);
     }
+
+    /**
+     * NEWTUBE(still-lift): the loading still of a new selection lifts at READY once this open's
+     * first frame is on the texture (the default, and always in release), instead of waiting for
+     * the NEXT texture frame after READY. That wait hid an already decoded picture for 128 / 148 ms
+     * (median / p90, READY to picture-visible, n=67 opens, Pixel 9 LTE, 2026-09-29). Rollback for
+     * an A/B on one apk: {@code adb shell setprop debug.arc.still_lift texture}.
+     */
+    public static boolean stillLiftAtReady() {
+        if (!(BuildConfig.DEBUG || BuildConfig.BENCHMARK)) {
+            return true;
+        }
+        return !"texture".equals(DebugMediaShaper.prop("debug.arc.still_lift"));
+    }
 }

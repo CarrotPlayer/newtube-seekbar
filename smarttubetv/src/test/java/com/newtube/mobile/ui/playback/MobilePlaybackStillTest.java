@@ -46,6 +46,18 @@ public class MobilePlaybackStillTest {
         assertFalse(MobilePlaybackActivity.hideLoadingStillImmediately(still));
     }
 
+    /** NEWTUBE(still-lift): READY may lift the still only once this open's frame reached the texture. */
+    @Test
+    public void readyLiftNeedsThisOpensFirstFrameOnTheTexture() {
+        // The still started waiting at 3 000.
+        assertFalse(MobilePlaybackActivity.firstFrameOnTexture(0, 3_000, 5_000)); // no frame of this open
+        assertFalse(MobilePlaybackActivity.firstFrameOnTexture(4_000, 3_000, 3_990)); // texture stale
+        // The old stream's open (its first frame long before the new selection) re-reached READY.
+        assertFalse(MobilePlaybackActivity.firstFrameOnTexture(1_000, 3_000, 4_070));
+        assertTrue(MobilePlaybackActivity.firstFrameOnTexture(4_000, 3_000, 4_000));
+        assertTrue(MobilePlaybackActivity.firstFrameOnTexture(4_000, 3_000, 4_070));
+    }
+
     @Test
     public void absentOrAlreadyHiddenStillHasNoVisibilityMilestone() {
         assertFalse(MobilePlaybackActivity.hideLoadingStillImmediately(null));

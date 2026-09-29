@@ -82,6 +82,19 @@ public class Media3PlayerController implements Player.Listener {
      * real reload logs again.
      */
     private boolean mFirstFrameLogged;
+    /** NEWTUBE(still-lift): this open's first frame, for the watch page's loading still. */
+    private final OpenFirstFrame mOpenFirstFrame = new OpenFirstFrame();
+    /**
+     * NEWTUBE(still-lift): media3's Player.Listener callback carries no render time, the
+     * AnalyticsListener one does (see OpenFirstFrame).
+     */
+    private final androidx.media3.exoplayer.analytics.AnalyticsListener mFirstFrameListener =
+            new androidx.media3.exoplayer.analytics.AnalyticsListener() {
+                @Override
+                public void onRenderedFirstFrame(EventTime eventTime, Object output, long renderTimeMs) {
+                    mOpenFirstFrame.onRenderedFirstFrame(mOpenGeneration.current(), renderTimeMs);
+                }
+            };
     /**
      * NEWTUBE(focus-grace): an error-reload's own play() was observed being killed by an external
      * AUDIO_FOCUS_LOSS landing ~200ms after re-prepare (Pixel 9, 2026-07-13) - recovery succeeded
@@ -482,6 +495,7 @@ public class Media3PlayerController implements Player.Listener {
         PlayerInfrastructureWarmup.onPlaybackPreparing();
         mPlayer.setMediaSource(mediaSource);
         mPlayer.prepare();
+        sendFirstFrameFence();
         if (mNextPreloader != null) {
             mNextPreloader.onSourceOpened(mediaSource);
         }
@@ -720,6 +734,7 @@ public class Media3PlayerController implements Player.Listener {
         player.addListener(this);
         player.addAnalyticsListener(mOpenPhaseLog);
         player.addAnalyticsListener(mResumeListener);
+        player.addAnalyticsListener(mFirstFrameListener);
     }
 
     public void setTrackSelector(DefaultTrackSelector trackSelector) {
@@ -770,6 +785,7 @@ public class Media3PlayerController implements Player.Listener {
             mPlayer.removeListener(this);
             mPlayer.removeAnalyticsListener(mOpenPhaseLog);
             mPlayer.removeAnalyticsListener(mResumeListener);
+            mPlayer.removeAnalyticsListener(mFirstFrameListener);
             mPlayer.stop();
             mPlayer.clearMediaItems();
             mPlayer.clearVideoSurface();
@@ -1128,6 +1144,33 @@ public class Media3PlayerController implements Player.Listener {
                     && mPlayer.getPlaybackState() == Player.STATE_BUFFERING) {
                 mEventListener.onBuffering();
             }
+        }
+    }
+
+    /**
+     * NEWTUBE(still-lift): {@code elapsedRealtime} at which the stream this open prepared released
+     * its first frame to the surface; 0 while it has not, and after any newer open/reset/release.
+     * A late first-frame event of the previous stream never counts (see OpenFirstFrame).
+     */
+    public long getOpenFirstFrameRealtimeMs() {
+        return mOpenFirstFrame.renderedAtMs(mOpenGeneration.current());
+    }
+
+    /**
+     * NEWTUBE(still-lift): right after {@code prepare()} (so after resetPlayerState's generation
+     * bump and any stop it sent), a message the playback thread handles after them and delivers
+     * on the main looper - the fence OpenFirstFrame counts first-frame events from. It only runs a
+     * callback: no effect on playback. If it cannot be sent, the still keeps the texture path.
+     */
+    private void sendFirstFrameFence() {
+        final int generation = mOpenGeneration.current();
+        mOpenFirstFrame.onPrepare(generation);
+        try {
+            mPlayer.createMessage((messageType, payload) -> mOpenFirstFrame.onFence(generation))
+                    .setLooper(Looper.getMainLooper())
+                    .send();
+        } catch (RuntimeException e) {
+            Log.e(TAG, "sendFirstFrameFence: " + e);
         }
     }
 
