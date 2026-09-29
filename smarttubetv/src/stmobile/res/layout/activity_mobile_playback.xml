@@ -73,15 +73,21 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clickable="true"
+                android:clipToPadding="false"
                 android:focusable="true">
 
+                <!-- The scrims cover the whole video area: in fullscreen the root is padded to the
+                     video's edges and the cutout, and applyControlsInsets gives these two the
+                     matching negative margins (clipToPadding=false above). -->
                 <View
+                    android:id="@+id/mobile_player_top_scrim"
                     android:layout_width="match_parent"
                     android:layout_height="@dimen/mobile_player_top_scrim_height"
                     android:layout_gravity="top"
                     android:background="@drawable/mobile_player_top_scrim" />
 
                 <View
+                    android:id="@+id/mobile_player_bottom_scrim"
                     android:layout_width="match_parent"
                     android:layout_height="@dimen/mobile_player_bottom_scrim_height"
                     android:layout_gravity="bottom"

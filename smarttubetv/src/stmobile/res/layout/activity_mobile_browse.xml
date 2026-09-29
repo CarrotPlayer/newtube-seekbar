@@ -285,10 +285,13 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <FrameLayout
+            <!-- NEWTUBE(issue #9): an AspectRatioFrameLayout (FIT), given the video's shape by
+                 MiniPlayerBridge.fitToVideo: other shapes are letterboxed, not stretched. -->
+            <androidx.media3.ui.AspectRatioFrameLayout
                 android:id="@+id/mobile_mini_player_frame"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
+                android:layout_height="match_parent"
+                android:layout_gravity="center">
 
                 <ImageView
                     android:id="@+id/mobile_mini_freeze"
@@ -298,7 +301,7 @@
                     android:scaleType="fitXY"
                     android:visibility="gone" />
 
-            </FrameLayout>
+            </androidx.media3.ui.AspectRatioFrameLayout>
 
             <ImageButton
                 android:id="@+id/mobile_mini_play_pause"

@@ -91,6 +91,7 @@ public final class MobileMiniPlayerController {
             mFreeze.setVisibility(View.VISIBLE);
         }
 
+        MiniPlayerBridge.fitToVideo(mFrame); // NEWTUBE(issue #9): letterbox, never stretch
         attachTexture();
         mBar.setVisibility(View.VISIBLE);
         updatePlayPause(player);
@@ -316,6 +317,7 @@ public final class MobileMiniPlayerController {
             mProgress.setProgress((int) (player.getCurrentPosition() * 1000 / duration));
         }
         updatePlayPause(player);
+        MiniPlayerBridge.fitToVideo(mFrame); // an autoplayed next video may have another shape
         Utils.postDelayed(mTick, TICK_MS);
     }
 

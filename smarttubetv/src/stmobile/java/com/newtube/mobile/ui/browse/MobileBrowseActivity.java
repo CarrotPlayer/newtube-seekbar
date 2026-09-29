@@ -385,6 +385,7 @@ public class MobileBrowseActivity extends MobileActivity
             mMiniFreeze.setVisibility(View.VISIBLE);
         }
 
+        MiniPlayerBridge.fitToVideo(mMiniPlayerFrame); // NEWTUBE(issue #9): letterbox, never stretch
         attachMiniTexture();
         mMiniPlayerBar.setVisibility(View.VISIBLE);
         updateMiniPlayPauseIcon(player);
@@ -564,6 +565,7 @@ public class MobileBrowseActivity extends MobileActivity
             mMiniProgress.setProgress((int) (player.getCurrentPosition() * 1000 / duration));
         }
         updateMiniPlayPauseIcon(player);
+        MiniPlayerBridge.fitToVideo(mMiniPlayerFrame); // an autoplayed next video may have another shape
         Utils.postDelayed(mMiniPlayerTick, MINI_TICK_MS);
     }
 

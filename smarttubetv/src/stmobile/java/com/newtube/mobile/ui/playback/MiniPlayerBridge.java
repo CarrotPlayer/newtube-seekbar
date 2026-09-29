@@ -5,10 +5,13 @@ import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.os.SystemClock;
+import android.view.View;
 
 import androidx.annotation.Nullable;
 
+import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.AspectRatioFrameLayout;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.app.views.PlaybackView;
 import com.liskovsoft.smartyoutubetv2.common.app.views.ViewManager;
@@ -206,6 +209,27 @@ public final class MiniPlayerBridge {
     @Nullable
     public static ExoPlayer getPlayer() {
         return isActive() ? sActivity.get().getSharedPlayer() : null;
+    }
+
+    /**
+     * NEWTUBE(issue #9): give a host card's video frame (an {@link AspectRatioFrameLayout}, see
+     * {@code mobile_mini_player_frame}) the playing video's shape. The card is a fixed 16:9 box and
+     * a TextureView scales its buffer to its own bounds, so a 2.35:1 film, a 4:3 clip or a vertical
+     * video filled the card stretched. Now it is letterboxed on the card's black background, like
+     * the watch page's video box the minimize morph shrinks into it. Unknown size: unchanged.
+     * Cheap and idempotent (setAspectRatio only relayouts on a change), so hosts call it from their
+     * sync and their progress tick - the tick picks up an autoplayed video of another shape.
+     */
+    public static void fitToVideo(@Nullable View frame) {
+        ExoPlayer player = getPlayer();
+        if (!(frame instanceof AspectRatioFrameLayout) || player == null) {
+            return;
+        }
+        VideoSize size = player.getVideoSize();
+        if (size.width > 0 && size.height > 0) {
+            ((AspectRatioFrameLayout) frame).setAspectRatio(
+                    size.width * size.pixelWidthHeightRatio / size.height);
+        }
     }
 
     /** Metadata of the playing video (title/author for the bar), or null. */

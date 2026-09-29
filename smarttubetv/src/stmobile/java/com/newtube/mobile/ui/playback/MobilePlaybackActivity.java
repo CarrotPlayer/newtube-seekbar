@@ -76,6 +76,7 @@ import com.github.vkay94.dtpv3.youtube.YouTubeOverlay;
 
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.VideoSize;
 import androidx.media3.common.util.Util;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.SeekParameters;
@@ -177,6 +178,10 @@ public class MobilePlaybackActivity extends MobileActivity
     private DoubleTapPlayerViewImpl mPlayerView;
     private YouTubeOverlay mYouTubeOverlay;
     private View mControlsRoot;
+    @Nullable private View mTopScrim;
+    @Nullable private View mBottomScrim;
+    /** NEWTUBE(issue #9): the last known video display aspect (pixel aspect included), 0 = none yet. */
+    private float mVideoAspect;
     private TextView mTitleView;
     private ImageButton mBackButton;
     private ImageButton mPlayPauseButton;
@@ -562,6 +567,8 @@ public class MobilePlaybackActivity extends MobileActivity
         mPlayerView = findViewById(R.id.mobile_player_view);
         mYouTubeOverlay = findViewById(R.id.mobile_player_yt_overlay);
         mControlsRoot = findViewById(R.id.mobile_controls_root);
+        mTopScrim = findViewById(R.id.mobile_player_top_scrim);
+        mBottomScrim = findViewById(R.id.mobile_player_bottom_scrim);
         mTitleView = findViewById(R.id.mobile_player_title);
         mBackButton = findViewById(R.id.mobile_player_back);
         mPlayPauseButton = findViewById(R.id.mobile_player_play_pause);
@@ -1542,9 +1549,10 @@ public class MobilePlaybackActivity extends MobileActivity
     /**
      * PLAYER LAYOUT POLISH + REACH FIX. Portrait: the decor fits the system windows, controls
      * anchor flush to the video box (no padding). Landscape/fullscreen: inset by the system bars
-     * AND by the pillarbox strip of a 16:9 video, so the whole overlay - especially the
-     * fullscreen-exit button in the bottom-right - aligns with the video content edges ("where
-     * the black strips start", like YouTube) instead of the far screen corners.
+     * AND by the pillarbox strip beside the video (see {@link #controlsStrip}), so the whole
+     * overlay - especially the fullscreen-exit button in the bottom-right - aligns with the video
+     * content edges ("where the black strips start", like YouTube) instead of the far screen corners.
+     * The top/bottom scrims are exempt: they cover the whole video area (bleedScrim).
      */
     private void applyControlsInsets() {
         if (mControlsRoot == null) {
@@ -1553,13 +1561,16 @@ public class MobilePlaybackActivity extends MobileActivity
         int left = 0, top = 0, right = 0, bottom = 0;
         if (isLandscape()) {
             WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(mControlsRoot);
+            // The camera cutout too: a film wider than 16:9 has no pillarbox to keep the back
+            // button and the time label off the punch hole any more (controlsStrip).
             Insets bars = rootInsets != null
-                    ? rootInsets.getInsets(WindowInsetsCompat.Type.systemBars()) : Insets.NONE;
+                    ? rootInsets.getInsets(WindowInsetsCompat.Type.systemBars()
+                            | WindowInsetsCompat.Type.displayCutout()) : Insets.NONE;
             int width = mControlsRoot.getWidth() > 0
                     ? mControlsRoot.getWidth() : getResources().getDisplayMetrics().widthPixels;
             int height = mControlsRoot.getHeight() > 0
                     ? mControlsRoot.getHeight() : getResources().getDisplayMetrics().heightPixels;
-            int strip = Math.max(0, Math.round((width - height * 16f / 9f) / 2f));
+            int strip = controlsStrip(width, height, mVideoAspect, getResizeMode());
             left = Math.max(bars.left, strip);
             right = Math.max(bars.right, strip);
             top = bars.top;
@@ -1569,6 +1580,46 @@ public class MobilePlaybackActivity extends MobileActivity
                 || mControlsRoot.getPaddingRight() != right || mControlsRoot.getPaddingBottom() != bottom) {
             mControlsRoot.setPadding(left, top, right, bottom);
         }
+        bleedScrim(mTopScrim, left, top, right, 0);
+        bleedScrim(mBottomScrim, left, 0, right, bottom);
+    }
+
+    /**
+     * NEWTUBE(issue #9): undo the controls root's padding for a scrim, so it spans the whole video
+     * area. Padded with the root, the scrims stopped at the 16:9 box or at the cutout inset and left
+     * a hard vertical edge on any picture that reaches the screen edge.
+     */
+    private static void bleedScrim(@Nullable View scrim, int left, int top, int right, int bottom) {
+        if (scrim == null || !(scrim.getLayoutParams() instanceof ViewGroup.MarginLayoutParams)) {
+            return;
+        }
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) scrim.getLayoutParams();
+        if (lp.leftMargin != -left || lp.topMargin != -top
+                || lp.rightMargin != -right || lp.bottomMargin != -bottom) {
+            lp.setMargins(-left, -top, -right, -bottom);
+            scrim.setLayoutParams(lp);
+        }
+    }
+
+    /**
+     * NEWTUBE(issue #9): width of the pillarbox strip beside a fitted video in a width x height
+     * box - where the fullscreen controls start. It used to be the 16:9 strip for every video, so on
+     * a 20:9 phone the controls of a film wider than 16:9 (2.35:1 fills the width) sat 272 px in,
+     * over the picture, and their scrims (then padded with them) ended there as two hard vertical
+     * edges. Capped at the 16:9 strip, so a narrower video (4:3, vertical)
+     * keeps the 16:9 control box instead of a thin column; 0 when the video covers the width: a
+     * wider film, or a fill/zoom resize mode. An unknown aspect (no video size yet) counts as 16:9.
+     */
+    static int controlsStrip(int width, int height, float videoAspect, int resizeMode) {
+        int strip16x9 = Math.max(0, Math.round((width - height * 16f / 9f) / 2f));
+        if (resizeMode != PlayerConstants.RESIZE_MODE_DEFAULT
+                && resizeMode != PlayerConstants.RESIZE_MODE_FIT_HEIGHT) {
+            return 0; // fixed width, fill and zoom all cover the full width
+        }
+        if (!(videoAspect > 0f)) {
+            return strip16x9;
+        }
+        return Math.min(strip16x9, Math.max(0, Math.round((width - height * videoAspect) / 2f)));
     }
 
     private void applySystemBarsForOrientation(int orientation) {
@@ -3174,6 +3225,16 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     private final Player.Listener mUiPlayerListener = new Player.Listener() {
+        @Override
+        public void onVideoSizeChanged(VideoSize videoSize) {
+            // NEWTUBE(issue #9): the fullscreen controls follow this video's shape (controlsStrip).
+            // An unknown size keeps the last one, as the content frame does (DoubleTapPlayerViewImpl).
+            if (videoSize.width > 0 && videoSize.height > 0) {
+                mVideoAspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height;
+                applyControlsInsets();
+            }
+        }
+
         @Override
         public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
             // The old 2-arg onPlayerStateChanged callback split in two in media3; both re-enter
@@ -6191,6 +6252,7 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mWatchRoot != null) {
             updateInlineViewport(mWatchRoot.getWidth());
         }
+        applyControlsInsets(); // fill/zoom: the controls span the width (controlsStrip)
     }
 
     @Override
