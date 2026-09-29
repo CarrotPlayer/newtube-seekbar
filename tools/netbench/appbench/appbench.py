@@ -158,7 +158,8 @@ def guard(mode="start"):
         return True, "no guard (own emulator)"
     # The guard checks the same phone this run drives.
     r = subprocess.run([GUARD, mode], capture_output=True, timeout=60,
-                       env={**os.environ, "NETBENCH_SERIAL": SERIAL})
+                       env={**os.environ, "NETBENCH_SERIAL": SERIAL,
+                            "GUARD_ALLOW_CALL": "1" if ALLOW_CALL else "0"})
     return r.returncode == 0, r.stdout.decode(errors="replace").strip()
 
 
@@ -185,6 +186,42 @@ def media_volume():
 
 def set_media_volume(v):
     shell(f"cmd media_session volume --stream 3 --set {v}")
+
+
+# The owner's in-call rule (2026-09-29): with --allow-call (or NETBENCH_ALLOW_CALL=1) an active call
+# no longer fails the guard for opens, but before any open during a call the media stream on the
+# ACTIVE output (his earbuds when connected) must read 0, or the open waits. Network toggles never
+# relax (pixel-lte-wrap.sh). Cells that saw a call are tagged incall=true (out of timing stats).
+ALLOW_CALL = False
+ZEROED = {}  # output device -> the media index this run found there before it set 0
+
+
+def audio_device():
+    """The media stream's active output (dumpsys audio, STREAM_MUSIC 'Devices:'), or None."""
+    m = re.search(r"- STREAM_MUSIC:.*?\n\s*Devices: (\S+)", shell("dumpsys audio"), re.S)
+    return m.group(1) if m else None
+
+
+def call_active():
+    """True/False from the telephony registry; None when the read came back empty."""
+    states = re.findall(r"mCallState=(\d)", shell("dumpsys telephony.registry | grep mCallState"))
+    return any(st != "0" for st in states) if states else None
+
+
+def zero_media_volume():
+    """The media stream on the active output to 0, remembering that output's prior index for the
+    restore; True once it reads 0 (a muted group reads 0 and ignores the set: that is silent too)."""
+    v = media_volume()
+    if v is None:
+        return False
+    if v != 0:
+        ZEROED.setdefault(audio_device(), v)
+        for _ in range(3):
+            set_media_volume(0)
+            time.sleep(0.5)
+            if media_volume() == 0:
+                break
+    return media_volume() == 0
 
 
 
@@ -287,7 +324,139 @@ def parse(lines, video, window_s=None):
         verdict = f"STALL@{max(0, max_pos) // 1000}s"
     res["verdict"] = verdict
     res.update(phases(lines, video))
+    res.update(soak(lines, video))
     return res
+
+
+# Long-play fields (r11 soak, --play-s 300 --seek none). Ticks come every 10 s.
+RE_RESUME = re.compile(r"video=(\S+) resume-seek target=(\d+)")
+RE_RECOVERY = re.compile(r"video=(\S+) recovery-(error|source|action|capped)\b(.*)")
+RE_TICK = re.compile(r"bench-tick video=(\S+) pos=(-?\d+) dur=(-?\d+) buf=(-?\d+) state=(\S+) playing=(\S) t=(\d+)")
+STALL_ADVANCE_MS = 5000  # a 10 s tick that moved less than this is a stall (unless the video ended)
+
+
+def soak(lines, video):
+    """Where playback started and how far it got without a break.
+
+    start_pos_ms: the resume position (the first resume-seek before the first frame; 0 without one).
+    continuous_ms: seconds of playback from the start to the first break (an error, or a tick that
+    moved under 5 s while not ENDED), or to the end of the cell when nothing broke: the lead before
+    the first tick, plus each tick's forward advance (an in-app jump such as a SponsorBlock skip is
+    not played time), plus the stretch from the last tick to the error. A live stream counts from its
+    first tick. first_stop_pos_ms: the position of that break. played_ms: all forward tick-to-tick
+    advance, breaks included (seeks and reload rewinds excluded). jumps: forward jumps over 15 s. stall_ticks /
+    buffering_ticks: ticks that moved under 5 s / ticks in BUFFERING. paused_ticks: READY but not
+    playing (a pause, e.g. audio focus lost to a call: not a network stall). routes: the video's answers in
+    order (player-transform clients). recoveries: one entry per media error: position, http403,
+    action, capped, and the client before and after. pot_*: web PO token activity in this open.
+    visitor: the anonymous visitor's fingerprint on the video's first /player request (the
+    `visitor=` hash NetPath logs; a pm clear makes a new one). wall_media_ms: the furthest media
+    position buffered (tick pos + buf) before the first error: the 403 surfaces after ExoPlayer's
+    retries, so the error's own pos understates where the served media ended (a lower bound, ticks
+    are 10 s apart).
+    """
+    out = {"start_pos_ms": 0, "continuous_ms": None, "first_stop_pos_ms": None, "played_ms": 0,
+           "stall_ticks": 0, "buffering_ticks": 0, "paused_ticks": 0, "jumps": 0, "routes": [], "recoveries": [],
+           "pot_mints": 0, "pot_generators": [], "pot_challenges": [], "player_pot_requests": 0,
+           "visitor": None, "wall_media_ms": None}
+    buffered_end = None
+    ff = False
+    resumed = False
+    prev = None
+    first = None
+    stop = None
+    rec = None
+    live = False
+    before_stop = 0  # played advance until the first break
+    for ln in lines:
+        if "NetPath" not in ln:
+            continue
+        m = RE_RESUME.search(ln)
+        if m and m.group(1) == video and not ff and not resumed:
+            out["start_pos_ms"] = int(m.group(2))
+            resumed = True
+        if re.search(r"video=" + re.escape(video) + r" first-frame \+", ln):
+            ff = True
+        m = re.search(r"player-transform video=(\S+) client=(\S+)", ln)
+        if m and m.group(1) == video:
+            if not out["routes"] or out["routes"][-1] != m.group(2):
+                out["routes"].append(m.group(2))
+            if rec is not None and rec["after"] is None:
+                rec["after"] = m.group(2)
+        if re.search(r"video=" + re.escape(video) + r" live=y", ln) or \
+                re.search(r"video=" + re.escape(video) + r" info \+\d+ .*live=y", ln):
+            live = True
+        m = RE_RECOVERY.search(ln)
+        if m and m.group(1) == video:
+            kind, rest = m.group(2), m.group(3)
+            if kind == "error":
+                if not out["recoveries"]:
+                    out["wall_media_ms"] = buffered_end
+                p = re.search(r" pos=(-?\d+)", rest)
+                rec = {"pos_ms": int(p.group(1)) if p else None, "http403": None, "action": None,
+                       "capped": False, "before": out["routes"][-1] if out["routes"] else None,
+                       "after": None}
+                out["recoveries"].append(rec)
+                if stop is None:
+                    stop = rec["pos_ms"] if rec["pos_ms"] is not None else (prev["pos"] if prev else 0)
+                    if prev is not None and 0 < stop - prev["pos"] <= 15_000:
+                        before_stop += stop - prev["pos"]
+            elif rec is not None and kind == "source":
+                rec["http403"] = "http403=y" in rest
+            elif rec is not None and kind == "action":
+                a = re.search(r"action=(\S+)", rest)
+                rec["action"] = a.group(1) if a else None
+            elif rec is not None and kind == "capped":
+                rec["capped"] = True
+        if "auto-reload cap hit" in ln and video in ln and rec is not None:
+            rec["capped"] = True
+        if "web-pot-mint" in ln:
+            out["pot_mints"] += 1
+        if "web-pot-session" in ln:
+            for key, field in (("generator", "pot_generators"), ("challenge", "pot_challenges")):
+                g = re.search(key + r"=(\S+)", ln)
+                if g and g.group(1) not in out[field]:
+                    out[field].append(g.group(1))
+        if "player-http[S]" in ln and ("video=" + video + " ") in ln:
+            if " pot=y" in ln:
+                out["player_pot_requests"] += 1
+            vis = re.search(r" visitor=(\w+)", ln)
+            if vis and out["visitor"] is None:
+                out["visitor"] = vis.group(1)
+        m = RE_TICK.search(ln)
+        if m and m.group(1) == video:
+            t = {"pos": int(m.group(2)), "dur": int(m.group(3)), "state": m.group(5), "t": int(m.group(7))}
+            if t["state"] == "READY" and m.group(6) == "n":
+                out["paused_ticks"] += 1  # READY but not playing: paused (e.g. audio focus lost to a call)
+            if not out["recoveries"] and int(m.group(4)) >= 0:
+                buffered_end = max(buffered_end or 0, t["pos"] + int(m.group(4)))
+            if t["state"] == "BUFFERING":
+                out["buffering_ticks"] += 1
+            if first is None:
+                first = t
+            if prev is not None:
+                d = t["pos"] - prev["pos"]
+                dt = t["t"] - prev["t"] if t["t"] > prev["t"] else 10_000
+                if 0 < d <= dt + 5000:
+                    out["played_ms"] += d
+                    if stop is None:
+                        before_stop += d
+                elif d > dt + 5000:
+                    out["jumps"] += 1
+                if t["state"] != "ENDED" and prev["state"] != "ENDED" and d < STALL_ADVANCE_MS:
+                    out["stall_ticks"] += 1
+                    if stop is None:
+                        stop = prev["pos"]
+            prev = t
+    if first is not None:
+        # A live stream's position is inside its DVR window: count from the first tick.
+        base = first["pos"] if (live or (not resumed and first["pos"] > 60_000)) else out["start_pos_ms"]
+        lead = first["pos"] - base if 0 <= first["pos"] - base <= 30_000 else 0
+        if stop is not None and stop < first["pos"]:
+            lead = max(0, stop - base)  # broke before the first tick
+        out["continuous_ms"] = lead + before_stop
+        out["first_stop_pos_ms"] = stop
+    return out
 
 
 # Open phases (ttff-analysis 2026-09-29, section 6). "+X" values are the app's own ms since the tap
@@ -471,6 +640,7 @@ def run_cell(args, source, video, trial, out):
     level = battery_level()
     if level is not None and level < args.min_battery:
         return {"stop": f"battery {level}% < {args.min_battery}%"}
+    loud = 0
     while True:
         ok, why = wait_for_guard()
         if not ok:
@@ -482,6 +652,11 @@ def run_cell(args, source, video, trial, out):
             if stopped:
                 return {"stop": f"host STOP ({host_stop_path()}): {stopped}"}
             ok, why = guard("start")
+            if ok and ALLOW_CALL and call_active() is not False and not zero_media_volume():
+                ok, why = False, "in a call and the media stream would not read 0 on the active output"
+                loud += 1
+                if loud >= 30:
+                    return {"stop": why}
             if ok:
                 return open_cell(args, source, video, trial, out, turn)
         time.sleep(5)
@@ -521,8 +696,13 @@ def open_cell(args, source, video, trial, out, turn):
     SETTLE_INFO_SEEN.pop(video, None)
     # The focus is checked from 6 s after the intent (a cold start on a slow phone shows the launcher
     # for a few seconds); the log is read from the first second, to hand the turn on early.
+    incall = call_active() is not False
+    polls = 0
     time.sleep(1)
     while time.time() < deadline:
+        polls += 1
+        if not incall and polls % 5 == 0 and call_active():
+            incall = True
         if time.time() - t0 >= 6:
             f = focus()
             if PKG + "/" not in f:
@@ -547,6 +727,7 @@ def open_cell(args, source, video, trial, out, turn):
     with open(raw, errors="replace") as fh:
         lines = fh.read().splitlines()
     turn.release()
+    incall = incall or call_active() is not False
     res = parse(lines, video, args.play_s if args.settle else None)
     wall = bot_signal(lines)
     if wall:
@@ -557,7 +738,7 @@ def open_cell(args, source, video, trial, out, turn):
         res["cell_s"] = round(time.time() - t0, 1)
     row = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "run_id": args.run_id, "network": args.network,
            "source": source, "support_xhr": args.support_xhr, "anon_tizen": bool(args.anon_tizen), "props": extra_props(args), "video": video, "trial": trial,
-           "aborted": aborted, **res}
+           "aborted": aborted, "incall": incall, **res}
     out.write(json.dumps(row) + "\n")
     out.flush()
     tried = ",".join(r["client"] + ":" + (("OK" if r["playable"] == "y" else r["status"])) for r in res["results"])
@@ -568,7 +749,7 @@ def open_cell(args, source, video, trial, out, turn):
           + (f" readiness=[{'; '.join(res['readiness'][:4])}]" if res['readiness'] else "")
           + (f" autoplay-stop={res['autoplay_stop']}" if res['autoplay_stop'] else "")
           + (" BOT-TRIP" if res.get('bot_trip') else "") + (" BOT-COOLDOWN" if res.get('bot_cooldown') else "")
-          + (f" ABORTED({aborted})" if aborted else ""), flush=True)
+          + (" INCALL" if incall else "") + (f" ABORTED({aborted})" if aborted else ""), flush=True)
     return {"stop": aborted}
 
 
@@ -610,6 +791,11 @@ def main():
     ap.add_argument("--sender-lock", default=os.environ.get("NETBENCH_SENDER_LOCK") or DEFAULT_SENDER_LOCK,
                     help="host-wide lock held per open, so runs on one network take turns "
                          f"(default: {DEFAULT_SENDER_LOCK}; 'none' = off)")
+    ap.add_argument("--allow-call", action="store_true",
+                    default=os.environ.get("NETBENCH_ALLOW_CALL") == "1",
+                    help="the owner's in-call rule: an active call does not stop opens (the guard's "
+                         "GUARD_ALLOW_CALL), the media stream on the active output must read 0 first; "
+                         "default: $NETBENCH_ALLOW_CALL=1. Never for LTE runs")
     ap.add_argument("--min-battery", type=int, default=8,
                     help="stop the run when the phone's battery is under this percent")
     ap.add_argument("--serial", default=os.environ.get("NETBENCH_SERIAL"),
@@ -622,12 +808,15 @@ def main():
                     help="data directory; results go to <data>/appbench/results "
                          "(default: $NETBENCH_DATA, else the tools/netbench directory)")
     args = ap.parse_args()
-    global SERIAL, NO_GUARD, RESULTS, SENDER_LOCK
+    global SERIAL, NO_GUARD, RESULTS, SENDER_LOCK, ALLOW_CALL
     globals()["PKG"] = args.package  # read as a default above, so not in the global list
     if not args.serial:
         ap.error("no device: pass --serial or set NETBENCH_SERIAL (the phone's adb serial)")
     SERIAL = args.serial
     NO_GUARD = SERIAL.startswith("emulator-")
+    ALLOW_CALL = bool(args.allow_call)
+    if ALLOW_CALL and args.network != "wifi":
+        ap.error("--allow-call is for Wi-Fi runs only: LTE cells wait for the call to end")
     SENDER_LOCK = None if args.sender_lock == "none" else args.sender_lock
     RESULTS = os.path.join(args.data, "appbench", "results")
     os.makedirs(RESULTS, exist_ok=True)
@@ -636,8 +825,9 @@ def main():
     if PKG not in shell(f"pm list packages {PKG}"):
         sys.exit(f"{PKG} is not installed")
     vol = media_volume()
-    print(f"appbench {args.run_id}: network={args.network} media volume was {vol}", flush=True)
-    set_media_volume(0)
+    print(f"appbench {args.run_id}: network={args.network} media volume was {vol} on {audio_device()}"
+          + (" (in-call rule on)" if ALLOW_CALL else ""), flush=True)
+    zero_media_volume()
     stopped = None
     try:
         with open(os.path.join(RESULTS, args.run_id + ".jsonl"), "a") as out:
@@ -653,26 +843,38 @@ def main():
                 if stopped:
                     break
     finally:
+        # A second TERM (a queue stopping right after this run's last cell) must not cut the cleanup:
+        # it once left bench, bench_seek and a --prop set on the phone (2026-09-29 18:26).
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         if CURRENT_LOGCAT is not None and CURRENT_LOGCAT.poll() is None:
             CURRENT_LOGCAT.kill()
         shell(f"am force-stop {PKG}")
         for key in ("debug.arc.player_client", "debug.arc.support_xhr", "debug.arc.anon_tizen",
                     "debug.arc.bench", "debug.arc.bench_seek", *extra_props(args)):
             setprop(key, None)
-        now = None
-        if vol is not None:
-            # Re-read and retried: a muted volume group ignores setStreamVolume from the shell
-            # (Android 15). Correction: on the Mi 8 (2026-09-29) a restore did take; the 0 the next
-            # run read was the owner holding volume-down (dumpsys audio: adjustSuggestedStreamVolume
-            # ADJUST_LOWER from the key). A run keeps whatever the owner set: never "fix" a 0.
+        # Each output this run set to 0 gets its own prior index back, if it is the active output
+        # now (the shell sets only the active one; an output that went away keeps 0 and is named).
+        # Re-read and retried: a muted volume group ignores setStreamVolume from the shell
+        # (Android 15). Correction: on the Mi 8 (2026-09-29) a restore did take; the 0 the next
+        # run read was the owner holding volume-down (dumpsys audio: adjustSuggestedStreamVolume
+        # ADJUST_LOWER from the key). A run keeps whatever the owner set: never "fix" a 0.
+        notes = []
+        active = audio_device() if ZEROED else None
+        for dev, want in ZEROED.items():
+            if dev != active:
+                notes.append(f"{dev} NOT restored to {want} (not the active output now: {active})")
+                continue
+            now = None
             for _ in range(3):
-                set_media_volume(vol)
+                set_media_volume(want)
                 time.sleep(0.5)
                 now = media_volume()
-                if now == vol:
+                if now == want:
                     break
+            notes.append(f"{dev} restored to {now}" + (f" (WANTED {want})" if now != want else ""))
         print(f"appbench {args.run_id}: done" + (f", STOPPED: {stopped}" if stopped else "")
-              + f"; media volume restored to {now}" + (f" (WANTED {vol})" if now != vol else ""),
+              + "; media volume " + ("; ".join(notes) if notes else f"untouched (was {vol})"),
               flush=True)
     if stopped:
         sys.exit(2)  # a stop ends the whole sequence (the wrapper then restores Wi-Fi)

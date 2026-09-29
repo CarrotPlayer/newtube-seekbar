@@ -51,10 +51,21 @@ dated RECAP snapshot).
   expanded status bar, no active call, and the phone awake. While a cell plays, appbench checks the
   focus (from 6 s after the intent, as a slow phone shows the launcher while it starts); if anything else takes it (the owner picks the phone up, an emergency alert, a
   call), the cell is aborted and the whole run stops. The tools never press BACK or HOME and never
-  run `logcat -c`. Media volume goes to 0 for the run and is restored.
+  run `logcat -c`. Media volume goes to 0 for the run and is restored (per output: each output the
+  run set to 0 gets its own prior index back while it is the active one).
+- **During a call (the owner's rule, 2026-09-29).** `appbench.py --allow-call` (or
+  `NETBENCH_ALLOW_CALL=1`), Wi-Fi runs only, sets `GUARD_ALLOW_CALL=1` for its guard: an active call
+  no longer fails `start`/`app` for opens and inputs, every other check stays. Before an open during
+  a call the media stream on the active output (the earbuds when connected) must read 0, or the open
+  waits. Cells that saw a call are tagged `incall` and stay out of timing stats. Network toggles
+  never relax: the LTE scripts run their guards with `GUARD_ALLOW_CALL` unset, and `net` always
+  requires no call.
 - **Wi-Fi always comes back.** The LTE scripts re-enable Wi-Fi on exit (guarded; after 5 min of
-  failed guards, as soon as no call is active), stop the command if Wi-Fi comes back mid-run, and
-  leave a phone-side timer that re-enables Wi-Fi after 4 h in case the PC dies. A failed guard
+  failed guards, as soon as a READABLE call state shows no call: an unplugged phone is not "no
+  call"), check it with `cmd wifi status`, stop the command if Wi-Fi comes back mid-run, and
+  leave a phone-side timer that re-enables Wi-Fi after 4 h in case the PC dies. The timer is killed
+  (`kill -9` on its shell, checked with `ps`) only once Wi-Fi is confirmed on, and every run first
+  kills any stale timer left by an earlier one. A failed guard
   before switching Wi-Fi off stops the script (its own exit status is checked, not the log pipe's).
 - **Results stay out of the repo.** Point `NETBENCH_DATA` at a folder outside the checkout. The
   default is this directory, where results, caches and binaries are git-ignored.

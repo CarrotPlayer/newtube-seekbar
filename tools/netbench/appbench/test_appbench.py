@@ -238,5 +238,122 @@ class WalkTurnTest(unittest.TestCase):
         r = appbench.run_cell(Args, "RING", V, 1, None)
         self.assertTrue(r["stop"].startswith("host STOP"), r)
 
+E = "e_04ZrNroTo"
+# MWEB on the Pixel's LTE (2026-09-28, app1b-lte-mweb): ~60 s of media, then a 403 at every reload
+# until the auto-reload cap: the "plays a minute, then Unknown source error" shape.
+MINUTE = f"""\
+09-28 21:46:40.649 D/NetPath (29455): ep=1 video={E} tap
+09-28 21:46:41.236 D/NetPath (29455): web-pot-session new reason=initial visitorSource=app visitor=ae192e7163 prevAgeMs=-1 buildMs=541 binding=streaming:visitor,player:video generator=PoTokenWebView
+09-28 21:46:41.276 D/NetPath (29455): player-http[S] rid=1 video={E} client=2 cver=2.20260708.05.00 visitor=ae192e7163 pot=y auth=n
+09-28 21:46:41.883 D/NetPath (29455): player-result video={E} client=MWEB attempt=1 status=OK playable=y auth=n srvAuth=n formats=49+1 usableAdaptive=49 dash=n hls=n sabr=y reason="null"
+09-28 21:46:42.110 D/NetPath (29455): player-transform video={E} client=MWEB ms=226
+09-28 21:46:42.116 D/NetPath (29455): ep=1 video={E} info +1467 dash=49 hls=n sabr=n live=n
+09-28 21:46:42.503 D/NetPath (29455): ep=1 video={E} first-frame +1854
+09-28 21:46:50.708 D/NetPath (29455): bench-tick video={E} pos=15871 dur=229000 buf=44129 state=READY playing=y t=268165204
+09-28 21:47:00.710 D/NetPath (29455): bench-tick video={E} pos=25868 dur=229000 buf=34132 state=READY playing=y t=268175206
+09-28 21:47:10.709 D/NetPath (29455): bench-tick video={E} pos=35873 dur=229000 buf=24127 state=READY playing=y t=268185205
+09-28 21:47:20.710 D/NetPath (29455): bench-tick video={E} pos=45870 dur=229000 buf=14130 state=READY playing=y t=268195206
+09-28 21:47:30.710 D/NetPath (29455): bench-tick video={E} pos=55866 dur=229000 buf=4134 state=READY playing=y t=268205206
+09-28 21:47:34.792 W/NetPath (29455): ep=1 video={E} error +54143 ExoPlaybackException: Source error causes=ExoPlaybackException(Source error)<-InvalidResponseCodeException(http=403)
+09-28 21:47:34.795 D/NetPath (29455): ep=1 video={E} recovery-error type=0 renderer=-1 pos=59921 duration=229000 net=cell:172
+09-28 21:47:34.799 D/NetPath (29455): ep=1 video={E} recovery-source http403=y freshUrls=y subtitles=off
+09-28 21:47:34.799 D/NetPath (29455): ep=1 video={E} recovery-action action=remint-reload attempt=1 samePos=1
+09-28 21:47:35.455 D/NetPath (29455): player-http[S] rid=2 video={E} client=2 cver=2.20260708.05.00 visitor=ae192e7163 pot=y auth=n
+09-28 21:47:36.195 D/NetPath (29455): player-transform video={E} client=MWEB ms=242
+09-28 21:47:36.260 D/NetPath (29455): ep=2 video={E} resume-seek target=59921 armed cacheMB=384
+09-28 21:47:36.512 D/NetPath (29455): ep=2 video={E} first-frame +1612
+09-28 21:47:40.716 D/NetPath (29455): bench-tick video={E} pos=58495 dur=229000 buf=1505 state=READY playing=y t=268215212
+09-28 21:47:45.578 W/NetPath (29455): ep=4 video={E} error +3217 ExoPlaybackException: Source error causes=ExoPlaybackException(Source error)<-InvalidResponseCodeException(http=403)
+09-28 21:47:45.581 D/NetPath (29455): ep=4 video={E} recovery-error type=0 renderer=-1 pos=59994 duration=229000 net=cell:172
+09-28 21:47:45.582 W/NetPath (29455): auto-reload cap hit (consecutive=1 samePos=4 at 59994ms) for {E} — stopping; last error: Response code: 403
+09-28 21:47:45.585 D/NetPath (29455): ep=4 video={E} recovery-capped connectivity=n net=cell:172
+09-28 21:47:50.717 D/NetPath (29455): bench-tick video={E} pos=59994 dur=229000 buf=0 state=IDLE playing=n t=268225213
+09-28 21:48:00.718 D/NetPath (29455): bench-tick video={E} pos=59994 dur=229000 buf=0 state=IDLE playing=n t=268235214
+""".splitlines()
+
+
+class SoakTest(unittest.TestCase):
+    def test_a_minute_then_the_cap(self):
+        res = appbench.parse(MINUTE, E)
+        self.assertEqual(res["verdict"], "FAIL@59s")  # the old verdict, unchanged
+        self.assertTrue(res["auto_reload_cap"])
+        self.assertEqual(res["start_pos_ms"], 0)  # the reload's resume-seek is not the start
+        self.assertEqual((res["continuous_ms"], res["first_stop_pos_ms"]), (59921, 59921))
+        self.assertEqual(res["routes"], ["MWEB"])
+        self.assertEqual(len(res["recoveries"]), 2)
+        first, last = res["recoveries"]
+        self.assertEqual((first["pos_ms"], first["http403"], first["action"], first["before"], first["after"]),
+                         (59921, True, "remint-reload", "MWEB", "MWEB"))
+        self.assertTrue(last["capped"])
+        self.assertEqual(res["stall_ticks"], 3)  # 55.9->58.5->60.0->60.0 s
+        self.assertEqual((res["pot_generators"], res["player_pot_requests"]), (["PoTokenWebView"], 2))
+        self.assertEqual(res["visitor"], "ae192e7163")
+        self.assertEqual(res["wall_media_ms"], 55866 + 4134)  # the last tick's pos + buf
+
+    def test_a_resumed_clean_play_and_an_end(self):
+        lines = [f"09-29 00:27:35.835 D/NetPath (1): ep=1 video={V} tap",
+                 f"09-29 00:27:36.000 D/NetPath (1): ep=1 video={V} resume-seek target=77040 armed cacheMB=510",
+                 f"09-29 00:27:36.500 D/NetPath (1): ep=1 video={V} first-frame +665"]
+        lines += [f"09-29 00:28:{10 + i:02d}.000 D/NetPath (1): bench-tick video={V} pos={p} dur=213000 "
+                  f"buf=5000 state={s} playing={'y' if s == 'READY' else 'n'} t={10_000 * i}"
+                  for i, (p, s) in enumerate([(85000, "READY"), (95000, "READY"), (105000, "BUFFERING"),
+                                              (113000, "READY"), (213000, "ENDED"), (213000, "ENDED")])]
+        res = appbench.parse(lines, V)
+        self.assertEqual(res["start_pos_ms"], 77040)
+        self.assertEqual(res["stall_ticks"], 0)  # 8 s in 10 s is not a stall; ENDED never is
+        self.assertEqual((res["buffering_ticks"], res["paused_ticks"]), (1, 0))
+        # 7960 before the first tick + 28000 of ticks; the jump to the end is not played time.
+        self.assertEqual(res["continuous_ms"], 85000 - 77040 + 28000)
+        self.assertIsNone(res["first_stop_pos_ms"])
+        self.assertEqual((res["played_ms"], res["jumps"]), (28000, 1))
+
+
+class InCallTest(unittest.TestCase):
+    """The owner's in-call rule: the active output's media index goes to 0 and comes back."""
+
+    AUDIO = ("- STREAM_RING:\n   Devices: speaker(2)\n- STREAM_MUSIC:\n   Muted: false\n   streamVolume:15\n"
+             "   Current: 2 (speaker): 0, 80 (bt_a2dp): 15\n   Devices: bt_a2dp(80)\n- STREAM_ALARM:\n")
+
+    def setUp(self):
+        self.real = appbench.shell
+        self.vol = {"bt_a2dp(80)": 15}
+        self.calls = "    mCallState=0\n    mCallState=2\n"
+
+        def fake(cmd, timeout=60):
+            if cmd == "dumpsys audio":
+                return self.AUDIO
+            if cmd.startswith("dumpsys telephony.registry"):
+                return self.calls
+            if "--get" in cmd:
+                return f"[V] volume is {self.vol['bt_a2dp(80)']} in range [0..25]"
+            if "--set" in cmd:
+                self.vol["bt_a2dp(80)"] = int(cmd.split()[-1])
+            return ""
+        appbench.shell = fake
+        appbench.ZEROED.clear()
+        self.sleep = appbench.time.sleep
+        appbench.time.sleep = lambda s: None
+
+    def tearDown(self):
+        appbench.shell = self.real
+        appbench.time.sleep = self.sleep
+        appbench.ZEROED.clear()
+
+    def test_parsing(self):
+        self.assertEqual(appbench.audio_device(), "bt_a2dp(80)")  # the music stream's, not the ring's
+        self.assertTrue(appbench.call_active())
+        self.calls = "    mCallState=0\n"
+        self.assertFalse(appbench.call_active())
+        self.calls = ""
+        self.assertIsNone(appbench.call_active())  # an empty read is not "no call"
+
+    def test_zero_remembers_the_prior_index(self):
+        self.assertTrue(appbench.zero_media_volume())
+        self.assertEqual(self.vol["bt_a2dp(80)"], 0)
+        self.assertEqual(appbench.ZEROED, {"bt_a2dp(80)": 15})
+        appbench.zero_media_volume()  # already 0: the remembered index stays the owner's
+        self.assertEqual(appbench.ZEROED, {"bt_a2dp(80)": 15})
+
+
 if __name__ == "__main__":
     unittest.main()

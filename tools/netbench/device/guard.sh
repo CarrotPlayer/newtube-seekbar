@@ -5,6 +5,10 @@
 #           (never a call screen / WhatsApp / shade / keyguard)
 #   net   : only the call-state check (plus shade/awake info)
 # Exit 0 = safe to act. Prints a one-line verdict.
+# GUARD_ALLOW_CALL=1 (the owner's rule of 2026-09-29): an active call no longer fails app/start,
+# for in-app opens and inputs only; the verdict then carries "incall". Every other check stays.
+# Never set it for network toggles (pixel-lte-wrap.sh clears it): dropping Wi-Fi mid-call can cut
+# a Wi-Fi-calling or WhatsApp call. `net` always requires no call.
 # The phone is NETBENCH_SERIAL (its adb serial); without it the guard fails (never acts).
 S=${NETBENCH_SERIAL:?set NETBENCH_SERIAL to the adb serial of the phone}
 mode=${1:-app}
@@ -19,7 +23,15 @@ shade_vis=$(printf '%s\n' "$W" | grep -a "visible windows:" | grep -a -c "Notifi
 # bar is a 63x2424 strip down the side, not an expanded shade (false positive, 2026-09-28 22:12).
 sb_tall=$(printf '%s\n' "$W" | grep -a "visible windows:" | grep -a -o "StatusBar, frame=\[Rect(0, 0 - [0-9]*, [0-9]*)" | sed 's/.* - //; s/)//' | awk -F', ' '{t=($1+0<$2+0)?$1:$2; if (t+0>400) print "tall"}' | head -1)
 reason=""
-[ "$calls" = "mCallState=0 " ] || reason="$reason call[$calls]"
+incall=""
+if [ "$calls" != "mCallState=0 " ]; then
+  # An unreadable call state (an empty adb read) is never taken for "no call".
+  if [ "${GUARD_ALLOW_CALL:-}" = 1 ] && [ "$mode" != net ] && [ -n "$calls" ]; then
+    incall=" incall[$calls]"
+  else
+    reason="$reason call[$calls]"
+  fi
+fi
 [ "$wake" = "mWakefulness=Awake" ] || reason="$reason notAwake[$wake]"
 [ "$shade_vis" = "0" ] || reason="$reason shadeVisible"
 [ -z "$sb_tall" ] || reason="$reason statusBarExpanded"
@@ -37,7 +49,7 @@ case "$mode" in
   net) ;;
 esac
 if [ -z "$reason" ]; then
-  echo "GUARD OK ($mode) $focus | $calls| $wake | $lua"
+  echo "GUARD OK ($mode)$incall $focus | $calls| $wake | $lua"
   exit 0
 else
   echo "GUARD FAIL ($mode):$reason | $focus | $lua"
