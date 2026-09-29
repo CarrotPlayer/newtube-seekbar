@@ -14,6 +14,10 @@ the check app; if anything else takes it (the owner picked the phone up), the ce
 the run stops. Intents always name the check package. No logcat -c. Media volume is set to 0 for
 the run and restored after.
 
+One sender at a time: every open holds a host-wide lock (--sender-lock) from its guard check to
+its end, so two phones and the emulator on one network take turns per open instead of doubling
+the /player rate from its IP. A phone under --min-battery percent stops the run.
+
 Usage:
   NETBENCH_SERIAL=<adb serial> appbench.py --network lte --sources TV_TIZEN,WEB_EMBED \
       --videos _WB5hh7WOb4,dQw4w9WgXcQ [--support-xhr none|true|false|absent] [--repeat 1] \
@@ -23,6 +27,8 @@ guard is ../device/guard.sh, and results go to <data>/appbench/results (--data o
 default: the tools/netbench directory).
 """
 import argparse
+import contextlib
+import fcntl
 import json
 import os
 import re
@@ -53,6 +59,32 @@ def shell(cmd, timeout=60):
 CURRENT_LOGCAT = None
 KEPT_STARTED = [False]
 NO_GUARD = False  # only for my own emulator (--serial emulator-*): nobody else uses it
+SENDER_LOCK = None  # main(): --sender-lock, None = off
+DEFAULT_SENDER_LOCK = os.path.expanduser("~/.cache/netbench/sender.lock")
+
+
+@contextlib.contextmanager
+def sender_turn():
+    """This host's turn to open a video: the lock is flock(2), so it dies with the process."""
+    if not SENDER_LOCK:
+        yield
+        return
+    os.makedirs(os.path.dirname(SENDER_LOCK), exist_ok=True)
+    with open(SENDER_LOCK, "a") as fh:
+        t = time.time()
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        if time.time() - t > 1:
+            print(f"  (waited {time.time() - t:.0f}s for the sender turn)", flush=True)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+    time.sleep(1.5)  # flock is not FIFO: give a waiting run the next turn
+
+
+def battery_level():
+    m = re.search(r"^\s*level: (\d+)", shell("dumpsys battery"), re.M)
+    return int(m.group(1)) if m else None
 
 
 def guard(mode="start"):
@@ -367,9 +399,22 @@ def wait_for_guard(max_wait_s=120):
 
 
 def run_cell(args, source, video, trial, out):
-    ok, why = wait_for_guard()
-    if not ok:
-        return {"stop": f"guard before open: {why}"}
+    level = battery_level()
+    if level is not None and level < args.min_battery:
+        return {"stop": f"battery {level}% < {args.min_battery}%"}
+    while True:
+        ok, why = wait_for_guard()
+        if not ok:
+            return {"stop": f"guard before open: {why}"}
+        with sender_turn():
+            # The turn may have taken a while: check the phone again right before the intent.
+            ok, why = guard("start")
+            if ok:
+                return open_cell(args, source, video, trial, out)
+        time.sleep(5)
+
+
+def open_cell(args, source, video, trial, out):
     setprop("debug.arc.player_client", None if source == "RING" else source)
     setprop("debug.arc.support_xhr", None if args.support_xhr == "none" else args.support_xhr)
     setprop("debug.arc.anon_tizen", "1" if args.anon_tizen else None)
@@ -472,6 +517,11 @@ def main():
                     help="decision cells: end each open once the video played --play-s seconds or "
                          "the walk settled a refusal (--play-s 15: ticks come every 10 s)")
     ap.add_argument("--run-id", required=True)
+    ap.add_argument("--sender-lock", default=os.environ.get("NETBENCH_SENDER_LOCK") or DEFAULT_SENDER_LOCK,
+                    help="host-wide lock held per open, so runs on one network take turns "
+                         f"(default: {DEFAULT_SENDER_LOCK}; 'none' = off)")
+    ap.add_argument("--min-battery", type=int, default=8,
+                    help="stop the run when the phone's battery is under this percent")
     ap.add_argument("--serial", default=os.environ.get("NETBENCH_SERIAL"),
                     help="adb serial of the phone (default: $NETBENCH_SERIAL; required; guarded "
                          "unless it is an emulator-* serial)")
@@ -482,12 +532,13 @@ def main():
                     help="data directory; results go to <data>/appbench/results "
                          "(default: $NETBENCH_DATA, else the tools/netbench directory)")
     args = ap.parse_args()
-    global SERIAL, NO_GUARD, RESULTS
+    global SERIAL, NO_GUARD, RESULTS, SENDER_LOCK
     globals()["PKG"] = args.package  # read as a default above, so not in the global list
     if not args.serial:
         ap.error("no device: pass --serial or set NETBENCH_SERIAL (the phone's adb serial)")
     SERIAL = args.serial
     NO_GUARD = SERIAL.startswith("emulator-")
+    SENDER_LOCK = None if args.sender_lock == "none" else args.sender_lock
     RESULTS = os.path.join(args.data, "appbench", "results")
     os.makedirs(RESULTS, exist_ok=True)
     if PKG not in shell(f"pm list packages {PKG}"):

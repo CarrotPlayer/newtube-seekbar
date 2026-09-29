@@ -145,5 +145,47 @@ class SettleTest(unittest.TestCase):
     def test_a_walk_still_running_does_not_settle(self):
         self.assertFalse(appbench.settled(LOG[:5], V, 15))
 
+
+class SenderTurnTest(unittest.TestCase):
+    """Two runs on one network take turns per open: the second waits for the first's open to end."""
+
+    def setUp(self):
+        import tempfile
+        self.dir = tempfile.mkdtemp()
+        appbench.SENDER_LOCK = os.path.join(self.dir, "sub", "sender.lock")
+
+    def tearDown(self):
+        appbench.SENDER_LOCK = None
+
+    def test_a_turn_waits_for_the_other_runs_open(self):
+        import subprocess
+        import time
+        holder = subprocess.Popen([sys.executable, "-c",
+            "import fcntl,os,sys,time\n"
+            f"os.makedirs(os.path.dirname({appbench.SENDER_LOCK!r}), exist_ok=True)\n"
+            f"fh=open({appbench.SENDER_LOCK!r},'a'); fcntl.flock(fh, fcntl.LOCK_EX)\n"
+            "print('held', flush=True); time.sleep(2)"], stdout=subprocess.PIPE)
+        self.assertEqual(holder.stdout.readline().strip(), b"held")
+        t = time.time()
+        with appbench.sender_turn():
+            waited = time.time() - t
+        holder.wait()
+        self.assertGreater(waited, 1.5)
+
+    def test_off_means_no_wait(self):
+        appbench.SENDER_LOCK = None
+        with appbench.sender_turn():
+            pass
+
+    def test_battery_stop(self):
+        class Args:
+            min_battery = 8
+        real = appbench.shell
+        appbench.shell = lambda cmd, timeout=60: "Current Battery Service state:\n  AC powered: false\n  level: 3\n  scale: 100\n"
+        try:
+            self.assertEqual(appbench.run_cell(Args, "RING", V, 1, None), {"stop": "battery 3% < 8%"})
+        finally:
+            appbench.shell = real
+
 if __name__ == "__main__":
     unittest.main()
