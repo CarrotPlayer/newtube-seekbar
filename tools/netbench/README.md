@@ -23,17 +23,24 @@ dated RECAP snapshot).
 
 ## Rules (read before running anything)
 
-- **Signed out only.** No accounts, no OAuth, no cookies from disk or a browser. The harness only
+- **Signed out by default.** No accounts, no OAuth, no cookies from disk or a browser. The harness only
   sends cookies YouTube set on its own anonymous pages in that run. The `.check` app has its own
-  data and no account: never sign it in, and never test on someone's daily app or account.
+  data and no account: never sign it in, and never test on someone's daily app or account. The one
+  signed-in tool is the `.auth` build (`-PsideBySide=auth`): only on an account whose owner agreed
+  to it, and it blocks every watch-history and account write (`account-write blocked`; the history
+  ping logs a `history-ping dry-run` line instead).
 - **yt-dlp always with `--ignore-config`** (plus `--no-cookies --no-cookies-from-browser`) when you
   run it by hand. The harness uses a yt-dlp checkout as a library only: no config, plugins off, its
   own cache under `harness/.cache/`.
 - **One sender at a time.** Only one tool sends YouTube traffic from a home IP at any moment: not
-  the harness and appbench together, not two harness runs. **Stop at a bot wall** ("Sign in to
-  confirm you're not a bot", HTTP 429). The harness exits with code 3 by itself; appbench only
-  prints `BOT-TRIP` / `BOT-COOLDOWN`, so stop it yourself. Do not work around a wall; come back
-  another day.
+  the harness and appbench together, not two harness runs. appbench runs on several phones of one
+  network may overlap, like screens in a home, but never walk at once: each open holds a host-wide
+  turn (`--sender-lock`, default `~/.cache/netbench/sender.lock`) until its `/player` walk is decided
+  (a first frame, a refusal, an error, or 25 s), then plays while the next phone walks. **Stop at a
+  bot wall** ("Sign in to confirm you're not a bot", HTTP 429). The harness exits with code 3 by
+  itself; appbench writes a `STOP` file next to the lock at the first explicit bot check, trip or
+  established wall on any phone, and every run stops before its next open until a person removes
+  that file. Do not work around a wall; come back another day.
 - **Never shorten the pre-roll wait.** No variant, axis or app switch may remove or shorten
   YouTube's enforced pre-roll ad wait. The app honours it (readiness gate); the harness measures it.
 - **Keep request rates low.** The harness enforces >= 3 s between YouTube requests and >= 1 s between
@@ -42,7 +49,7 @@ dated RECAP snapshot).
 - **Device guard.** Before every intent or Wi-Fi toggle, `device/guard.sh` requires: the check app
   in focus (`start` mode also accepts the Pixel launcher or an idle NewTube), no notification shade or
   expanded status bar, no active call, and the phone awake. While a cell plays, appbench checks the
-  focus every 10 s; if anything else takes it (the owner picks the phone up, an emergency alert, a
+  focus (from 6 s after the intent, as a slow phone shows the launcher while it starts); if anything else takes it (the owner picks the phone up, an emergency alert, a
   call), the cell is aborted and the whole run stops. The tools never press BACK or HOME and never
   run `logcat -c`. Media volume goes to 0 for the run and is restored.
 - **Wi-Fi always comes back.** The LTE scripts re-enable Wi-Fi on exit (guarded; after 5 min of
@@ -117,7 +124,10 @@ python3 appbench/appbench.py --network wifi --sources RING,TV_TIZEN,WEB_EMBED \
     --videos _WB5hh7WOb4,dQw4w9WgXcQ --run-id kids-lte-app1
 ```
 Other flags: `--keep-process` (no restart between opens), `--repeat N`, `--play-s 150`,
-`--serial`, `--data`. Each open prints a verdict (`PLAY-OK`, `PARTIAL@Ns`, `STALL@Ns`, `FAIL@Ns`,
+`--serial`, `--data`, `--settle` (a decision cell: the open ends once the video played `--play-s`
+seconds, 15 fits the 10 s ticks, or once the walk settled a refusal; ~20 s a cell instead of
+150+), `--pm-clear` (clears the app's data before every open: a fresh install's first open; refused
+for the `.auth` build), `--min-battery 8` (a phone under it stops its run), `--sender-lock PATH|none`. Each open prints a verdict (`PLAY-OK`, `PARTIAL@Ns`, `STALL@Ns`, `FAIL@Ns`,
 `RECOVERED@Ns` for an error the app then played past, `NO-START`) and writes `<data>/appbench/results/<run-id>.jsonl` plus the raw log of that open. Exit
 code 2 means a guard or focus stop ended the run (or a usage error). Put each sequence in a small script under
 `<data>/appbench/` with a `check build vN` comment in its header: the recap reads it to label runs.
@@ -132,6 +142,14 @@ duration, `warm_done_ms`, and from builds that log it `warm_dns_ms`, `warm_conne
 (`restored`/`fetched`, `embed_fetch_ms`). `python3 appbench/appbench.py --reparse <log>...` prints
 the same row for saved per-open logs, offline; `python3 appbench/test_appbench.py` tests
 the parser.
+
+**Walk replay (no phone, no network).** `appbench/replay_fixtures.py` turns saved per-open logs
+into the fixtures of MediaServiceCore's `VideoInfoReplayTest`
+(`youtubeapi/src/test/resources/walk_replay/device_walks.json`, cases listed in
+`appbench/replay_seed.json`), which replays YouTube's recorded answers through the real walk and
+checks the same clients in the same order and the same outcome. Run it first after a planner
+change; phones then only measure time and playback. Debug and benchmark builds log a
+`player-playability` line per answer so new fixtures are exact.
 
 **Acceptance (planner and HLS for VOD).** `appbench/accept.sh <wifi|lte> smoke|rest` runs the matrix
 of `docs/player-sources/PLANNER.md` section 4, each switch on against the same build with it off (LTE
