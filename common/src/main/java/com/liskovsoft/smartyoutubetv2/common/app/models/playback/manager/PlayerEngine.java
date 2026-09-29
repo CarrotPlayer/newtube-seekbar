@@ -52,6 +52,14 @@ public interface PlayerEngine extends PlayerConstants {
      * original resume target again, the target itself (leaving at once must not lose progress).
      */
     default long getHistoryPositionMs() { return getPositionMs(); }
+    /**
+     * NEWTUBE(wall-memory): this open's media requests, for the one-minute wall's signature
+     * (VideoInfoService.notePlaybackMedia403): the stream start (ms) of the last one refused with
+     * HTTP 403, and the lowest and highest start of those served; -1 when none or unknown.
+     */
+    default long getForbiddenMediaStartMs() { return -1; }
+    default long getLowestServedMediaStartMs() { return -1; }
+    default long getHighestServedMediaStartMs() { return -1; }
     long getDurationMs();
     void setPlayWhenReady(boolean play);
     boolean getPlayWhenReady();

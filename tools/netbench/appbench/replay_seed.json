@@ -85,7 +85,20 @@
   {
    "name": "lte-bot-wall-after-a-kids-403",
    "note": "The Pixel's LTE run with a one-shot synthetic media 403 (debug.arc.poison_once_itag=any), v16, four processes: an ordinary video recovers from VISIONOS to WEB_EMBED; the kids video's TV_TIZEN media 403 benches the account route for that video (persisted) and the recovery walk finds WEB_EMBED; the ordinary video again; then the kids video in a new process: the restored bench keeps TV_TIZEN out, WEB_EMBED, IOS and ANDROID_REEL answer 'not a bot', the wall is established mid-walk and the circuit trips at the fifth request.",
-   "logs": ["v16-lte-recovery.RING.dQw4w9WgXcQ.t1.log", "v16-lte-recovery.RING._WB5hh7WOb4.t1.log", "v16-lte-recovery.RING.dQw4w9WgXcQ.t2.log", "v16-lte-recovery.RING._WB5hh7WOb4.t2.log"]
+   "logs": ["v16-lte-recovery.RING.dQw4w9WgXcQ.t1.log", "v16-lte-recovery.RING._WB5hh7WOb4.t1.log", "v16-lte-recovery.RING.dQw4w9WgXcQ.t2.log", "v16-lte-recovery.RING._WB5hh7WOb4.t2.log"],
+   "changed": [
+    {"log": "v16-lte-recovery.RING._WB5hh7WOb4.t1.log", "walk": 2, "asked": ["WEB_EMBED"],
+     "why": "the recovery asks a source that refused the video moments ago after everything else (router v20, RecentRefusals): VISIONOS refused the kids video half a second before TV_TIZEN's media 403, so the recovery goes straight to WEB_EMBED instead of re-asking it"}
+   ]
+  },
+  {
+   "name": "emu-kids-recovery-after-a-bench",
+   "note": "v20 on the emulator (Wi-Fi, signed out, synthetic media 403 on the first itag of each open): the kids video's TV_TIZEN 403 benches it; a later process (the book restored) walks VISIONOS then WEB_EMBED, whose media 403 sends a recovery walk.",
+   "logs": ["v20-emu-check-recovery.RING._WB5hh7WOb4.t1.log", "v20-emu-check-recovery.RING.dQw4w9WgXcQ.t1.log", "v20-emu-check-recovery.RING._WB5hh7WOb4.t2.log"],
+   "changed": [
+    {"log": "v20-emu-check-recovery.RING._WB5hh7WOb4.t2.log", "walk": 2, "asked": ["WEB_EMBED"],
+     "why": "the recovery of a video VISIONOS refused as made for kids asks only TV_TIZEN (benched here) and WEB_EMBED before the sources that never serve kids videos (router v21, recovery-kids): v20 asked ANDROID_VR, IOS, ANDROID_REEL, MWEB, WEB and WEB_SAFARI first, 8.3 s to the first frame"}
+   ]
   },
   {
    "name": "private-v16-tripped",
@@ -98,6 +111,8 @@
    "note": "Members only in the Pixel's Spanish on v16 (Pixel LTE).",
    "logs": ["v16-lte-neg.RING.w664JpkrDio.t1.log"],
    "exclude": "v16 knew only the English members-only wording, so the Spanish refusal admitted TV_TIZEN and walked all nine sources. Changed on purpose: 875e29e3 (v17) added 'Hazte miembro de este canal', which is terminal for the content, so current code asks VISIONOS, WEB_EMBED, ANDROID_VR, IOS and stops - the v17 open is replayed in private-ordinary-members-one-process."
-  }
+  },
+  {"name": "walled-visitor-no-embed", "note": "A real one-minute wall (r11, emulator-5592, visitor 5b2b1c91eb walled since 16:56), v22 installed over v19p with its data: MeJVWBSsPAY (embedding disabled). VISIONOS served and walled at 60 s (playback-media403 signature=wall), the recovery asked WEB_EMBED (refused: embed disabled) and TV_TIZEN anonymously on the same visitor, which served it past the wall; the playback identity re-roll was armed.", "logs": ["v22-real-5592.RING.MeJVWBSsPAY.t1.log"]},
+  {"name": "walled-visitor-no-embed-v19p", "note": "The same video on the same walled visitor with v19p, an hour earlier: VISIONOS walled, the recovery alternated WEB_EMBED (refused) + ANDROID_VR (walled) and VISIONOS until the reload cap (Unknown source error).", "logs": ["r11-emu-home-w5592-wall-a-ring.RING.MeJVWBSsPAY.t1.log"], "exclude": "Changed on purpose (router v22, the one-minute wall): VISIONOS's wall benches it for the recovery and the recovery order asks WEB_EMBED then TV_TIZEN (anonymous) before ANDROID_VR, so the first recovery asks TV_TIZEN, which this v19p log never asked (no device answer to replay). v22's own run of this video on this visitor is the case walled-visitor-no-embed."}
  ]
 }

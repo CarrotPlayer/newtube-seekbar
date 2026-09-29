@@ -30,6 +30,7 @@ import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.utils.LoadingManager;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
+import com.liskovsoft.youtubeapi.videoinfo.V2.VideoInfoService;
 
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -255,6 +256,7 @@ public class MediaServiceManager implements OnAccountChange {
 
         RxHelper.disposeActions(mFormatInfoAction);
 
+        noteChannel(item);
         Observable<MediaItemFormatInfo> observable = mItemService.getFormatInfoObserve(item.videoId);
 
         mFormatInfoAction = observable
@@ -277,6 +279,7 @@ public class MediaServiceManager implements OnAccountChange {
 
         RxHelper.disposeActions(mFormatInfoAction);
 
+        noteChannel(item);
         boolean[] answered = {false};
         mFormatInfoAction = mItemService.getSpeculativeFormatInfoObserve(item.videoId)
                 .subscribe(
@@ -311,6 +314,7 @@ public class MediaServiceManager implements OnAccountChange {
             return;
         }
 
+        noteChannel(item);
         mItemService.cancelStaleFormatInfoRequests(item.videoId);
 
         if (mPrefetchAction != null && !mPrefetchAction.isDisposed()) {
@@ -357,6 +361,7 @@ public class MediaServiceManager implements OnAccountChange {
             mSpeculativeAction.dispose();
         }
 
+        noteChannel(item);
         mSpeculativeVideoId = item.videoId;
         mSpeculativeAction = mItemService.getSpeculativeFormatInfoObserve(item.videoId)
                 .subscribe(
@@ -364,6 +369,36 @@ public class MediaServiceManager implements OnAccountChange {
                         error -> Log.e(TAG, "speculativePrefetchFormatInfo error: %s", error.getMessage())
                 );
         return true;
+    }
+
+    /**
+     * NEWTUBE(kids-channel): tells the engine which channel {@code item} belongs to, before its
+     * /player (the card tapped, the next video) or after it (/next). A channel one of whose videos
+     * VISIONOS refused and TV_TIZEN served then has its next video asked of TV_TIZEN first: one
+     * /player instead of two (VideoInfoService.noteVideoChannel). Live and upcoming videos are
+     * not named: TV_TIZEN is never a live route. No request; any thread.
+     *
+     * <p>NEWTUBE(live-card): and whether the item says live, so a live open asks the live-DASH
+     * source first (VideoInfoService.noteVideoLive); a later item of the same video that says
+     * otherwise (the /player answer's own flag, once synced) takes the note back.
+     */
+    public static void noteChannel(Video item) {
+        noteChannel(item, null);
+    }
+
+    /**
+     * NEWTUBE(kids-channel): as {@link #noteChannel(Video)}, with the channel the item was shown
+     * under (a channel page) when the item names none of its own.
+     */
+    public static void noteChannel(Video item, String fallbackChannelId) {
+        if (item == null) {
+            return;
+        }
+        VideoInfoService.noteVideoLive(item.videoId, item.isLive && !item.isUpcoming);
+        if (!item.isLive && !item.isUpcoming) {
+            VideoInfoService.noteVideoChannel(item.videoId,
+                    item.channelId != null ? item.channelId : fallbackChannelId);
+        }
     }
 
     public void loadPlaylists(Video item, OnMediaGroup onPlaylistGroup) {

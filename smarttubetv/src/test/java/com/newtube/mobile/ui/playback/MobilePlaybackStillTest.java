@@ -58,6 +58,28 @@ public class MobilePlaybackStillTest {
         assertTrue(MobilePlaybackActivity.firstFrameOnTexture(4_000, 3_000, 4_070));
     }
 
+    /**
+     * NEWTUBE(still-lift): the FRAME lift (v21 default) - before READY, at this open's first frame
+     * on the texture - only for a new selection's still that waits for READY, never in background
+     * audio, and with the same stale-frame marker as the READY lift.
+     */
+    @Test
+    public void frameLiftNeedsAWaitingNewSelectionAndThisOpensFrame() {
+        assertTrue(MobilePlaybackActivity.canLiftStillAtFrame(true, true, false, 4_000, 3_000, 4_010));
+        assertFalse("not waiting for READY (already lifted, or a hand-off still)",
+                MobilePlaybackActivity.canLiftStillAtFrame(false, true, false, 4_000, 3_000, 4_010));
+        assertFalse("a mini-player hand-off, not a new selection",
+                MobilePlaybackActivity.canLiftStillAtFrame(true, false, false, 4_000, 3_000, 4_010));
+        assertFalse("background audio",
+                MobilePlaybackActivity.canLiftStillAtFrame(true, true, true, 4_000, 3_000, 4_010));
+        assertFalse("the previous video's frame",
+                MobilePlaybackActivity.canLiftStillAtFrame(true, true, false, 1_000, 3_000, 4_010));
+        assertFalse("not on the texture yet",
+                MobilePlaybackActivity.canLiftStillAtFrame(true, true, false, 4_000, 3_000, 3_990));
+        assertFalse("no first frame of this open",
+                MobilePlaybackActivity.canLiftStillAtFrame(true, true, false, 0, 3_000, 4_010));
+    }
+
     @Test
     public void absentOrAlreadyHiddenStillHasNoVisibilityMilestone() {
         assertFalse(MobilePlaybackActivity.hideLoadingStillImmediately(null));

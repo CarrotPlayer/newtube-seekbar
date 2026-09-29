@@ -444,6 +444,9 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
                 // the same doomed carrier/client route first for a short self-healing window.
                 if (gvsForbidden) {
                     VideoInfoService.instance().markCurrentPlaybackRouteForbidden();
+                    // NEWTUBE(wall-memory): before the reload is planned - this video's recovery
+                    // asks the sources whose media 403'd on it last, and a wall is remembered.
+                    noteMedia403();
                 }
                 YouTubeServiceManager.instance().applyNoPlaybackFix(); // Response code: 403
                 freshUrlsRequested = true;
@@ -508,6 +511,22 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
                 : freshUrlsRequested ? "remint-reload" : "reload")
                 + " attempt=" + mConsecutiveAutoFixCount
                 + " samePos=" + mSamePositionErrorCount);
+    }
+
+    /**
+     * NEWTUBE(wall-memory): a media 403 on this video, with what the engine saw of this open's media
+     * requests: the service reads the one-minute wall's signature from them (a request at or past
+     * 60 s of stream refused after earlier ones were served - on stream position, not elapsed time:
+     * a seek or resume past 60 s is refused at once on a walled visitor).
+     */
+    private void noteMedia403() {
+        Video video = getVideo();
+        if (video == null || video.videoId == null || getPlayer() == null) {
+            return;
+        }
+        VideoInfoService.instance().notePlaybackMedia403(video.videoId,
+                getPlayer().getForbiddenMediaStartMs(), getPlayer().getLowestServedMediaStartMs(),
+                getPlayer().getHighestServedMediaStartMs());
     }
 
     @SuppressLint("StringFormatMatches")

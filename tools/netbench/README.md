@@ -123,8 +123,14 @@ only debug and benchmark builds read at process start:
 | `debug.arc.hls_vod` | `--prop debug.arc.hls_vod=1` | HLS for VOD answers whose adaptive formats are SABR-only |
 | `debug.arc.readiness` | `--prop debug.arc.readiness=0` | turn the pre-roll readiness gate off (comparison only) |
 | `debug.arc.poison_once_itag` | `--prop debug.arc.poison_once_itag=any` | refuse one media request with a synthetic 403 (then the app's recovery runs) |
-| `debug.arc.still_lift` | `--prop debug.arc.still_lift=texture` | the loading still waits for the next texture frame after READY again (default: it lifts at READY once this open's first frame is on the texture) |
+| `debug.arc.still_lift` | `--prop debug.arc.still_lift=ready` | the loading still lifts at READY once this open's first frame is on the texture (v17-v20); `texture`: at the next texture frame after READY (before v17). Default from v21: `frame`, at this open's first rendered frame |
 | `debug.arc.embed_persist` | `--prop debug.arc.embed_persist=0` | WEB_EMBED's embed identity in memory only again (default: persisted, 6 h TTL) |
+| `debug.arc.kids_channel` | `--prop debug.arc.kids_channel=0` | the kids channel memory off (default on from v20: a channel whose video VISIONOS refused and TV_TIZEN served sends its next named video to TV_TIZEN first) |
+| `debug.arc.token_warmup` | `--prop debug.arc.token_warmup=frame` | the BotGuard warm-up runs after the first screen's frame again (v20); default from v21 (`open`): after the open in flight shows its first frame or fails, with the WEB enrichment that would build the WebView held with it |
+| `debug.arc.embed_reroll` | `--prop debug.arc.embed_reroll=0` | a SABR-only WEB_EMBED answer keeps its embed identity (v20); default from v21: the identity is replaced off the walk, at most once per 6 h |
+| `debug.arc.hls_n_fold` | `--prop debug.arc.hls_n_fold=0` | the HLS-for-VOD manifest's challenge gets its own V8 run again (v20); default from v21: it rides the bulk solve |
+| `debug.arc.recovery_kids` | `--prop debug.arc.recovery_kids=0` | a kids video's recovery asks the lane's order again (v20); default from v21: TV_TIZEN and WEB_EMBED first, the sources that never serve kids videos after the suspect |
+| `debug.arc.live_card` | (in-app only: `inapp-v21.sh live`) | an item that says live no longer sends ANDROID_VR first (v20); VIEW intents carry no live flag |
 
 Every property is reset to `none` at the end. Then, from `tools/netbench`:
 ```bash
@@ -160,7 +166,10 @@ into the fixtures of MediaServiceCore's `VideoInfoReplayTest`
 `appbench/replay_seed.json`), which replays YouTube's recorded answers through the real walk and
 checks the same clients in the same order and the same outcome. Run it first after a planner
 change; phones then only measure time and playback. Debug and benchmark builds log a
-`player-playability` line per answer so new fixtures are exact.
+`player-playability` line per answer so new fixtures are exact (from v20 it ends with the answer's
+channel as a hash, `channel=<tag>|none`). A walk the planner now asks differently on purpose is
+listed in its case's `changed` (`{log, walk, asked, why}`): the device's record stays, the replay
+checks the new order and prints the why; a change can only drop or reorder asks the device answered.
 
 **Acceptance (planner and HLS for VOD).** `appbench/accept.sh <wifi|lte> smoke|rest` runs the matrix
 of `docs/player-sources/PLANNER.md` section 4, each switch on against the same build with it off (LTE

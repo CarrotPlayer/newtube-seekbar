@@ -47,7 +47,9 @@ RESULT = re.compile(r"player-result video=(\S+) client=(" + CLIENT + r") attempt
                     r"formats=(\d+)\+(\d+) usableAdaptive=(\d+) dash=([yn]) hls=([yn]) sabr=([yn]) "
                     r"reason=\"(.*)\")\s*$")
 # The exact playability line (debug builds with MediaServiceCore's PlayabilityLog on): see exact().
-PLAYABILITY = re.compile(r"player-playability video=(\S+) client=(" + CLIENT + r") attempt=(\d+) (\{.*\})\s*$")
+# From router v20 the line ends with the answer's channel tag (channel=<tag>|none), outside the JSON.
+PLAYABILITY = re.compile(r"player-playability video=(\S+) client=(" + CLIENT + r") attempt=(\d+) (\{.*\})"
+                         r"(?: channel=\S+)?\s*$")
 PLAN = re.compile(r"player-ring plan video=(\S+) lane=(signed-in|signed-out)(.*?) order=\[(.*?)\]")
 WALLED = re.compile(r"player-ring botwall route video=(\S+) order=\[(.*?)\] probe=([yn]).*? auth=([yn])")
 TRANSFORM = re.compile(r"player-transform video=(\S+) client=(" + CLIENT + r")")
@@ -56,6 +58,15 @@ ADOPTED = re.compile(r"player-ring speculative-adopted video=(\S+) client=(" + C
 COOLDOWN = re.compile(r"bot-check cooldown video=(\S+)")
 RECOVERY = re.compile(r"ep=\d+ video=(\S+) recovery-source http403=([yn]) freshUrls=([yn])(.*)")
 RESTORE = re.compile(r"player-ring botwall restore records=(\d+)")
+# NEWTUBE(wall-memory): what the engine saw of an episode's media requests, for the one-minute wall's
+# signature. v22 logs it exactly (playback-media403); older logs give the episode's first media loads
+# (media-load chunk), its served chunks (media-chunk done) and where the error stopped it.
+EPISODE = re.compile(r"ep=(\d+) video=(\S+) ")
+MEDIA_LOAD = re.compile(r"ep=(\d+) video=\S+ media-load chunk \+\d+ track=\S+ .*?start=(\d+)")
+MEDIA_DONE = re.compile(r"ep=(\d+) video=\S+ media-chunk done \+\d+ .*?start=(\d+)")
+RECOVERY_ERROR = re.compile(r"ep=(\d+) video=\S+ recovery-error .*?pos=(\d+)")
+MEDIA403 = re.compile(r"playback-media403 video=(\S+) client=(" + CLIENT + r") forbiddenStartMs=(-?\d+)"
+                      r" servedStartMs=(-?\d+)\.\.(-?\d+)")
 VIDEO = re.compile(r"video=(\S+)")
 URL = re.compile(r"https?://\S+")
 
@@ -274,6 +285,13 @@ def parse_open(path, video, base=None, prev_pid=None, network=None):
             del walks[walk.video]
 
     restart = None
+    # NEWTUBE(wall-memory): per player episode, its media request starts (see EPISODE).
+    episodes = {}
+    exact403 = None
+
+    def episode(number):
+        return episodes.setdefault(number, {"loads": [], "served": [], "pos": -1})
+
     for at, line_pid, body in parsed:
         if line_pid != pid:  # the app restarted inside the cell
             if current is not None and not current.done:
@@ -341,14 +359,33 @@ def parse_open(path, video, base=None, prev_pid=None, network=None):
         if m:
             steps.append({"type": "adopt", "atMs": at - base, "video": m.group(1)})
             continue
+        m = MEDIA_LOAD.search(body)
+        if m:
+            episode(m.group(1))["loads"].append(int(m.group(2)))
+        m = MEDIA_DONE.search(body)
+        if m:
+            episode(m.group(1))["served"].append(int(m.group(2)))
+        m = RECOVERY_ERROR.search(body)
+        if m:
+            episode(m.group(1))["pos"] = int(m.group(2))
+        m = MEDIA403.search(body)
+        if m:
+            exact403 = {"forbiddenStartMs": int(m.group(3)), "lowestServedStartMs": int(m.group(4)),
+                        "highestServedStartMs": int(m.group(5)), "exact": True}
+            continue
         m = RECOVERY.search(body)
         if m:
-            # ErrorFixerController: anchorRouteToVideo, then markCurrentPlaybackRouteForbidden on a
-            # media 403, then applyNoPlaybackFix (switchNextFormat). A transport-only blame just
-            # re-mints the URLs and calls none of them.
+            # ErrorFixerController: anchorRouteToVideo, then markCurrentPlaybackRouteForbidden and
+            # notePlaybackMedia403 on a media 403, then applyNoPlaybackFix (switchNextFormat). A
+            # transport-only blame just re-mints the URLs and calls none of them.
             if "blame=transport" not in m.group(4):
-                steps.append({"type": "media-failure", "atMs": at - base, "video": m.group(1),
-                              "http403": m.group(2) == "y"})
+                failure = {"type": "media-failure", "atMs": at - base, "video": m.group(1),
+                           "http403": m.group(2) == "y"}
+                if failure["http403"]:
+                    failure["media403"] = exact403 or media403_of(episodes.get(
+                        (EPISODE.search(body) or [None, None])[1]))
+                exact403 = None
+                steps.append(failure)
             continue
         for regex, template in MARKERS:
             mm = regex.search(body)
@@ -391,6 +428,21 @@ def parse_open(path, video, base=None, prev_pid=None, network=None):
     }, base, pid
 
 
+def media403_of(ep):
+    """An older log's media 403, rebuilt for notePlaybackMedia403: the refused request started at the
+    later of where the error stopped the player and the episode's last logged media load (the first
+    loads and those after a resume are logged, the rest are not); served: the episode's done chunks.
+    -1 where the log says nothing."""
+    if not ep:
+        return {"forbiddenStartMs": -1, "lowestServedStartMs": -1, "highestServedStartMs": -1,
+                "exact": False}
+    loads = ep["loads"]
+    return {"forbiddenStartMs": max([ep["pos"]] + loads[-1:]),
+            "lowestServedStartMs": min(ep["served"]) if ep["served"] else -1,
+            "highestServedStartMs": max(ep["served"]) if ep["served"] else -1,
+            "exact": False}
+
+
 PROP = re.compile(r"debug\.arc\.[a-z0-9_]+")
 PROP_VALUE = re.compile(r"[A-Za-z0-9_.:-]{0,32}")
 
@@ -420,10 +472,11 @@ def props_of(row):
     return props
 
 
-def build_case(results, name, logs, note=None, exclude=None, prior_state=None):
+def build_case(results, name, logs, note=None, exclude=None, prior_state=None, changed=None):
     """The logs, in order, as one case (one simulated device). exclude: why the current code is
     expected to disagree (the case is skipped with it); prior_state: why state the device restored
-    from before the case's first open (a saved bot-wall book) cannot change its walks."""
+    from before the case's first open (a saved bot-wall book) cannot change its walks; changed: walks
+    the current code asks differently on purpose (see apply_change)."""
     opens, base, pid = [], None, None
     for log in logs:
         path = log if os.path.isabs(log) else os.path.join(results, log)
@@ -434,16 +487,43 @@ def build_case(results, name, logs, note=None, exclude=None, prior_state=None):
         entry, base, pid = parse_open(path, m.group("video"), base, pid, row.get("network"))
         entry["props"] = props_of(row)
         opens.append(entry)
+    for change in changed or []:
+        apply_change(name, opens, change)
     builds = sorted({o["build"] for o in opens})
     return {"name": name, "build": builds[0] if len(builds) == 1 else builds, "note": note,
             "exclude": exclude, "priorState": prior_state, "opens": opens}
+
+
+def apply_change(case, opens, change):
+    """One walk the current code asks differently on purpose, from the manifest: {log, walk (1-based,
+    the open's walks in order), asked (the clients the current walk asks), why}. The device's own
+    record stays as it was; the change goes beside it (expect.changed), and the replay expects it
+    instead, saying why. Every client of the new order must have a device answer in that walk: a
+    change can only drop or reorder asks, never invent an answer."""
+    where = f"{case}: change {change.get('log')} walk {change.get('walk')}"
+    if not change.get("why"):
+        raise ValueError(f"{where}: says no why")
+    entry = next((o for o in opens if o["log"] == change.get("log")), None)
+    if entry is None:
+        raise ValueError(f"{where}: no such log in the case")
+    walks = [s for s in entry["steps"] if s["type"] == "walk"]
+    if not 1 <= change.get("walk", 0) <= len(walks):
+        raise ValueError(f"{where}: the open has {len(walks)} walks")
+    walk = walks[change["walk"] - 1]
+    answered = [a["client"] + ("+auth" if a.get("auth") else "") for a in walk["answers"]]
+    for client in change.get("asked") or []:
+        if client not in answered:
+            raise ValueError(f"{where}: no device answer for {client} (answered: {answered})")
+    if not change.get("asked"):
+        raise ValueError(f"{where}: asks no one")
+    walk["expect"]["changed"] = {"asked": list(change["asked"]), "why": change["why"]}
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Walk-replay fixtures from appbench per-open logs.")
     ap.add_argument("--results", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "results"),
                     help="appbench results directory (the per-open logs and the runs' .jsonl)")
-    ap.add_argument("--manifest", help="JSON {cases: [{name, logs: [...], note, exclude, priorState}]}")
+    ap.add_argument("--manifest", help="JSON {cases: [{name, logs: [...], note, exclude, priorState, changed}]}")
     ap.add_argument("--case", help="replay the logs given as ONE case with this name")
     ap.add_argument("--out", help="write here instead of stdout")
     ap.add_argument("logs", nargs="*")
@@ -454,7 +534,7 @@ def main(argv=None):
             manifest = json.load(fh)
         for c in manifest["cases"]:
             cases.append(build_case(args.results, c["name"], c["logs"], c.get("note"), c.get("exclude"),
-                                    c.get("priorState")))
+                                    c.get("priorState"), c.get("changed")))
     if args.case:
         cases.append(build_case(args.results, args.case, args.logs))
     elif args.logs:

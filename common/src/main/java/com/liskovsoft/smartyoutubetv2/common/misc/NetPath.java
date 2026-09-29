@@ -44,6 +44,7 @@ public final class NetPath {
         sOpenVideoId = videoId;
         sTapVideoId = videoId;
         android.util.Log.d(TAG, context() + " tap");
+        OpenSettle.onOpenStarted(); // NEWTUBE(token-warmup)
     }
 
     /** Milestone 1: the app kicked off loading a video. Starts the timing window (unless a tap did). */
@@ -56,6 +57,7 @@ public final class NetPath {
         sOpenVideoId = videoId;
         sTapVideoId = null;
         android.util.Log.d(TAG, context() + " open +" + elapsedMs() + " \"" + trunc(title, 40) + "\"");
+        OpenSettle.onOpenStarted(); // NEWTUBE(token-warmup)
     }
 
     /** Milestone 2: the InnerTube metadata/streamingData response landed. */
@@ -72,6 +74,7 @@ public final class NetPath {
     /** Milestone 4: first video frame rendered. */
     public static void logFirstFrame(String videoId) {
         android.util.Log.d(TAG, context() + " first-frame +" + elapsedMs());
+        OpenSettle.onOpenSettled("first-frame"); // NEWTUBE(token-warmup)
     }
 
     /**
@@ -89,6 +92,7 @@ public final class NetPath {
         android.util.Log.w(TAG, context() + " error +" + elapsedMs() + " "
                 + errorClass + ": " + trunc(errorMessage, 120)
                 + " causes=" + throwableSummary(error));
+        OpenSettle.onOpenSettled("error"); // NEWTUBE(token-warmup)
     }
 
     /** Stable, credential-free correlation shared by open, source and media-load diagnostics. */
