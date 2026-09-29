@@ -101,8 +101,9 @@ def extra_props(args):
         props[key] = value
     return props
 
-def parse(lines, video):
-    """Turn the NetPath lines of one open into a verdict."""
+def parse(lines, video, window_s=None):
+    """Turn the NetPath lines of one open into a verdict. window_s: a --settle cell's play window,
+    judged on its own length instead of the 60/140 s marks of a full cell."""
     res = {"results": [], "winner": None, "info": None, "prepare": None, "first_frame_ms": None,
            "ticks": [], "seek": None, "errors": [], "http403": 0, "auto_reload_cap": False,
            "loads_403": 0, "readiness": [], "autoplay_stop": None}
@@ -179,6 +180,8 @@ def parse(lines, video):
     elif res["errors"]:
         verdict = f"RECOVERED@{max(0, max_pos) // 1000}s"
     elif ended or (res["seek"] and after_seek) or max_pos >= 140_000:
+        verdict = "PLAY-OK"
+    elif window_s and max_pos >= window_s * 1000:
         verdict = "PLAY-OK"
     elif max_pos >= 60_000:
         verdict = f"PARTIAL@{max_pos // 1000}s"
@@ -312,6 +315,32 @@ def phases(lines, video):
     return out
 
 
+def settled(lines, video, window_s):
+    """A --settle cell is over once the watched video played window_s seconds, or once the walk
+    ended without media (a refusal) and the app moved on or 5 s passed: the decision
+    is in the log, and the rest of a long cell is either more of the same playback or autoplay."""
+    res = parse(lines, video, window_s)
+    if res["max_pos_ms"] >= window_s * 1000 or res["ended"]:
+        return True
+    if res["errors"] and not res["recovered"]:
+        return False  # a recovery may still be running: wait for it or the deadline
+    info = res["info"]
+    if info and "dash=0 hls=n" in info["detail"] and res["first_frame_ms"] is None:
+        # Another open after the refusal (autoplay), or 5 s since the refusal was first seen.
+        other = re.compile(r"video=(?!" + re.escape(video) + r")\S+ open \+")
+        after = False
+        for ln in lines:
+            if re.search(r"video=" + re.escape(video) + r" info \+", ln):
+                after = True
+            elif after and other.search(ln):
+                return True
+        return time.time() - SETTLE_INFO_SEEN.setdefault(video, time.time()) >= 5
+    return False
+
+
+SETTLE_INFO_SEEN = {}
+
+
 def reparse(paths):
     """Offline: print parse() for saved per-open logs (<run>.<SOURCE>.<video>.t<N>.log). No adb."""
     for path in paths:
@@ -365,14 +394,20 @@ def run_cell(args, source, video, trial, out):
     t0 = time.time()
     shell(f"am start -p {PKG} -a android.intent.action.VIEW -d https://youtu.be/{video}")
     aborted = None
-    deadline = t0 + args.play_s + 20
-    time.sleep(8)
+    # Settle cells end early when they can, so their deadline can afford a slow walk or an ad.
+    deadline = t0 + args.play_s + (40 if args.settle else 20)
+    SETTLE_INFO_SEEN.pop(video, None)
+    time.sleep(3 if args.settle else 8)
     while time.time() < deadline:
         f = focus()
         if PKG + "/" not in f:
             aborted = f"focus left the check app: {f}"
             break
-        time.sleep(10)
+        if args.settle:
+            with open(raw, errors="replace") as fh:
+                if settled(fh.read().replace("\x00", "").splitlines(), video, args.play_s):
+                    break
+        time.sleep(2 if args.settle else 10)
     if not args.keep_process:
         shell(f"am force-stop {PKG}")
     time.sleep(1)
@@ -384,7 +419,10 @@ def run_cell(args, source, video, trial, out):
     raw_fh.close()
     with open(raw, errors="replace") as fh:
         lines = fh.read().splitlines()
-    res = parse(lines, video)
+    res = parse(lines, video, args.play_s if args.settle else None)
+    if args.settle:
+        res["window_s"] = args.play_s
+        res["cell_s"] = round(time.time() - t0, 1)
     row = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "run_id": args.run_id, "network": args.network,
            "source": source, "support_xhr": args.support_xhr, "anon_tizen": bool(args.anon_tizen), "props": extra_props(args), "video": video, "trial": trial,
            "aborted": aborted, **res}
@@ -430,6 +468,9 @@ def main():
     ap.add_argument("--repeat", type=int, default=1)
     ap.add_argument("--play-s", type=int, default=150)
     ap.add_argument("--seek", default="90:0.7")
+    ap.add_argument("--settle", action="store_true",
+                    help="decision cells: end each open once the video played --play-s seconds or "
+                         "the walk settled a refusal (--play-s 15: ticks come every 10 s)")
     ap.add_argument("--run-id", required=True)
     ap.add_argument("--serial", default=os.environ.get("NETBENCH_SERIAL"),
                     help="adb serial of the phone (default: $NETBENCH_SERIAL; required; guarded "

@@ -98,5 +98,52 @@ class PhasesTest(unittest.TestCase):
         self.assertEqual(res["warm_ms"], 130)
 
 
+
+M = "w664JpkrDio"
+# A members-only refusal settled at request 4, then the app's autoplay into a suggestion (v17 Wi-Fi).
+REFUSED = f"""\
+09-29 10:26:51.551 D/NetPath ( 3346): ep=3 video={M} tap
+09-29 10:26:52.274 D/NetPath ( 3346): player-result video={M} client=IOS attempt=4 status=UNPLAYABLE playable=n auth=n srvAuth=n formats=0+0 usableAdaptive=0 dash=n hls=n sabr=n reason="Hazte miembro"
+09-29 10:26:52.276 D/NetPath ( 3346): player-ring definitive-unplayable video={M} clients=VISIONOS,WEB_EMBED,ANDROID_VR,IOS reason-hash=1b9e3fe0 attempts=4 skipped=4
+09-29 10:26:52.277 D/NetPath ( 3346): ep=3 video={M} info +726 dash=0 hls=n sabr=n live=n
+""".splitlines()
+AUTOPLAY = ['09-29 10:26:57.287 D/NetPath ( 3346): ep=4 video=orrMu1rSUUU open +0 "Cervical Stenosis"']
+
+
+def ticks(video, *positions):
+    return [f"09-29 00:28:{10 + i:02d}.000 D/NetPath (1): bench-tick video={video} pos={p} dur=213000 "
+            f"buf=5000 state=READY playing=y t={i}" for i, p in enumerate(positions)]
+
+
+class SettleTest(unittest.TestCase):
+    def setUp(self):
+        appbench.SETTLE_INFO_SEEN.clear()
+
+    def test_the_window_is_judged_on_its_own_length(self):
+        self.assertEqual(appbench.parse(LOG + ticks(V, 8000, 18000), V, 15)["verdict"], "PLAY-OK")
+        self.assertEqual(appbench.parse(LOG + ticks(V, 8000, 9000), V, 15)["verdict"], "STALL@9s")
+        # A full cell is judged as before.
+        self.assertEqual(appbench.parse(LOG + ticks(V, 8000, 18000), V)["verdict"], "STALL@18s")
+
+    def test_a_played_window_settles(self):
+        self.assertFalse(appbench.settled(LOG + ticks(V, 8000), V, 15))
+        self.assertTrue(appbench.settled(LOG + ticks(V, 8000, 18000), V, 15))
+
+    def test_a_refusal_settles_when_the_app_moves_on(self):
+        self.assertTrue(appbench.settled(REFUSED + AUTOPLAY, M, 15))
+
+    def test_a_refusal_settles_after_a_grace(self):
+        self.assertFalse(appbench.settled(REFUSED, M, 15))
+        appbench.SETTLE_INFO_SEEN[M] -= 6
+        self.assertTrue(appbench.settled(REFUSED, M, 15))
+
+    def test_another_videos_playback_is_not_the_watched_one(self):
+        # The autoplayed suggestion's ticks never count as the refused video's window.
+        self.assertEqual(appbench.parse(REFUSED + AUTOPLAY + ticks("orrMu1rSUUU", 18000), M, 15)["verdict"],
+                         "NO-START")
+
+    def test_a_walk_still_running_does_not_settle(self):
+        self.assertFalse(appbench.settled(LOG[:5], V, 15))
+
 if __name__ == "__main__":
     unittest.main()
