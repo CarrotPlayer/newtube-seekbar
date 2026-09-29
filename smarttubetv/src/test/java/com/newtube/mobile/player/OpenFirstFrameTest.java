@@ -25,20 +25,6 @@ public class OpenFirstFrameTest {
         assertEquals(1_450, mFirstFrame.renderedAtMs(7));
     }
 
-    /** NEWTUBE(still-lift): the fence's time, for telling this open's buffers on the texture. */
-    @Test
-    public void theFenceTimeIsThisOpensOnly() {
-        mFirstFrame.onPrepare(7);
-        assertEquals(0, mFirstFrame.fenceNanos(7));
-        mFirstFrame.onFence(6, 1_000L); // an older open's
-        assertEquals(0, mFirstFrame.fenceNanos(7));
-        mFirstFrame.onFence(7, 2_000L);
-        assertEquals(2_000L, mFirstFrame.fenceNanos(7));
-        assertEquals("a newer generation", 0, mFirstFrame.fenceNanos(8));
-        mFirstFrame.onPrepare(9);
-        assertEquals(0, mFirstFrame.fenceNanos(9));
-    }
-
     @Test
     public void aQueuedEventOfThePreviousStreamDoesNotCount() {
         mFirstFrame.onPrepare(7);

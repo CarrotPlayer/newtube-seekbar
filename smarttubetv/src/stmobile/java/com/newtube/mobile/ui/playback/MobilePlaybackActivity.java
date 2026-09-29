@@ -3303,12 +3303,6 @@ public class MobilePlaybackActivity extends MobileActivity
     private String mStillVideoId;
     /** NEWTUBE(still-lift): elapsedRealtime of the last frame the video texture consumed. */
     private long mLastTextureFrameRealtimeMs;
-    /**
-     * NEWTUBE(still-lift): that frame's producer timestamp (SurfaceTexture.getTimestamp: the time
-     * MediaCodec released it for, System.nanoTime's clock); 0 = none. Tells WHICH buffer the
-     * texture shows, where the callback time only tells when it latched one.
-     */
-    private long mLastTextureBufferNanos;
     /** NEWTUBE(still-lift): elapsedRealtime at which the still last started waiting for READY. */
     private long mStillArmedRealtimeMs;
 
@@ -3377,11 +3371,6 @@ public class MobilePlaybackActivity extends MobileActivity
         @Override
         public void onSurfaceTextureUpdated(SurfaceTexture texture) {
             mLastTextureFrameRealtimeMs = android.os.SystemClock.elapsedRealtime();
-            try {
-                mLastTextureBufferNanos = texture.getTimestamp();
-            } catch (RuntimeException e) {
-                mLastTextureBufferNanos = 0; // a released texture: no frame lift
-            }
             // NEWTUBE(still-lift): this open's first frame reached the texture before READY.
             if (maybeLiftStillAtFrame()) {
                 return;
@@ -3445,8 +3434,7 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         if (!canLiftStillAtFrame(true, true, mBackgroundAudioMode,
                 mExoPlayerController.getOpenFirstFrameRealtimeMs(), mStillArmedRealtimeMs,
-                mLastTextureFrameRealtimeMs, mLastTextureBufferNanos,
-                mExoPlayerController.getOpenFenceNanos())) {
+                mLastTextureFrameRealtimeMs)) {
             return false;
         }
         mStillAwaitReady = false;
@@ -3457,24 +3445,23 @@ public class MobilePlaybackActivity extends MobileActivity
 
     /**
      * NEWTUBE(still-lift): the FRAME lift's rule. A new selection's still that waits for READY, not
-     * in background audio, this open's first frame released (see firstFrameOnTexture), and the
-     * buffer the texture latched last is this open's: its producer timestamp at or after this
-     * open's fence. The callback time alone cannot tell (a Codex sol review): a buffer the previous
-     * stream queued could be latched after the new first frame's release. No timestamp (0), no
-     * fence yet: no frame lift, READY and the texture path decide as in v20. The margin covers a
-     * last old frame released just before the stop for a display time up to ~50 ms ahead (media3
-     * releases a frame at most 50 ms early).
+     * in background audio, and this open's first frame on the texture (see firstFrameOnTexture).
+     *
+     * <p>Known limit, shared with the READY lift since v17 (a Codex sol review of v21): the texture
+     * callback's time says the texture latched A buffer after this open's first frame was released,
+     * not WHICH one, so a buffer the previous stream queued and the view had not drawn yet could
+     * be shown for a frame. Reading the buffer's own timestamp does not work here:
+     * onSurfaceTextureUpdated runs before the RenderThread latches the buffer, so
+     * SurfaceTexture.getTimestamp() still reports the previous one (0 on a fresh texture: the
+     * emulator's first open logged exactly that). A real check needs the renderer's per-frame
+     * release times (a VideoFrameMetadataListener) counted against latches: a follow-up. The READY
+     * lift waits 20-70 ms longer for the same predicate, which narrows that window without closing it.
      */
     static boolean canLiftStillAtFrame(boolean awaitingReady, boolean newVideoStill,
-            boolean backgroundAudio, long firstFrameAtMs, long stillArmedAtMs, long lastTextureFrameAtMs,
-            long latchedBufferNanos, long fenceNanos) {
+            boolean backgroundAudio, long firstFrameAtMs, long stillArmedAtMs, long lastTextureFrameAtMs) {
         return awaitingReady && newVideoStill && !backgroundAudio
-                && firstFrameOnTexture(firstFrameAtMs, stillArmedAtMs, lastTextureFrameAtMs)
-                && fenceNanos > 0 && latchedBufferNanos >= fenceNanos + FRAME_LIFT_MARGIN_NANOS;
+                && firstFrameOnTexture(firstFrameAtMs, stillArmedAtMs, lastTextureFrameAtMs);
     }
-
-    /** See canLiftStillAtFrame. */
-    static final long FRAME_LIFT_MARGIN_NANOS = 60_000_000L;
 
     /**
      * @param firstFrameAtMs when this open's first frame was released (0 = not yet, or stale)

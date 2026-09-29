@@ -1157,15 +1157,6 @@ public class Media3PlayerController implements Player.Listener {
     }
 
     /**
-     * NEWTUBE(still-lift): {@code System.nanoTime()} at which this open's fence came back; 0 while
-     * it has not (see OpenFirstFrame.fenceNanos). A texture buffer timestamped after it is this
-     * open's.
-     */
-    public long getOpenFenceNanos() {
-        return mOpenFirstFrame.fenceNanos(mOpenGeneration.current());
-    }
-
-    /**
      * NEWTUBE(still-lift): right after {@code prepare()} (so after resetPlayerState's generation
      * bump and any stop it sent), a message the playback thread handles after them and delivers
      * on the main looper - the fence OpenFirstFrame counts first-frame events from. It only runs a

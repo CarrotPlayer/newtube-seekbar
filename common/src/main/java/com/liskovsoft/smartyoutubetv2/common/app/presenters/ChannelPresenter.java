@@ -18,6 +18,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.VideoMe
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.interfaces.VideoGroupPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.views.ChannelView;
 import com.liskovsoft.smartyoutubetv2.common.misc.BrowseProcessorManager;
+import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.sharedutils.rx.RxHelper;
 import com.liskovsoft.smartyoutubetv2.common.utils.LoadFailure;
 import com.liskovsoft.smartyoutubetv2.common.utils.LoadingManager;
@@ -106,6 +107,13 @@ public class ChannelPresenter extends BasePresenter<ChannelView> implements Vide
 
     @Override
     public void onVideoItemClicked(Video item) {
+        // NEWTUBE(kids-channel): a channel page's cards carry no channel of their own (the page is
+        // the channel), so the tap named none before its /player and the kids channel memory never
+        // hinted the one place a second video of a channel is opened from (v21 on the emulator:
+        // "kids-channel named" came from /next, after the walk). Named for the engine only: the
+        // card's own channelId is left alone (a section may hold other channels' videos; a wrong
+        // name costs nothing but the hint, see kids-channel hint-mismatch).
+        MediaServiceManager.noteChannel(item, getChannelId());
         VideoActionPresenter.instance(getContext()).apply(item);
     }
 

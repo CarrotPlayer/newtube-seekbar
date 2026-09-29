@@ -383,12 +383,21 @@ public class MediaServiceManager implements OnAccountChange {
      * otherwise (the /player answer's own flag, once synced) takes the note back.
      */
     public static void noteChannel(Video item) {
+        noteChannel(item, null);
+    }
+
+    /**
+     * NEWTUBE(kids-channel): as {@link #noteChannel(Video)}, with the channel the item was shown
+     * under (a channel page) when the item names none of its own.
+     */
+    public static void noteChannel(Video item, String fallbackChannelId) {
         if (item == null) {
             return;
         }
         VideoInfoService.noteVideoLive(item.videoId, item.isLive && !item.isUpcoming);
         if (!item.isLive && !item.isUpcoming) {
-            VideoInfoService.noteVideoChannel(item.videoId, item.channelId);
+            VideoInfoService.noteVideoChannel(item.videoId,
+                    item.channelId != null ? item.channelId : fallbackChannelId);
         }
     }
 
