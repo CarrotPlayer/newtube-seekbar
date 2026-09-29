@@ -109,8 +109,14 @@ public class MobileMainApplication extends MainApplication {
         // history (watch-time pings, pause/resume/clear). The signed-in /player benchmark runs on
         // the owner's own account (-PsideBySide=auth, his OK 2026-09-29), and signing in used to
         // resume a paused history account-wide. Before anything can sign in or play.
+        // One exception, for the minute-cut A/B (r11): the signed-out ".check" build sends the
+        // anonymous playback and watch-time pings a release build sends when
+        // debug.arc.anon_pings=1. Never ".auth", which is signed in to the owner's account.
         if (com.liskovsoft.smartyoutubetv2.tv.BuildConfig.BENCHMARK) {
-            com.liskovsoft.youtubeapi.service.AccountWrites.setHistoryBlocked(true);
+            boolean anonPings = getPackageName().endsWith(".check")
+                    && "1".equals(getDebugSystemProperty("debug.arc.anon_pings"));
+            com.liskovsoft.youtubeapi.service.AccountWrites.setHistoryBlocked(!anonPings);
+            android.util.Log.d("NetPath", "bench account-writes historyBlocked=" + !anonPings);
         }
 
         // TTFF FIX (mobile-only, biggest click-to-play win): cap the DEFAULT video quality at 1080p
