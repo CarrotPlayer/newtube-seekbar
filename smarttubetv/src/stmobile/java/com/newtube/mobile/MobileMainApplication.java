@@ -218,6 +218,9 @@ public class MobileMainApplication extends MainApplication {
         // (made-for-kids videos, issue #5: 11 of 11 on LTE at the second request). An age gate
         // WEB_EMBED cannot serve either is settled there instead of walking eight clients. It
         // replaces upstream's ring bent by a stack of phone gates. TV never calls this.
+        // It also turns on the player-JS gate: when YouTube ships a new player, VISIONOS and
+        // ANDROID_VR (nothing to decipher) send /player once the JS is read instead of after its
+        // ~1-3 s V8 validation, which runs in the background. Rollback: debug.arc.player_js_gate 0.
         VideoInfoService.setPreferNoPotClient(true);
 
         // HLS FOR VOD (mobile-only): an answer whose adaptive formats carry no URL (SABR-only) but
@@ -334,6 +337,15 @@ public class MobileMainApplication extends MainApplication {
             if ("0".equals(getDebugSystemProperty("debug.arc.v8_memo"))) {
                 VideoInfoService.setSigSolverMemoEnabled(false);
                 android.util.Log.w("NetPath", "v8 player memo disabled (debug)");
+            }
+
+            // PLAYER-JS GATE ROLLBACK: "0" makes every /player wait for a new player JS's V8
+            // validation again, as before (see VideoInfoService.setPlayerJsGateEnabled). On, a
+            // VISIONOS/ANDROID_VR request goes once the JS is read: compare the player-js-gate
+            // lines (request waitMs, validated ms) and player-http[S] against the tap.
+            if ("0".equals(getDebugSystemProperty("debug.arc.player_js_gate"))) {
+                VideoInfoService.setPlayerJsGateEnabled(false);
+                android.util.Log.w("NetPath", "player-js gate disabled (debug)");
             }
 
             // PLAYER-POT PLAYGROUND: "1" attests ANDROID_VR's /player request. Opt-IN, because
