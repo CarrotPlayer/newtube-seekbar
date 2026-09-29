@@ -500,6 +500,10 @@ def open_cell(args, source, video, trial, out, turn):
     if not args.keep_process or not KEPT_STARTED[0]:
         shell(f"am force-stop {PKG}")
         KEPT_STARTED[0] = True
+    if args.pm_clear:
+        # A fresh install's first open: no cached player, visitor, embed identity or format cache.
+        shell(f"pm clear {PKG}")
+        shell(f"pm grant {PKG} android.permission.POST_NOTIFICATIONS")
     mark = device_time()
     raw = os.path.join(RESULTS, f"{args.run_id}.{source}.{video}.t{trial}.log")
     # Stream the log while the cell runs: the phone's buffer rolls over within minutes (an
@@ -588,6 +592,9 @@ def main():
     ap.add_argument("--support-xhr", default="none")
     ap.add_argument("--keep-process", action="store_true",
                     help="do not restart the app between cells (state carries over, like a user)")
+    ap.add_argument("--pm-clear", action="store_true",
+                    help="clear the app's data before every open (a fresh install's first open: the "
+                         "player-JS gate A/B). Refused for the signed-in .auth build")
     ap.add_argument("--anon-tizen", action="store_true",
                     help="planner switch: TV_TIZEN without the account right after a refusal")
     ap.add_argument("--prop", action="append", default=[],
@@ -624,6 +631,8 @@ def main():
     SENDER_LOCK = None if args.sender_lock == "none" else args.sender_lock
     RESULTS = os.path.join(args.data, "appbench", "results")
     os.makedirs(RESULTS, exist_ok=True)
+    if args.pm_clear and (args.keep_process or PKG.endswith(".auth")):
+        ap.error("--pm-clear clears the app: never the signed-in .auth build, never with --keep-process")
     if PKG not in shell(f"pm list packages {PKG}"):
         sys.exit(f"{PKG} is not installed")
     vol = media_volume()
