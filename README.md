@@ -64,7 +64,7 @@ with no connection, and they show up in your gallery.
 #### Measured speed
 The first screen appears in about 0.24 s, and a related video shows its first frame about half
 a second after you tap it ([Pixel 9 medians](#how-fast)). The interface is plain Material Design,
-in light or dark.
+in a dark theme (a light one is on the way).
 
 </td>
 </tr>
@@ -124,8 +124,8 @@ YouTube app.
 - **Requires Android 7.0 or newer.** NewTube has its own package name
   (`io.github.aleixrodriala.arc`), so it installs next to SmartTube or the YouTube app.
 - **Updates:** with [Obtainium](https://obtainium.imranr.dev), choose *Add app* and paste
-  `https://github.com/aleixrodriala/newtube`, or install a newer APK over the old one. The
-  built-in update check isn't live yet.
+  `https://github.com/aleixrodriala/newtube`, or install a newer APK over the old one. NewTube
+  also checks for new versions itself and offers them in the app.
 - **Verify what you install.** Every APK is signed with the same key. Its certificate SHA-256 is
   `2e:f9:9d:76:ed:fa:d9:88:ad:17:cd:ee:8b:a1:8c:63:4e:23:0f:e1:e3:cb:1f:dc:6c:db:02:49:37:0a:36:c9`.
   Check it with `apksigner verify --print-certs <file>.apk`. Each release also lists a SHA-256 for every file.
