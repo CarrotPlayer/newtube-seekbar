@@ -661,8 +661,10 @@ def main():
             setprop(key, None)
         now = None
         if vol is not None:
-            # Verified: one restore on the Mi 8 (Android 15, adb over Wi-Fi) did not take, and the
-            # next run then read 0 as the owner's volume.
+            # Re-read and retried: a muted volume group ignores setStreamVolume from the shell
+            # (Android 15). Correction: on the Mi 8 (2026-09-29) a restore did take; the 0 the next
+            # run read was the owner holding volume-down (dumpsys audio: adjustSuggestedStreamVolume
+            # ADJUST_LOWER from the key). A run keeps whatever the owner set: never "fix" a 0.
             for _ in range(3):
                 set_media_volume(vol)
                 time.sleep(0.5)
