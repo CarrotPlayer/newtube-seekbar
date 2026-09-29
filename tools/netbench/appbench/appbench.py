@@ -185,7 +185,145 @@ def parse(lines, video):
     else:
         verdict = f"STALL@{max(0, max_pos) // 1000}s"
     res["verdict"] = verdict
+    res.update(phases(lines, video))
     return res
+
+
+# Open phases (ttff-analysis 2026-09-29, section 6). "+X" values are the app's own ms since the tap
+# (the NetPath open context); *_done / answer values come from logcat timestamps minus the tap line's,
+# which is the same origin. Everything after the video's first frame is ignored except the two
+# milestones that follow it (ready, picture-visible).
+LOGCAT_TS = re.compile(r"^(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)\.(\d{3}) ")
+V8_RUN = re.compile(r"v8-run reused=(\S) initMs=(\d+) solveMs=(\d+)")
+WARM = re.compile(r"NetPath[^:]*: warm(-failed)? (\S+) \+(\d+)ms(.*)")
+WARM_METRICS = re.compile(r" dns=(-?\d+) connect=(-?\d+) ssl=(-?\d+) wait=(-?\d+) reused=(\S) proto=(\S+)")
+
+
+def logcat_ms(line):
+    """Milliseconds of a `logcat -v time` line (month/day/time; no year in the format)."""
+    m = LOGCAT_TS.match(line)
+    if not m:
+        return None
+    mo, d, h, mi, s, ms = (int(g) for g in m.groups())
+    return ((((mo * 31 + d) * 24 + h) * 60 + mi) * 60 + s) * 1000 + ms
+
+
+def phases(lines, video):
+    """Per-phase fields of one open (None when the log has no such line).
+
+    picture_visible_ms / ready_ms / mli_ms / init_done_ms: the milestones' +X. picture_lift: the
+    still-lift path (ready|texture; None before it was logged). sig_ms / v8_solve_ms: the n/sig
+    solve of the answer that played (the last player-sig before the first frame, and the V8 run
+    right before it; None when that answer needed no V8). answer_ms / answer_client: the winning
+    player-result (the client of the last player-transform before the first frame) minus the tap;
+    None when that answer came before the tap (a prefetch). dec_video_ms / dec_audio_ms: codec initMs
+    of the first decoder line per type (0 = a reused codec). warm_*: the first googlevideo warm
+    after the tap: warm_ms is its own duration, warm_done_ms when it finished, then the Cronet
+    breakdown when the build logs one. embed_identity: restored|fetched (+ embed_fetch_ms).
+    """
+    vid = re.escape(video)
+    ms_line = lambda name: re.compile(r"video=" + vid + r" " + name + r" \+(\d+)")
+    re_tap = re.compile(r"ep=\d+ video=" + vid + r" tap\b")
+    re_ff = ms_line("first-frame")
+    re_pv = re.compile(r"video=" + vid + r" picture-visible \+(\d+)(?:.*? lift=(\S+))?")
+    re_ready = ms_line("ready")
+    re_mli = ms_line("media-load init")
+    re_init = ms_line("media-init done")
+    re_dec = re.compile(r"video=" + vid + r" decoder (init|reuse) \+\d+ type=(\S+)(?: .*?initMs=(\d+))?")
+    re_sig = re.compile(r"player-sig video=" + vid + r" .*\bms=(\d+)")
+    re_result = re.compile(r"player-result video=" + vid + r" client=(\S+) attempt=\d+ status=\S+ playable=(\S)")
+    re_transform = re.compile(r"player-transform video=" + vid + r" client=(\S+)")
+    re_embed = re.compile(r"embed-identity source=(\S+)(?: ms=(\d+))?")
+    out = {"picture_visible_ms": None, "picture_lift": None, "ready_ms": None, "sig_ms": None,
+           "v8_solve_ms": None, "answer_ms": None, "answer_client": None, "mli_ms": None,
+           "init_done_ms": None, "dec_video_ms": None, "dec_audio_ms": None, "warm_ms": None,
+           "warm_host": None, "warm_ok": None, "warm_done_ms": None, "warm_dns_ms": None,
+           "warm_connect_ms": None, "warm_ssl_ms": None, "warm_wait_ms": None, "warm_reused": None,
+           "warm_proto": None, "embed_identity": None, "embed_fetch_ms": None}
+    tap = None
+    ff = False
+    pending_v8 = None
+    playable_at = {}
+    answer_at = None
+    for ln in lines:
+        if "NetPath" not in ln:
+            continue
+        ln = ln.replace("\x00", "")  # logcat dumps carry NUL bytes
+        if tap is None:
+            if re_tap.search(ln):
+                tap = logcat_ms(ln)
+            continue  # nothing before this video's tap belongs to its open
+        m = re_pv.search(ln)
+        if m and out["picture_visible_ms"] is None:
+            out["picture_visible_ms"] = int(m.group(1))
+            out["picture_lift"] = m.group(2)
+        m = re_ready.search(ln)
+        if m and out["ready_ms"] is None:
+            out["ready_ms"] = int(m.group(1))
+        if ff:
+            continue
+        if re_ff.search(ln):
+            ff = True
+            continue
+        m = V8_RUN.search(ln)
+        if m:
+            pending_v8 = int(m.group(3))
+        m = re_sig.search(ln)
+        if m:
+            out["sig_ms"] = int(m.group(1))
+            out["v8_solve_ms"] = pending_v8
+            pending_v8 = None
+        m = re_result.search(ln)
+        if m and m.group(2) == "y":
+            playable_at[m.group(1)] = logcat_ms(ln)
+        m = re_transform.search(ln)
+        if m and m.group(1) in playable_at:
+            out["answer_client"] = m.group(1)
+            answer_at = playable_at[m.group(1)]
+        m = re_mli.search(ln)
+        if m and out["mli_ms"] is None:
+            out["mli_ms"] = int(m.group(1))
+        m = re_init.search(ln)
+        if m:
+            out["init_done_ms"] = max(out["init_done_ms"] or 0, int(m.group(1)))
+        m = re_dec.search(ln)
+        if m:
+            key = "dec_" + m.group(2) + "_ms"
+            if key in out and out[key] is None:
+                out[key] = int(m.group(3)) if m.group(1) == "init" and m.group(3) else 0
+        m = WARM.search(ln)
+        if m and out["warm_ms"] is None:
+            out["warm_ok"] = m.group(1) is None
+            out["warm_host"] = m.group(2)
+            out["warm_ms"] = int(m.group(3))
+            at = logcat_ms(ln)
+            out["warm_done_ms"] = at - tap if at is not None and tap is not None else None
+            mm = WARM_METRICS.search(m.group(4))
+            if mm:
+                out.update({"warm_dns_ms": int(mm.group(1)), "warm_connect_ms": int(mm.group(2)),
+                            "warm_ssl_ms": int(mm.group(3)), "warm_wait_ms": int(mm.group(4)),
+                            "warm_reused": mm.group(5) == "y", "warm_proto": mm.group(6)})
+        m = re_embed.search(ln)
+        if m and out["embed_identity"] is None:
+            out["embed_identity"] = m.group(1)
+            out["embed_fetch_ms"] = int(m.group(2)) if m.group(2) else None
+    if answer_at is not None and tap is not None:
+        out["answer_ms"] = answer_at - tap
+    return out
+
+
+def reparse(paths):
+    """Offline: print parse() for saved per-open logs (<run>.<SOURCE>.<video>.t<N>.log). No adb."""
+    for path in paths:
+        m = re.match(r"(.+?)\.([A-Z_]+)\.([\w-]{11})\.t(\d+)\.log$", os.path.basename(path))
+        if not m:
+            print(f"skip {path}: not a per-open log name", file=sys.stderr)
+            continue
+        with open(path, errors="replace") as fh:
+            lines = fh.read().replace("\x00", "").splitlines()
+        row = {"file": os.path.basename(path), "run_id": m.group(1), "source": m.group(2),
+               "video": m.group(3), "trial": int(m.group(4)), **parse(lines, m.group(3))}
+        print(json.dumps(row))
 
 
 def wait_for_guard(max_wait_s=120):
@@ -271,6 +409,10 @@ def _stop(signum, frame):
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--reparse":
+        # Saved logs only: appbench.py --reparse results/<run>.*.log > rows.jsonl
+        reparse(sys.argv[2:])
+        return
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
     ap = argparse.ArgumentParser()

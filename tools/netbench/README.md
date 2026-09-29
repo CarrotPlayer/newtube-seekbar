@@ -105,6 +105,8 @@ only debug and benchmark builds read at process start:
 | `debug.arc.hls_vod` | `--prop debug.arc.hls_vod=1` | HLS for VOD answers whose adaptive formats are SABR-only |
 | `debug.arc.readiness` | `--prop debug.arc.readiness=0` | turn the pre-roll readiness gate off (comparison only) |
 | `debug.arc.poison_once_itag` | `--prop debug.arc.poison_once_itag=any` | refuse one media request with a synthetic 403 (then the app's recovery runs) |
+| `debug.arc.still_lift` | `--prop debug.arc.still_lift=texture` | the loading still waits for the next texture frame after READY again (default: it lifts at READY once this open's first frame is on the texture) |
+| `debug.arc.embed_persist` | `--prop debug.arc.embed_persist=0` | WEB_EMBED's embed identity in memory only again (default: persisted, 6 h TTL) |
 
 Every property is reset to `none` at the end. Then, from `tools/netbench`:
 ```bash
@@ -119,6 +121,17 @@ Other flags: `--keep-process` (no restart between opens), `--repeat N`, `--play-
 `RECOVERED@Ns` for an error the app then played past, `NO-START`) and writes `<data>/appbench/results/<run-id>.jsonl` plus the raw log of that open. Exit
 code 2 means a guard or focus stop ended the run (or a usage error). Put each sequence in a small script under
 `<data>/appbench/` with a `check build vN` comment in its header: the recap reads it to label runs.
+
+Each row also carries the open's phases, all in ms from the tap (`None` when the log has no such
+line): `answer_ms`/`answer_client` (the `/player` answer that played), `sig_ms` and `v8_solve_ms`
+(its n/sig solve), `mli_ms` (first media request), `init_done_ms`, `dec_video_ms`/`dec_audio_ms`
+(codec init; 0 = reused), `first_frame_ms`, `ready_ms`, `picture_visible_ms` (what the user sees)
+and `picture_lift` (`ready`/`texture`), the first googlevideo warm (`warm_host`, `warm_ms` = its
+duration, `warm_done_ms`, and from builds that log it `warm_dns_ms`, `warm_connect_ms`,
+`warm_ssl_ms`, `warm_wait_ms`, `warm_reused`, `warm_proto`), and `embed_identity`
+(`restored`/`fetched`, `embed_fetch_ms`). `python3 appbench/appbench.py --reparse <log>...` prints
+the same row for saved per-open logs, offline; `python3 appbench/test_appbench.py` tests
+the parser.
 
 **Acceptance (planner and HLS for VOD).** `appbench/accept.sh <wifi|lte> smoke|rest` runs the matrix
 of `docs/player-sources/PLANNER.md` section 4, each switch on against the same build with it off (LTE
