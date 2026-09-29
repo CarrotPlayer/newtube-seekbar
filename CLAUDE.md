@@ -47,8 +47,10 @@ without auditing `LiveDashManifestParser` + `Helpers.setField` call sites).
   `input swipe` drags register as seeks; fast swipes do nothing; sub-300 ms
   swipes on cards register as clicks.
 - **Never edit `VIDEO_INFO_TYPE_LIST`** (MediaServiceCore VideoInfoService) —
-  upstream churns it constantly; phone behavior is controlled through static
-  gates set from `MobileMainApplication` (`setSkipTvFallbackClients`, etc.).
+  upstream churns it constantly, and only the TV path reads it now. The phone's
+  `/player` order, signed in and out, comes from `PhoneSourcePlanner`
+  (`videoinfo/V2/sources/`; design and evidence: `docs/player-sources/LANES.md`),
+  and its switches are static setters called from `MobileMainApplication`.
 - The second `/player` call on playable videos is the **deferred WEB
   subtitle-enrichment fetch** (auto-translate lists), fires post-playback —
   it is NOT redundant; do not dedupe it.
