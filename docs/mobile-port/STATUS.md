@@ -1,16 +1,43 @@
 # NewTube — Status
 
-**v1.10.1 (versionCode 11001), Gila Edition, 2026-09-27.** Release scope,
-validation and distribution are recorded in
-[the release record](../releases/1.10.1.md); it ships the three sections below
-(2026-09-24, 2026-09-25 and round 3) without the mini-player park, which was
-withdrawn after 1.10.0 (tagged, never distributed: [its record](../releases/1.10.0.md)). 1.9.0 is in [its record](../releases/1.9.0.md);
-the 1.8.0 playback/network review lives in [its own record](../releases/1.8.0.md). Older dated investigations below
-remain historical evidence, not the current release verdict.
+**v1.11.0 (versionCode 11100), Tony Leblanc Edition, 2026-09-29.** Release scope,
+validation and distribution are in [the release record](../releases/1.11.0.md);
+the design and evidence of its main change are in
+[LANES.md](../player-sources/LANES.md). 1.10.1 to 1.10.4 are in their own
+records under `docs/releases/`. Older dated sections below remain historical
+evidence, not the current release verdict.
 
 Phone-only: the TV flavors, vendored ExoPlayer fork and Leanback modules were
 deleted. Playback uses Media3 1.10.1 with embedded Cronet and an OkHttp fallback.
 Toolchain: AGP 9.2.1 / Gradle 9.6.1 / compileSdk 37 / targetSdk 37 / minSdk 24.
+
+## Player routes and time to first frame (2026-09-28/29, 1.11.0)
+
+The way NewTube picks a YouTube source for a video was redesigned from
+benchmarks: one planner for signed-out and signed-in playback, stop rules for
+videos that cannot play, account-route health instead of phone-only gates
+(HANDOFF §33). Measured on a Pixel 9 (LTE and Wi-Fi, signed out and in), a
+Xiaomi Mi 8 (Snapdragon 845) and an emulator:
+
+- made-for-kids videos (#5): 25/25 over LTE at the second request, median first
+  frame 1.2-1.3 s (1.10.4: failed, or 8-10 s);
+- signed in: every video that can play of a 16-video ring, in 40 requests
+  (before: 3 of 7 in 128);
+- videos that cannot play settle in 2-4 requests with their own reason;
+- normal cold starts (median picture visible): Pixel kids 0.75 s, ordinary
+  0.53 s; Mi 8 kids 1.16 s, ordinary 0.82 s; a fresh install's first ordinary
+  video 0.79 s (Pixel) and 0.93 s (Mi 8), from 1.93 s and 3.70 s.
+
+The one-minute wall (the video plays a minute, then "Unknown source error") is
+fixed in the same release: googlevideo refuses media past 60 s for some anonymous
+identities; NewTube now remembers the refusal, recovers through sources that keep
+serving and rolls a fresh playback identity (HANDOFF §34, LANES §2.3). Verified
+on real walled identities (emulators) and with a synthetic wall on the Pixel and
+the Mi 8: recovery in about a second, no reload cap. Left: the ~6 s rewind at the
+wall.
+
+The in-app update flow (one sheet from check to install, HANDOFF §32) ships in
+the same release, verified end to end on the Pixel.
 
 ## In-app updates: one sheet from check to install (2026-09-28, emulator)
 

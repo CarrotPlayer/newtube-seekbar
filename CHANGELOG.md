@@ -2,6 +2,89 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.11.0 — 2026-09-29 — Tony Leblanc Edition
+
+"There's always a way in…" A fictional homage to Tony Leblanc and the spirit of
+his street-smart chancers, for a release about finding the way to every video.
+Videos no longer stop after a minute, made-for-kids videos play, videos start
+sooner, and updates come in one sheet.
+
+### Fixed
+
+- **Videos no longer end after a minute with "Unknown source error".** For
+  some anonymous sessions, YouTube serves only the first minute of a video to
+  the services NewTube asks first and refuses the rest, also after a skip or a
+  resume past that minute. NewTube retried those same services until it gave
+  up. It now recognises that refusal, remembers it, and carries on with a
+  service that keeps serving (the embed player, the TV service, or a
+  low-resolution stream as a last resort). It also starts a fresh anonymous
+  identity for playback, so the next videos play normally; your Home feed
+  keeps its own. Tested with real refusals on emulators and a simulated one on
+  two phones: the video paused for about a second on the phones (a few seconds
+  on the slower emulators), sometimes repeated a few seconds, and played on.
+- **Made-for-kids videos play.** They stopped with "Unknown source error"
+  ([#5](https://github.com/aleixrodriala/newtube/issues/5)): the YouTube
+  service NewTube asks first refuses them, and what it tried next was refused
+  too, or held the video for its pre-roll ad and gave up. NewTube now asks, in
+  an order measured on real phones, the one that serves them, and waits out an
+  ad hold instead of failing. On a Pixel 9 over mobile data, 25 kids videos
+  out of 25 played, starting in about 1.3 s (median).
+- **Signed in, videos start on the first or second try.** NewTube first asked a
+  route YouTube no longer serves to signed-in apps, then walked many others.
+  In a test with the same account, the previous version played 3 of the first
+  7 videos and needed 128 requests for them; this one played all 13 of the 16
+  test videos that can play (the other three are members-only, a paid movie and
+  a music-only video) with 40 requests.
+- **Videos that can't play say so quickly.** A removed, age-restricted (and not
+  embeddable) or members-only video stops at its own reason after two to four
+  requests instead of trying every service, also in Spanish. A private video
+  no longer makes NewTube treat the next videos as blocked, and autoplay stops
+  after two unplayable videos in a row instead of skipping through a list.
+- **Watch history sync is retried** when its first sync with your account
+  fails (up to three tries), instead of being dropped.
+- **Wide videos fill the screen properly.** On videos wider than 16:9 (films,
+  2.35:1) the fullscreen controls dimmed only a 16:9 strip, leaving hard edges
+  across the picture, and the mini player stretched the video to its card
+  ([#9](https://github.com/aleixrodriala/newtube/issues/9)). The dimming now
+  covers the whole video, the controls stay clear of the camera cutout, and the
+  mini player shows the video at its own shape.
+
+### Faster
+
+- **Videos start sooner in everyday use** (the app installed and opened
+  before). On a 2018 phone (Xiaomi Mi 8, Wi-Fi), the picture of an ordinary
+  video shows in about 0.55 s instead of 0.8 s, a made-for-kids one in about
+  1.05 s instead of 8.3 s, and an 18+ one in about 1.1 s instead of 3.8 s when
+  YouTube shows no pre-roll ad; live videos start as before. YouTube's
+  background security check now waits until your video is on screen, the
+  loading image lifts at the first frame, and NewTube keeps what it worked out
+  about YouTube's player instead of redoing it for every video.
+- **The first video after YouTube updates its player** (every few days, and
+  right after installing) started 1.1 to 2.8 s sooner in tests of that
+  situation when it is an ordinary or a live one: NewTube no longer waits to check the new player before asking for
+  a video that doesn't need it.
+- **Fewer requests to YouTube.** A second video from the same made-for-kids
+  channel, a live video tapped from a list, and a kids video recovering from a
+  failed stream each need a single request to YouTube.
+
+### Changed
+
+- **Updates, in one sheet.** Settings → About → Check for updates, the new row
+  at the top of the You tab and a dot on its tab all open the same sheet: the
+  version, its size and what's new, then Update. The download shows its
+  progress, can be cancelled, keeps going if you leave the app, and Android's
+  installer opens straight away when it's done. The first time, the sheet
+  explains Android's "install unknown apps" permission. After updating, NewTube
+  tells you and shows what's new. Checking no longer downloads the update by
+  itself.
+
+### Still limited
+
+- **Some videos only play in YouTube's own app or after a purchase** (paid
+  movies, some music), and still stop with YouTube's "not available".
+- **The switch after a one-minute refusal is visible:** the video pauses
+  briefly and may repeat a few seconds before it plays on.
+
 ## 1.10.4 — 2026-09-28 — Lina Morgan Edition
 
 "Grateful and up to date…" A fictional homage to Lina Morgan and the spirit of

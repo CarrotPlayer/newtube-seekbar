@@ -2116,3 +2116,94 @@ Verified on the API 35 AVD: every sheet state, cancel, a download cut by the ser
 download (finished in the background, notification -> installer), permission round trip, installer
 Cancel returning to "Ready to install", install -> "App installed / Open" -> "Updated to" snackbar ->
 What's new.
+
+On a real phone (Pixel 9, 2026-09-29, 1.10.5 -> 1.10.6 on the owner's signed-in app, `adb reverse
+tcp:8765 tcp:8765` and `http://127.0.0.1:8765/newtube.json`): every step worked, but the install
+opened Android's "Open with" chooser, because three apps on that phone also claim APK files. Fixed in
+`bfabdb2c` (`AppUpdates.systemInstaller`: the system app declaring `ACTION_INSTALL_PACKAGE`, plus
+`<queries>` in the stmobile manifest) and re-verified 1.10.7 -> 1.10.8. The launch check has a minimum
+interval (`SettingsManager.CHECK_INTERVAL_DEFAULT_MS`); Settings -> About -> Check for updates is not
+throttled. Clear the override afterwards (`setprop debug.arc.update_manifest "''"`).
+
+## 33. Player sources: one planner for both lanes, and the TTFF round (2026-09-28/29, 1.11.0)
+
+The design, every rule and all the evidence: `docs/player-sources/LANES.md` (read it before touching
+the walk). The short version:
+
+- **The order** comes from `PhoneSourcePlanner` (MSC `videoinfo/V2/sources/`): VISIONOS, then
+  (signed in) TV_TIZEN with the account, then WEB_EMBED, ANDROID_VR, IOS, ANDROID_REEL, MWEB, WEB,
+  WEB_SAFARI. Signed out, anonymous TV_TIZEN is admitted only right after an anonymous non-web
+  content refusal (the made-for-kids path). `VIDEO_INFO_TYPE_LIST` is TV-only.
+- **Stop rules** in the walk: an age gate is settled once every source that can serve one answered;
+  a removal/verdict needs consensus from three identities; members-only is terminal (localized
+  openings in `BotCheckDetector.MEMBERS_ONLY_OPENINGS`); a lone repeated sign-in text is a bot check
+  only when a different video repeated it within 10 min and the sign-in texts agree (a private video
+  is not a wall).
+- **Account-route health** is BotWallBook's route record (media 403, challenge, reload page,
+  SABR-only per video, then per attachment). History: one TV 7.x `/player` with the account during
+  playback when the winner was anonymous; `YouTubeMediaItemFormatInfo.sync` retries up to 3 times.
+- **TTFF pieces**, each with a debug rollback: the V8 memo keeps the evaluated player per player URL
+  (`debug.arc.v8_memo 0`), and `V8Lane` makes a real solve go before any warm-up step not yet
+  started; the loading still lifts at READY (`debug.arc.still_lift texture`); the embed identity is
+  persisted for its 6 h (`debug.arc.embed_persist 0`); VISIONOS and ANDROID_VR send `/player` once a
+  new player's JS is read instead of after its V8 validation (`PlayerJsGate`, `PlayerJsReadAhead`,
+  `debug.arc.player_js_gate 0`). Off by default: `debug.arc.account_first 1` (the signed-in A/B,
+  LANES §2.1), `debug.arc.pot_gen v4` (PoTokenWebView4).
+- **Checks that need no phone:** `VideoInfoReplayTest` replays YouTube's recorded answers through the
+  real walk (fixtures from `tools/netbench/appbench/replay_fixtures.py`; a client the device never
+  asked fails "needs a device answer for X"). Run it after any planner change.
+- **Benchmark builds:** `-PsideBySide` (`.check`, signed out) and `-PsideBySide=auth` (`.auth`, the
+  owner's account with every watch-history write blocked: `history-ping dry-run` lines instead).
+  `tools/netbench/appbench/appbench.py` drives them; see `tools/netbench/README.md` (settle cells,
+  per-walk turns between phones, the STOP file at the first bot check).
+
+Traps learned this round:
+- The tool shells are zsh: `$VAR` holding a command is not word-split and `set -- $v` does nothing.
+  Put multi-word commands in bash scripts.
+- `pgrep -f "appbench.py ..."` matches the waiting shell's own command line; use `[a]ppbench.py` or
+  a PID.
+- `adb` on the maintainer's WSL is Windows `adb.exe` (a zsh function and `/usr/local/bin/adb`). When
+  WSL interop drops, every call fails with "exec format error" and `$(adb ... getprop)` reads as an
+  empty value: use `~/.local/opt/platform-tools/adb` with `ADB_SERVER_SOCKET=tcp:127.0.0.1:5037`.
+- Robolectric tests in `smarttubetv` need `@ConscryptMode(ConscryptMode.Mode.OFF)` (no conscrypt JNI
+  on the host) and `sdk = 28` like the others.
+- A phone's first open after an app update runs uncompiled code: exclude it from timing.
+- Kids channel memory (the next video of a made-for-kids channel asks TV_TIZEN first) is built on
+  branch `ttff/kids-channel` in both repos, unmerged: it needs a device check that TV_TIZEN's answers
+  carry `channelId`, and a rebase.
+
+## 34. The one-minute wall (round r11, router v20-v22, 2026-09-29, 1.11.0)
+
+**Symptom (users, 29 September):** the video plays about a minute, then "Unknown source error",
+on every video, Wi-Fi and mobile data, surviving a reinstall (a Redmi Note 14 4G tester; a Reddit
+user). §28 had the mechanism on carrier IPs; r11 measured it on the phones and emulators.
+
+**What it is (measured):**
+- googlevideo serves exactly 60.0 s of media to a walled (visitor, client) pair and 403s every
+  request whose stream position is past it, also a seek, a skip (SponsorBlock) or a resume.
+- It follows the anonymous identity: 1 of 17 visitors over the Pixel's LTE, 3 of 14 on home
+  Wi-Fi that day. Not the build, and not the anonymous api/stats pings (walls with pings on and
+  off; benchmark builds block the pings unless `debug.arc.anon_pings=1` on .check, commit
+  `036a6e43`). A walled identity was still walled after 33 min.
+- Per client on a walled visitor: VISIONOS and ANDROID_VR walled; TV_TIZEN (anonymous, the SAME
+  visitor) and ANDROID_REEL (progressive only) kept serving; WEB_EMBED kept serving on its own
+  embed identity; IOS returned no URLs. ANDROID_VR as a VOD route walled even fresh visitors 6/6.
+- The previous code died because its recovery only reached SABR-only web clients and a walled
+  ANDROID_VR. The v19 release candidate recovered through WEB_EMBED, except on an
+  embedding-disabled video: VISIONOS and ANDROID_VR alternated until the reload cap.
+
+**The fix (router v22/v22b, on by default, rollbacks in LANES §2.3):** wall detection from the
+open's media request starts (`playback-media403 … signature=wall`), wall memory per (visitor
+fingerprint, client) for 6 h, a VOD recovery order [WEB_EMBED, TV_TIZEN, re-rolled VISIONOS,
+ANDROID_REEL, ANDROID_VR, …], and a playback identity re-roll minted in the background right
+after the wall (browse identity untouched, 2 per 6 h). Synthetic wall for tests:
+`debug.arc.poison_wall_s=60`. Verified on the real walled visitors (emulators) and with the
+synthetic wall on the Mi 8 and the Pixel (Wi-Fi and LTE): recovery in 0.84-1.22 s, no reload cap,
+the next videos on the fresh identity at normal start times.
+
+**Left for after 1.11.0 (LANES §9):** Media3 treats the wall's 403 as fatal, so playback stops
+with buffer left and the resume snaps back ~6 s to the previous sync sample. Act on the first
+past-60 s 403 before the buffer drains and join the recovery source at the buffer's end.
+
+Reports: `~/projects/newtube-launch/netbench/r11-{pixel,mi8,emu-home}.md`, the TTFF analysis
+`r11-ttff-analysis.md`; design and evidence `docs/player-sources/LANES.md` §2.3, §7-9.

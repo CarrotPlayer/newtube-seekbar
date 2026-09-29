@@ -3,6 +3,94 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
+## 1.11.0 — 29-09-2026 — Edición Tony Leblanc
+
+«Siempre hay una manera de entrar…» Homenaje ficticio a Tony Leblanc y al
+espíritu de sus pícaros con recursos, para una versión que encuentra el camino
+hasta cada vídeo. Los vídeos ya no se cortan al minuto, los vídeos para niños
+se reproducen, los vídeos empiezan antes y las actualizaciones llegan en una
+sola hoja.
+
+### Arreglado
+
+- **Los vídeos ya no acaban al minuto con «Unknown source error».** En
+  algunas sesiones anónimas, YouTube solo sirve el primer minuto del vídeo a
+  los servicios que NewTube consulta primero y rechaza el resto, también al
+  saltar o retomar más allá de ese minuto. NewTube volvía a pedirlo a esos
+  mismos servicios hasta rendirse. Ahora reconoce ese rechazo, lo recuerda y
+  sigue con un servicio que no lo corta (el reproductor insertado, el de TV o,
+  como último recurso, una versión en baja resolución). Además estrena una
+  identidad anónima nueva para reproducir, así los siguientes vídeos van con
+  normalidad; tu Inicio conserva la suya. Probado con rechazos reales en
+  emuladores y uno simulado en dos móviles: el vídeo se paró alrededor de un
+  segundo en los móviles (unos segundos en los emuladores, más lentos), a veces
+  repitió unos segundos, y siguió.
+- **Los vídeos para niños se reproducen.** Paraban con «Unknown source error»
+  ([#5](https://github.com/aleixrodriala/newtube/issues/5)): el servicio de
+  YouTube al que NewTube pregunta primero los rechaza, y los siguientes también,
+  o retenían el vídeo por su anuncio previo y se rendían. Ahora NewTube pregunta,
+  en un orden medido en móviles reales, al que sí los sirve, y espera el anuncio
+  en vez de fallar. En un Pixel 9 con datos móviles se reprodujeron 25 vídeos
+  para niños de 25, y empezaron en 1,3 s (mediana).
+- **Con cuenta, los vídeos empiezan al primer o segundo intento.** NewTube
+  preguntaba primero a una ruta que YouTube ya no sirve a las apps con cuenta, y
+  luego a muchas otras. En una prueba con la misma cuenta, la versión anterior
+  reprodujo 3 de los 7 primeros vídeos y necesitó 128 peticiones; esta
+  reprodujo los 13 de los 16 vídeos de prueba que se pueden ver (los otros tres
+  son de miembros, una película de pago y un vídeo solo de música) con 40.
+- **Los vídeos que no se pueden ver lo dicen enseguida.** Un vídeo eliminado,
+  con restricción de edad (y no insertable) o solo para miembros para en su
+  propio motivo tras dos a cuatro peticiones en vez de probar todos los
+  servicios, también en español. Un vídeo privado ya no hace que NewTube dé por
+  bloqueados los siguientes, y la reproducción automática para tras dos vídeos
+  seguidos que no se pueden ver, en vez de saltar por una lista de ellos.
+- **La sincronización del historial se reintenta** si falla la primera con tu
+  cuenta (hasta tres intentos), en vez de descartarse.
+- **Los vídeos panorámicos se ven bien.** En vídeos más anchos que 16:9
+  (películas, 2,35:1) los controles a pantalla completa oscurecían solo una
+  franja 16:9, con bordes marcados sobre la imagen, y el minirreproductor
+  estiraba el vídeo a su tarjeta
+  ([#9](https://github.com/aleixrodriala/newtube/issues/9)). Ahora el
+  oscurecido cubre todo el vídeo, los controles no quedan bajo la cámara y el
+  minirreproductor muestra el vídeo con su forma.
+
+### Más rápido
+
+- **Los vídeos empiezan antes en el uso diario** (con la app ya instalada y
+  abierta antes). En un móvil de 2018 (Xiaomi Mi 8, wifi), la imagen de un
+  vídeo normal aparece en unos 0,55 s en vez de 0,8 s, la de uno para niños en
+  unos 1,05 s en vez de 8,3 s y la de uno para mayores de 18 en unos 1,1 s en
+  vez de 3,8 s cuando YouTube no pone anuncio previo; los directos empiezan
+  como antes. La comprobación de seguridad de YouTube en segundo plano espera
+  a que tu vídeo esté en pantalla, la imagen de carga se quita con el primer
+  fotograma y NewTube guarda lo que ya averiguó del reproductor de YouTube en
+  vez de rehacerlo con cada vídeo.
+- **El primer vídeo tras una actualización del reproductor de YouTube** (cada
+  pocos días, y nada más instalar) empezó entre 1,1 y 2,8 s antes en pruebas de
+  esa situación si es normal o en directo: NewTube ya no espera a comprobar el reproductor nuevo para
+  pedir un vídeo que no lo necesita.
+- **Menos peticiones a YouTube.** Un segundo vídeo del mismo canal para niños,
+  un directo tocado desde una lista y un vídeo para niños que se recupera de un
+  fallo necesitan una sola petición a YouTube.
+
+### Cambiado
+
+- **Las actualizaciones, en una sola hoja.** Ajustes → Acerca de → Buscar
+  actualizaciones, la nueva fila arriba de la pestaña Tú y un punto en esa
+  pestaña abren la misma hoja: la versión, su tamaño y las novedades, y luego
+  Actualizar. La descarga muestra su progreso, se puede cancelar, sigue aunque
+  salgas de la app, y el instalador de Android se abre directamente al acabar.
+  La primera vez, la hoja explica el permiso de Android para «instalar apps
+  desconocidas». Después de actualizar, NewTube te lo dice y enseña las
+  novedades. Buscar ya no descarga la actualización por su cuenta.
+
+### Sigue limitado
+
+- **Algunos vídeos solo se ven en la app de YouTube o tras pagar** (películas
+  de pago, algo de música), y siguen parando con el «no disponible» de YouTube.
+- **El cambio tras un rechazo al minuto se nota:** el vídeo se para un momento
+  y puede repetir unos segundos antes de seguir.
+
 ## 1.10.4 — 28-09-2026 — Edición Lina Morgan
 
 «Agradecidos y actualizados…» Homenaje ficticio a Lina Morgan y al espíritu de
