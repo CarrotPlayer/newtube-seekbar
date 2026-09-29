@@ -6,7 +6,10 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.SystemClock;
 import android.util.Log;
@@ -268,6 +271,11 @@ public final class AppUpdates implements AppUpdateCheckerListener {
         Intent intent = new Intent(Intent.ACTION_VIEW)
                 .setDataAndType(uri, "application/vnd.android.package-archive")
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        String installer = systemInstaller(activity.getPackageManager(), intent);
+
+        if (installer != null) {
+            intent.setPackage(installer);
+        }
 
         try {
             activity.startActivity(intent);
@@ -283,6 +291,42 @@ public final class AppUpdates implements AppUpdateCheckerListener {
                 .apply();
         Log.d(TAG, "installer opened for " + mInfo.versionName);
         return true;
+    }
+
+    /**
+     * The system app that installs {@code view}'s APK, or null to let Android choose, as before.
+     * Apps that also open APK files (a file manager, Termux; three of them on the owner's Pixel 9,
+     * 2026-09-29) otherwise turn the install into an "Open with" chooser, where any other pick
+     * installs nothing. Only installers declare ACTION_INSTALL_PACKAGE, so a system one wins; else
+     * the view intent's system handler if it is the only one (a system file manager may be one
+     * too). The stmobile manifest's queries make them visible from Android 11.
+     */
+    @SuppressWarnings("deprecation") // ACTION_INSTALL_PACKAGE: resolved, never started
+    @Nullable
+    static String systemInstaller(PackageManager pm, Intent view) {
+        Intent install = new Intent(Intent.ACTION_INSTALL_PACKAGE).setDataAndType(view.getData(), view.getType());
+        List<String> installers = systemHandlers(pm, install);
+
+        if (!installers.isEmpty()) {
+            return installers.get(0);
+        }
+
+        List<String> viewers = systemHandlers(pm, view);
+        return viewers.size() == 1 ? viewers.get(0) : null;
+    }
+
+    private static List<String> systemHandlers(PackageManager pm, Intent intent) {
+        List<String> packages = new ArrayList<>();
+
+        for (ResolveInfo info : pm.queryIntentActivities(intent, 0)) {
+            if (info.activityInfo != null && info.activityInfo.applicationInfo != null
+                    && (info.activityInfo.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0
+                    && !packages.contains(info.activityInfo.packageName)) {
+                packages.add(info.activityInfo.packageName);
+            }
+        }
+
+        return packages;
     }
 
     /** The newest version's update is no longer news: the You tab drops its badge. */

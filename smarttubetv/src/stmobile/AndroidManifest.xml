@@ -41,6 +41,20 @@
          transfers); this is its API 34+ companion permission. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- The in-app updater hands its APK straight to Android's installer (AppUpdates.systemInstaller):
+         from Android 11 these queries make the installers visible, so apps that also open APK files
+         do not turn the install into an "Open with" chooser. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.INSTALL_PACKAGE" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
+    </queries>
+
     <!-- Casting (Route B): SSDP/DIAL discovery needs multicast (Android filters multicast in
          hardware unless a MulticastLock is held - see DialDiscovery); the cast session service
          holds a WifiLock + partial wakelock so the Lounge status stream survives screen-off.
