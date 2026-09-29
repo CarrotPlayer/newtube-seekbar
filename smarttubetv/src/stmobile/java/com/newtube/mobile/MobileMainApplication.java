@@ -403,6 +403,13 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "cold-open eager suggestions disabled (debug)");
             }
 
+            // WALK REPLAY: one player-playability NetPath line per /player answer, with what the
+            // walk reads that player-result does not carry (reason and subreason as sent, the age
+            // gate marker, live signals, a rental's trailer), so appbench's logs become exact
+            // fixtures for MediaServiceCore's VideoInfoReplayTest (replay_fixtures.py). Release
+            // builds never log it.
+            com.liskovsoft.youtubeapi.videoinfo.V2.PlayabilityLog.setEnabled(true);
+
             // BOT-WALL SIMULATION (debug builds only): debug.arc.botwall anon|all|<CLIENT,...>
             // answers the chosen /player requests with YouTube's "not a bot" wall. See DebugBotWall.
             com.newtube.mobile.player.DebugBotWall.install();
