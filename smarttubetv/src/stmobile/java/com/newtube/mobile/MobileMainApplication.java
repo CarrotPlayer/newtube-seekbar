@@ -321,6 +321,14 @@ public class MobileMainApplication extends MainApplication {
                 android.util.Log.w("NetPath", "sig-runtime keep-alive disabled (debug)");
             }
 
+            // V8 PLAYER MEMO ROLLBACK: "0" re-evaluates the whole player JS on every signature/n
+            // solve, as before (206-240 ms per TV_TIZEN / WEB_EMBED / MWEB answer on the Pixel 9;
+            // see VideoInfoService.setSigSolverMemoEnabled). Compare memo=hit|miss|off on v8-run.
+            if ("0".equals(getDebugSystemProperty("debug.arc.v8_memo"))) {
+                VideoInfoService.setSigSolverMemoEnabled(false);
+                android.util.Log.w("NetPath", "v8 player memo disabled (debug)");
+            }
+
             // PLAYER-POT PLAYGROUND: "1" attests ANDROID_VR's /player request. Opt-IN, because
             // the 2026-09-07 A/B showed it does not prevent that client's deep-range 403 -- see
             // the measured numbers at the setPlayerPotEnabled site above.
