@@ -71,6 +71,7 @@ import com.newtube.mobile.ui.common.FeedCache;
 import com.newtube.mobile.ui.common.FeedSwapWarmup;
 import com.newtube.mobile.ui.common.MobileActivity;
 import com.newtube.mobile.ui.common.MobileSnackbar;
+import com.newtube.mobile.ui.common.ShortsFilter;
 import com.newtube.mobile.ui.update.MobileUpdateActivity;
 import com.newtube.mobile.update.AppUpdates;
 import com.newtube.mobile.ui.playback.MiniPlayerBridge;
@@ -834,9 +835,9 @@ public class MobileBrowseActivity extends MobileActivity
      * Rebuild the panel's section list, grouped like the official You page: the user's own
      * content first (Playlists, My videos, Channels, ...), then the discovery feeds under an
      * "Explore" label, then Settings behind a divider. Sections shown in the bottom nav (and
-     * Settings/Shorts) are excluded - Settings gets its own trailing row, Shorts is retired on
-     * the phone shell. Long-press on a section row opens the section-management menu (the old
-     * drawer rows' "..." overflow).
+     * Settings/Shorts) are excluded - Settings gets its own trailing row, and NewTube has no
+     * Shorts (see ShortsFilter). Long-press on a section row opens the section-management menu
+     * (the old drawer rows' "..." overflow).
      */
     private void rebuildYouRows() {
         mYouRows.removeAllViews();
@@ -1080,7 +1081,7 @@ public class MobileBrowseActivity extends MobileActivity
         mCurrentVideos.clear();
         mAwaitingFreshContent = cached != null;
         if (cached != null) {
-            mCurrentVideos.addAll(visibleFeedItems(cached, sectionId));
+            mCurrentVideos.addAll(visibleFeedItems(cached));
         }
 
         mLastPaginationTriggerCount = -1;
@@ -1881,12 +1882,12 @@ public class MobileBrowseActivity extends MobileActivity
                     staleSwap = mAwaitingFreshContent;
                     mCurrentVideos.clear();
                     if (!emptyReplace) {
-                        mCurrentVideos.addAll(visibleFeedItems(group.getVideos(), mCurrentSectionId));
+                        mCurrentVideos.addAll(visibleFeedItems(group.getVideos()));
                     }
                     mAwaitingFreshContent = false;
                     break;
                 case VideoGroup.ACTION_PREPEND:
-                    mCurrentVideos.addAll(0, visibleFeedItems(group.getVideos(), mCurrentSectionId));
+                    mCurrentVideos.addAll(0, visibleFeedItems(group.getVideos()));
                     break;
                 case VideoGroup.ACTION_REMOVE:
                     mCurrentVideos.removeAll(group.getVideos());
@@ -2089,7 +2090,7 @@ public class MobileBrowseActivity extends MobileActivity
         // and same isMix()", so equal videos always share a bucket.
         java.util.Set<Video> present = new java.util.HashSet<>(mCurrentVideos);
         for (Video video : videos) {
-            if (isVisibleFeedItem(video, mCurrentSectionId) && present.add(video)) {
+            if (isVisibleFeedItem(video) && present.add(video)) {
                 mCurrentVideos.add(video);
             }
         }
@@ -2098,30 +2099,26 @@ public class MobileBrowseActivity extends MobileActivity
     /**
      * Browse sections are video feeds, not discovery results. YouTube occasionally injects a
      * channel-shaped recommendation into Home/Trending; rendering that with the shared search
-     * adapter creates an avatar-only row in the middle of otherwise full-thumbnail cards. The
-     * phone shell has no Shorts destination at all (retired with the You-tab redesign), so the
-     * Shorts YouTube mixes into the Home and Subscriptions shelves are filtered out too; History
-     * keeps them - it is a record of what was actually watched. Keep true playlists (which use a
-     * similar service shape), and leave channel discovery to Search.
+     * adapter creates an avatar-only row in the middle of otherwise full-thumbnail cards. NewTube
+     * has no Shorts, so none are shown in any section ({@link ShortsFilter}). Keep true playlists
+     * (which use a similar service shape), and leave channel discovery to Search.
      */
-    private static List<Video> visibleFeedItems(List<Video> videos, int sectionId) {
+    private static List<Video> visibleFeedItems(List<Video> videos) {
         List<Video> visible = new ArrayList<>();
         if (videos == null) {
             return visible;
         }
         for (Video video : videos) {
-            if (isVisibleFeedItem(video, sectionId)) {
+            if (isVisibleFeedItem(video)) {
                 visible.add(video);
             }
         }
         return visible;
     }
 
-    private static boolean isVisibleFeedItem(Video video, int sectionId) {
-        boolean shortsFiltered = sectionId == MediaGroup.TYPE_HOME
-                || sectionId == MediaGroup.TYPE_SUBSCRIPTIONS;
+    private static boolean isVisibleFeedItem(Video video) {
         return video != null
-                && (!shortsFiltered || !video.isShorts)
+                && !ShortsFilter.isShort(video)
                 && (!video.isChannel() || video.isPlaylistAsChannel())
                 && !isSearchQueryTile(video);
     }

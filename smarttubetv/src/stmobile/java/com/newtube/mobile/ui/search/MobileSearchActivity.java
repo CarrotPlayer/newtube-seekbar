@@ -33,6 +33,7 @@ import com.liskovsoft.smartyoutubetv2.common.misc.NetPath;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.newtube.mobile.ui.browse.VideoCardAdapter;
 import com.newtube.mobile.ui.common.MobileActivity;
+import com.newtube.mobile.ui.common.ShortsFilter;
 import com.newtube.mobile.ui.playback.MiniPlayerBridge;
 import com.newtube.mobile.ui.playback.MobileMiniPlayerController;
 
@@ -548,13 +549,15 @@ public class MobileSearchActivity extends MobileActivity
 
         runOnUiThread(() -> {
             int incoming = group.getVideos() != null ? group.getVideos().size() : 0;
+            List<Video> shown = ShortsFilter.withoutShorts(group.getVideos()); // NEWTUBE(shorts)
+            int shortsHidden = incoming - (shown != null ? shown.size() : 0);
             switch (group.getAction()) {
                 case VideoGroup.ACTION_REPLACE:
                     mVideos.clear();
-                    mVideos.addAll(hoistChannels(group.getVideos()));
+                    mVideos.addAll(hoistChannels(shown));
                     break;
                 case VideoGroup.ACTION_PREPEND:
-                    mVideos.addAll(0, group.getVideos());
+                    mVideos.addAll(0, shown);
                     break;
                 case VideoGroup.ACTION_REMOVE:
                     mVideos.removeAll(group.getVideos());
@@ -567,7 +570,7 @@ public class MobileSearchActivity extends MobileActivity
                     // The FIRST page after clearSearch() arrives as a plain APPEND — that's
                     // where the channel top-pick lives, so hoist there too. Continuation
                     // pages (mVideos non-empty) keep API order.
-                    appendNew(mVideos.isEmpty() ? hoistChannels(group.getVideos()) : group.getVideos());
+                    appendNew(mVideos.isEmpty() ? hoistChannels(shown) : shown);
                     break;
             }
 
@@ -575,7 +578,7 @@ public class MobileSearchActivity extends MobileActivity
             mAdapter.submitList(new ArrayList<>(mVideos));
             NetPath.log("search-results sid=" + mSubmitSequence
                     + " action=" + group.getAction() + " incoming=" + incoming
-                    + " total=" + mVideos.size());
+                    + " shortsHidden=" + shortsHidden + " total=" + mVideos.size());
             if (!mVideos.isEmpty()) {
                 mSearchMessage.setVisibility(View.GONE);
             }

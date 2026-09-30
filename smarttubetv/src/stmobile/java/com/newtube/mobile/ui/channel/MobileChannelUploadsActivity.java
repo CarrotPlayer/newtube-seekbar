@@ -26,6 +26,7 @@ import com.liskovsoft.smartyoutubetv2.common.utils.LoadFailure;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.newtube.mobile.ui.browse.VideoCardAdapter;
 import com.newtube.mobile.ui.common.MobileActivity;
+import com.newtube.mobile.ui.common.ShortsFilter;
 import com.newtube.mobile.ui.playback.MiniPlayerBridge;
 import com.newtube.mobile.ui.playback.MobileMiniPlayerController;
 
@@ -535,13 +536,14 @@ public class MobileChannelUploadsActivity extends MobileActivity
                 mTitleView.setText(group.getTitle());
             }
 
+            List<Video> shown = ShortsFilter.withoutShorts(group.getVideos()); // NEWTUBE(shorts)
             switch (group.getAction()) {
                 case VideoGroup.ACTION_REPLACE:
                     mVideos.clear();
-                    mVideos.addAll(group.getVideos());
+                    mVideos.addAll(shown);
                     break;
                 case VideoGroup.ACTION_PREPEND:
-                    mVideos.addAll(0, group.getVideos());
+                    mVideos.addAll(0, shown);
                     break;
                 case VideoGroup.ACTION_REMOVE:
                     mVideos.removeAll(group.getVideos());
@@ -551,7 +553,7 @@ public class MobileChannelUploadsActivity extends MobileActivity
                     break;
                 case VideoGroup.ACTION_APPEND:
                 default:
-                    appendNew(group.getVideos());
+                    appendNew(shown);
                     break;
             }
 

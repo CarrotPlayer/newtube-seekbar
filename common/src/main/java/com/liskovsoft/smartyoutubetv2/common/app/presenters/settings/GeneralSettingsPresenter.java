@@ -110,6 +110,12 @@ public class GeneralSettingsPresenter extends BasePresenter<Void> {
                 continue;
             }
 
+            // NEWTUBE(shorts): the phone has no Shorts - no section, and none in any list - so the
+            // row would do nothing there.
+            if (PhoneUi.isEnabled() && sectionId == MediaGroup.TYPE_SHORTS) {
+                continue;
+            }
+
             options.add(UiOptionItem.from(getContext().getString(sectionTitleRes(sectionResId)), optionItem -> {
                 BrowsePresenter.instance(getContext()).enableSection(sectionId, optionItem.isSelected());
             }, mSidebarService.isSectionPinned(sectionId)));
@@ -128,13 +134,18 @@ public class GeneralSettingsPresenter extends BasePresenter<Void> {
 
     private void appendHideContent(AppDialogPresenter settingsPresenter) {
         List<OptionItem> options = new ArrayList<>();
+        // NEWTUBE(shorts): the phone has no Shorts at all (its lists drop them unconditionally), so
+        // none of the Shorts rows is shown there; the stored prefs are left untouched.
+        boolean shortsRows = !PhoneUi.isEnabled();
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_everywhere),
-                option -> {
-                    mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_ALL, option.isSelected());
-                    BrowsePresenter.instance(getContext()).enableSection(MediaGroup.TYPE_SHORTS, !option.isSelected());
-                },
-                mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_ALL)));
+        if (shortsRows) {
+            options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_everywhere),
+                    option -> {
+                        mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_ALL, option.isSelected());
+                        BrowsePresenter.instance(getContext()).enableSection(MediaGroup.TYPE_SHORTS, !option.isSelected());
+                    },
+                    mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_ALL)));
+        }
 
         options.add(UiOptionItem.from(getContext().getString(R.string.hide_mixes),
                 option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_MIXES, option.isSelected()),
@@ -156,29 +167,31 @@ public class GeneralSettingsPresenter extends BasePresenter<Void> {
                 option -> mGeneralData.setHideWatchedFromNotificationsEnabled(option.isSelected()),
                 mGeneralData.isHideWatchedFromNotificationsEnabled()));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts),
-                option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_SUBSCRIPTIONS, option.isSelected()),
-                mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_SUBSCRIPTIONS)));
+        if (shortsRows) {
+            options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts),
+                    option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_SUBSCRIPTIONS, option.isSelected()),
+                    mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_SUBSCRIPTIONS)));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_from_search),
-                option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_SEARCH, option.isSelected()),
-                mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_SEARCH)));
+            options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_from_search),
+                    option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_SEARCH, option.isSelected()),
+                    mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_SEARCH)));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_from_home),
-                option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_HOME, option.isSelected()),
-                mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_HOME)));
+            options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_from_home),
+                    option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_HOME, option.isSelected()),
+                    mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_HOME)));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_channel),
-                option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_CHANNEL, option.isSelected()),
-                mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_CHANNEL)));
+            options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_channel),
+                    option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_CHANNEL, option.isSelected()),
+                    mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_CHANNEL)));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_from_history),
-                option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_HISTORY, option.isSelected()),
-                mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_HISTORY)));
+            options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_from_history),
+                    option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_HISTORY, option.isSelected()),
+                    mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_HISTORY)));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_from_trending),
-                option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_TRENDING, option.isSelected()),
-                mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_TRENDING)));
+            options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts_from_trending),
+                    option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_SHORTS_TRENDING, option.isSelected()),
+                    mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_SHORTS_TRENDING)));
+        }
 
         options.add(UiOptionItem.from(getContext().getString(R.string.hide_streams),
                 option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_STREAMS_SUBSCRIPTIONS, option.isSelected()),

@@ -32,6 +32,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.views.PlaybackView;
 import com.liskovsoft.smartyoutubetv2.common.misc.BrowseProcessorManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.NetPath;
+import com.liskovsoft.smartyoutubetv2.common.misc.PhoneUi;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
@@ -1269,7 +1270,9 @@ public class SuggestionsController extends BasePlayerController {
         boolean found = false;
 
         for (Video current : videos) {
-            if (found && current.hasVideo() && !current.isUpcoming) {
+            // NEWTUBE(shorts): the phone has no Shorts - autoplay through a playlist skips them
+            // the way its queue card leaves them out.
+            if (found && current.hasVideo() && !current.isUpcoming && !(PhoneUi.isEnabled() && current.isShorts)) {
                 mNextRetryCount = 0;
                 mNextSectionVideo = current;
                 getPlayer().setNextTitle(mNextSectionVideo);

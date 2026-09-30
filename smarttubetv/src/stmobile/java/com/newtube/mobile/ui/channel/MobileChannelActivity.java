@@ -25,6 +25,7 @@ import com.liskovsoft.smartyoutubetv2.common.utils.LoadFailure;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.newtube.mobile.ui.browse.VideoCardAdapter;
 import com.newtube.mobile.ui.common.MobileActivity;
+import com.newtube.mobile.ui.common.ShortsFilter;
 import com.newtube.mobile.ui.playback.MiniPlayerBridge;
 import com.newtube.mobile.ui.playback.MobileMiniPlayerController;
 
@@ -445,11 +446,19 @@ public class MobileChannelActivity extends MobileActivity
             int id = group.getId();
             Section section = mSections.get(id);
             boolean isNewSection = section == null;
+            List<Video> shown = ShortsFilter.withoutShorts(group.getVideos()); // NEWTUBE(shorts)
+            // ...and no Shorts tab: a new section left with nothing to show - the channel's Shorts
+            // section, emptied here or already by the service (a stored "Hide shorts from a
+            // channel") - never becomes a tab.
+            if (isNewSection && (shown == null || shown.isEmpty())
+                    && group.getAction() != VideoGroup.ACTION_REMOVE && group.getAction() != VideoGroup.ACTION_SYNC) {
+                return;
+            }
 
             switch (group.getAction()) {
                 case VideoGroup.ACTION_REPLACE:
                     section = new Section(id, group.getTitle());
-                    section.videos.addAll(group.getVideos());
+                    section.videos.addAll(shown);
                     mSections.put(id, section);
                     break;
                 case VideoGroup.ACTION_REMOVE:
@@ -467,7 +476,7 @@ public class MobileChannelActivity extends MobileActivity
                         section = new Section(id, group.getTitle());
                         mSections.put(id, section);
                     }
-                    section.videos.addAll(0, group.getVideos());
+                    section.videos.addAll(0, shown);
                     break;
                 case VideoGroup.ACTION_APPEND:
                 default:
@@ -477,7 +486,7 @@ public class MobileChannelActivity extends MobileActivity
                     } else if ((section.title == null || section.title.isEmpty()) && group.getTitle() != null) {
                         section.title = group.getTitle();
                     }
-                    appendNew(section, group.getVideos());
+                    appendNew(section, shown);
                     break;
             }
 

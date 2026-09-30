@@ -405,9 +405,12 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
                 option -> mGeneralData.setPlayerExitShortcut(option.isSelected() ? GeneralData.EXIT_DOUBLE_BACK : GeneralData.EXIT_SINGLE_BACK),
                 mGeneralData.getPlayerExitShortcut() == GeneralData.EXIT_DOUBLE_BACK));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.player_loop_shorts),
-                option -> mPlayerTweaksData.setLoopShortsEnabled(option.isSelected()),
-                mPlayerTweaksData.isLoopShortsEnabled()));
+        // NEWTUBE(shorts): no Shorts on the phone, so nothing to loop there.
+        if (!PhoneUi.isEnabled()) {
+            options.add(UiOptionItem.from(getContext().getString(R.string.player_loop_shorts),
+                    option -> mPlayerTweaksData.setLoopShortsEnabled(option.isSelected()),
+                    mPlayerTweaksData.isLoopShortsEnabled()));
+        }
 
         options.add(UiOptionItem.from(getContext().getString(R.string.place_chat_left),
                 option -> mPlayerTweaksData.setChatPlacedLeft(option.isSelected()),
