@@ -374,6 +374,10 @@ dependencies {
     // Harmless for the TV flavors, which never reference it.
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.2.0'
 
+    // Touch UI (stmobile flavor): spring physics for the magnetic drags (ui/common/MagneticDrag).
+    // Material already brings this exact version in; named here because we call it directly.
+    implementation 'androidx.dynamicanimation:dynamicanimation:1.1.0'
+
     // Touch UI (stmobile flavor): client-side QR encoder for the device-code sign-in
     // screen (com.newtube.mobile.ui.signin.MobileSignInActivity). Encoder only, no UI
     // dependency - we render the BitMatrix into a Bitmap ourselves - so it pulls in no

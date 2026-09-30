@@ -56,6 +56,64 @@ public final class Motion {
         pop.start();
     }
 
+    /**
+     * NEWTUBE(haptics): a damped spring from one value to another, solved in closed form and played
+     * as an interpolator, so an ordinary ValueAnimator runs it (its cancel and end handling stay as
+     * they are). This is how the Pixel settles what a finger lets go of - the launcher's recents
+     * flick and SystemUI's notification rows are springs that start at the finger's speed, and a
+     * spring below critical damping lands with a small settle past its target.
+     *
+     * <p>{@link #durationMs} is when the spring stays within {@code precision} of its target.</p>
+     */
+    public static final class Spring implements Interpolator {
+        public final long durationMs;
+        private final float mFrom;
+        private final float mTo;
+        private final double mX0;
+        private final double mV0;
+        private final double mOmega;
+        private final double mZeta;
+
+        /** {@code velocity}: units per second, positive in the direction of increasing value. */
+        public Spring(float from, float to, float velocity, float stiffness, float dampingRatio,
+                float precision) {
+            mFrom = from;
+            mTo = to;
+            mX0 = from - to;
+            mV0 = velocity;
+            mOmega = Math.sqrt(stiffness);
+            mZeta = dampingRatio;
+            long settled = 0;
+            if (Math.abs(to - from) > 1e-6f) {
+                for (int ms = 1; ms <= 2000; ms++) {
+                    if (Math.abs(offset(ms / 1000.0)) > precision) {
+                        settled = ms;
+                    }
+                }
+            }
+            durationMs = settled;
+        }
+
+        /** Displacement from the target after {@code t} seconds. */
+        private double offset(double t) {
+            if (mZeta < 1.0) {
+                double damped = mOmega * Math.sqrt(1.0 - mZeta * mZeta);
+                return Math.exp(-mZeta * mOmega * t) * (mX0 * Math.cos(damped * t)
+                        + (mV0 + mZeta * mOmega * mX0) / damped * Math.sin(damped * t));
+            }
+            return (mX0 + (mV0 + mOmega * mX0) * t) * Math.exp(-mOmega * t);
+        }
+
+        @Override
+        public float getInterpolation(float input) {
+            if (input >= 1f || durationMs == 0) {
+                return 1f;
+            }
+            double value = mTo + offset(input * durationMs / 1000.0);
+            return (float) ((value - mFrom) / (mTo - mFrom));
+        }
+    }
+
     private static Path emphasizedPath() {
         Path path = new Path();
         path.moveTo(0f, 0f);

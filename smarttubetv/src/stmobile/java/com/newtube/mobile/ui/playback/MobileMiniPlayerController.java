@@ -37,6 +37,8 @@ public final class MobileMiniPlayerController {
 
     private final Activity mActivity;
     private final View mBar;
+    /** NEWTUBE(haptics): stopped before this controller moves the card itself (MiniCardSwipe#stop). */
+    private MiniCardSwipe mSwipe;
     private final FrameLayout mFrame;
     private final ImageView mFreeze;
     private final ImageButton mPlayPause;
@@ -80,7 +82,7 @@ public final class MobileMiniPlayerController {
 
         mClose.setOnClickListener(v -> close());
         // NEWTUBE(motion): or swipe the card away sideways.
-        MiniCardSwipe.attach(mBar, new MiniCardSwipe.Callback() {
+        mSwipe = MiniCardSwipe.attach(mBar, new MiniCardSwipe.Callback() {
             @Override
             public boolean canSwipe() {
                 return !mClosing && !mEntryAnimating && MiniPlayerBridge.isActive();
@@ -119,6 +121,7 @@ public final class MobileMiniPlayerController {
         MiniPlayerBridge.setClosing(this::abortClose);
         MiniPlayerBridge.clearPendingCardFold(mCardFold);
         detachTexture();
+        mSwipe.stop();
         mBar.animate().cancel();
         android.view.ViewPropertyAnimator exit;
         if (flyToX != null) {
@@ -190,6 +193,7 @@ public final class MobileMiniPlayerController {
             hide();
             return;
         }
+        mSwipe.stop();
         mBar.animate().cancel();
         mBar.setAlpha(1f);
         mBar.setScaleX(1f);
@@ -318,6 +322,7 @@ public final class MobileMiniPlayerController {
     }
 
     private void fold() {
+        mSwipe.stop();
         mBar.animate().cancel();
         mEntryAnimating = false;
         mButtonsFadePending = false;
@@ -379,6 +384,7 @@ public final class MobileMiniPlayerController {
         if (width <= 0 || height <= 0) {
             return;
         }
+        mSwipe.stop();
 
         int[] cardLocation = new int[2];
         int[] contentLocation = new int[2];
