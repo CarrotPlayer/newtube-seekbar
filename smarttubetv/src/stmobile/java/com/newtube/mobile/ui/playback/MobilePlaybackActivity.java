@@ -78,11 +78,9 @@ import com.github.vkay94.dtpv3.youtube.YouTubeOverlay;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
-import androidx.media3.common.util.Util;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.SeekParameters;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
-import androidx.media3.ui.DefaultTimeBar;
 import androidx.media3.ui.TimeBar;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItemFormatInfo;
 import com.liskovsoft.sharedutils.helpers.Helpers;
@@ -130,6 +128,7 @@ import com.newtube.mobile.downloads.DownloadOption;
 import com.newtube.mobile.downloads.DownloadRegistry;
 import com.newtube.mobile.SessionWarmup;
 import com.newtube.mobile.ui.common.FrameGate;
+import com.newtube.mobile.ui.common.Haptics;
 import com.newtube.mobile.ui.common.MobileActivity;
 import com.newtube.mobile.ui.common.Motion;
 import com.newtube.mobile.ui.common.ThemeMode;
@@ -159,7 +158,7 @@ import java.util.Map;
  *
  * <h3>Controls</h3>
  * The stock {@code PlaybackControlView} is disabled ({@code use_controller="false"}); instead a
- * custom overlay (top back + title, large center play/pause/replay, bottom {@link DefaultTimeBar}
+ * custom overlay (top back + title, large center play/pause/replay, bottom {@link PlayerTimeBar}
  * with current/total time + fullscreen toggle) is shown/hidden on a single tap and auto-hidden after
  * {@link #AUTO_HIDE_MS}. Double-tap left/right seeks +/-10s via the {@code doubletapplayerview}
  * module's {@link YouTubeOverlay}, wired to the live player. Position/buffer are polled and seeking
@@ -194,8 +193,20 @@ public class MobilePlaybackActivity extends MobileActivity
     private TextView mPositionView;
     private TextView mDurationView;
     private TextView mLiveChip;
-    private DefaultTimeBar mTimeBar;
-    private SeekBarSegmentsView mSegmentsView;
+    /**
+     * NEWTUBE(seek bar): YouTube's seek bar. Outside mControlsRoot: in portrait it stays on the
+     * video's bottom edge as a thin progress line while the controls are hidden.
+     */
+    private PlayerTimeBar mTimeBar;
+    /** The row on the bar: time, current chapter, fullscreen. */
+    @Nullable private View mBottomRow;
+    /** Previous / play-pause / next, and the top-right options: they step aside while scrubbing. */
+    @Nullable private View mTransport;
+    @Nullable private View mOptionsRow;
+    /** Over the top of the video: "Release to cancel" (seek bar). */
+    @Nullable private TextView mTopPill;
+    /** The controls faded aside for a seek-bar drag (setScrubChrome). */
+    private boolean mScrubChromeHidden;
     private ProgressBar mProgressBar;
     /** First-run only: "one-time setup" line under the spinner while the session is cold. */
     private TextView mSetupHint;
@@ -273,7 +284,7 @@ public class MobilePlaybackActivity extends MobileActivity
     private final Runnable mPrefetchComments = this::prefetchComments;
     /** Chapters of the current video (Video.isChapter items from the suggestions pipeline). */
     private final List<Video> mChapterVideos = new ArrayList<>();
-    /** Shown above the seek bar ONLY while scrubbing: the chapter under the scrub position. */
+    /** Shown above the seek bar ONLY while scrubbing: a pill with the time and chapter under the finger. */
     private TextView mScrubChapterView;
     /**
      * NEWTUBE(chapters, issue #13): above the seek bar while the controls are up and the bar is not
@@ -423,6 +434,7 @@ public class MobilePlaybackActivity extends MobileActivity
 
     private final Runnable mHideControlsRunnable = this::onAutoHideTick;
     private final Runnable mProgressUpdateRunnable = this::onProgressTick;
+    private final Runnable mLineUpdateRunnable = this::onLineTick;
 
     // ---------------------------------------------------------------------------------
     // Lifecycle
@@ -663,7 +675,10 @@ public class MobilePlaybackActivity extends MobileActivity
         mLiveChip = findViewById(R.id.mobile_player_live);
         mLiveChip.setOnClickListener(v -> jumpToLiveEdge());
         mTimeBar = findViewById(R.id.mobile_player_time_bar);
-        mSegmentsView = findViewById(R.id.mobile_player_segments);
+        mBottomRow = findViewById(R.id.mobile_player_bottom_row);
+        mTransport = findViewById(R.id.mobile_player_transport);
+        mOptionsRow = findViewById(R.id.mobile_player_options);
+        mTopPill = findViewById(R.id.mobile_player_top_pill);
         mProgressBar = findViewById(R.id.mobile_player_progress);
         mSpinnerShown = mProgressBar != null && mProgressBar.getVisibility() == View.VISIBLE;
         syncPlayPauseWithSpinner();
@@ -860,24 +875,21 @@ public class MobilePlaybackActivity extends MobileActivity
                 // NEXT/PREVIOUS_SYNC (see the seek-burst watchdog doc).
                 endUserSeekBurst();
                 cancelAutoHide();
-                mPositionView.setText(formatTime(position));
-                updateChapterButton(position); // gives its line to the scrub label
-                updateScrubChapterLabel(position);
+                updateScrubLabel(position);
+                setScrubChrome(true);
             }
 
             @Override
             public void onScrubMove(TimeBar timeBar, long position) {
-                mPositionView.setText(formatTime(position));
-                updateScrubChapterLabel(position);
+                updateScrubLabel(position);
             }
 
             @Override
             public void onScrubStop(TimeBar timeBar, long position, boolean canceled) {
                 mScrubbing = false;
-                if (mScrubChapterView != null) {
-                    mScrubChapterView.setVisibility(View.GONE);
-                }
+                setScrubChrome(false);
                 if (!canceled) {
+                    setTextIfChanged(mPositionView, formatTime(position));
                     updateChapterButton(position);
                 }
                 if (!canceled && mExoPlayerController != null) {
@@ -889,6 +901,9 @@ public class MobilePlaybackActivity extends MobileActivity
                 armAutoHide();
             }
         });
+        // Dragged back onto where playback was: letting go cancels (the bar snaps there with a click).
+        mTimeBar.setCancelListener(armed ->
+                showTopPill(armed ? getString(R.string.mobile_player_release_to_cancel) : null));
 
         // Start with the controls visible so the back button / title are immediately reachable on
         // open; the auto-hide timer takes them away once playback is actually running.
@@ -1061,6 +1076,10 @@ public class MobilePlaybackActivity extends MobileActivity
      */
     private void onPinchZoom(boolean zoomIn) {
         int mode = zoomIn ? RESIZE_MODE_FIT_BOTH : RESIZE_MODE_DEFAULT;
+        if (mode != getResizeMode()) {
+            // NEWTUBE(haptics): the pinch snapped into the other zoom - a tick as it crosses over.
+            Haptics.tick(mVideoArea);
+        }
         PlayerData playerData = PlayerData.instance(this);
         playerData.setResizeMode(mode);
         playerData.setZoomPercents(-1);
@@ -1258,14 +1277,12 @@ public class MobilePlaybackActivity extends MobileActivity
             bindPlaybackService();
         }
 
-        // NEWTUBE(perf): the 500ms progress loop only feeds the overlay time bar / labels, so it runs
-        // ONLY while the controls are visible (started in showControlsInternal, stopped in
-        // hideControls). Kick it here only if the controls are still up from open; otherwise it stays
-        // idle until the user shows the controls. The buffering spinner is driven separately by
-        // mUiPlayerListener, so it keeps working while the loop is idle.
-        if (mControlsVisible) {
-            startProgressUpdates();
-        }
+        // NEWTUBE(perf): the progress loop only feeds the overlay time bar / labels, so it runs ONLY
+        // while the controls are visible (started in showControlsInternal, stopped in hideControls);
+        // while they are hidden, a slower loop feeds just the seek bar's line in portrait
+        // (NEWTUBE(seek bar)). startProgressUpdates picks. The buffering spinner is driven
+        // separately by mUiPlayerListener, so it keeps working either way.
+        startProgressUpdates();
         updatePlayPauseIcon();
     }
 
@@ -1310,8 +1327,8 @@ public class MobilePlaybackActivity extends MobileActivity
     protected void onStart() {
         super.onStart();
         mIsStopped = false;
+        startProgressUpdates();
         if (mControlsVisible) {
-            startProgressUpdates();
             armAutoHide();
         }
     }
@@ -2023,6 +2040,60 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         bleedScrim(mTopScrim, left, top, right, 0);
         bleedScrim(mBottomScrim, left, 0, right, bottom);
+        applySeekBarLayout(left, top, right, bottom);
+    }
+
+    /**
+     * NEWTUBE(seek bar): portrait = the bar on the video's bottom edge, edge to edge (its dot hangs
+     * over the page), and its played part stays there as a line while the controls are hidden;
+     * fullscreen = the bar lifted off the bottom inside the controls' insets, hidden with them. The
+     * row on it and the pills follow (they live in the unpadded video box, the row in the padded
+     * controls root).
+     */
+    private void applySeekBarLayout(int left, int top, int right, int bottom) {
+        if (mTimeBar == null) {
+            return;
+        }
+        boolean inline = !isLandscape();
+        int side = inline ? 0 : dp(12);
+        int lift = inline ? 0 : dp(8);
+        setMargins(mTimeBar, left + side, 0, right + side, bottom + lift);
+        mTimeBar.setTrackAtBottom(inline);
+        updateSeekBarLine();
+        setMargins(mBottomRow, 0, 0, 0,
+                getResources().getDimensionPixelSize(R.dimen.mobile_player_bottom_row_margin) + lift);
+        setMargins(mScrubChapterView, 0, 0, 0,
+                getResources().getDimensionPixelSize(R.dimen.mobile_player_scrub_pill_margin) + bottom + lift);
+        setMargins(mTopPill, 0, top + dp(12), 0, 0);
+    }
+
+    /**
+     * The seek bar's line (hidden controls): portrait only, not in PiP, not for a live stream (the
+     * played part of a DVR window says nothing).
+     */
+    private void updateSeekBarLine() {
+        if (mTimeBar == null) {
+            return;
+        }
+        Video video = getVideo();
+        boolean line = !isLandscape() && !mIsInPip && !mPipEnterPending && (video == null || !video.isLive);
+        if (line != mTimeBar.isLineWhenHidden()) {
+            mTimeBar.setLineWhenHidden(line);
+            if (!mControlsVisible) {
+                startProgressUpdates();
+            }
+        }
+    }
+
+    private static void setMargins(@Nullable View view, int left, int top, int right, int bottom) {
+        if (view == null || !(view.getLayoutParams() instanceof ViewGroup.MarginLayoutParams)) {
+            return;
+        }
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
+        if (lp.leftMargin != left || lp.topMargin != top || lp.rightMargin != right || lp.bottomMargin != bottom) {
+            lp.setMargins(left, top, right, bottom);
+            view.setLayoutParams(lp);
+        }
     }
 
     /**
@@ -2222,6 +2293,9 @@ public class MobilePlaybackActivity extends MobileActivity
             int orientation = getResources().getConfiguration().orientation;
             applyWatchLayoutForOrientation(orientation);
             applySystemBarsForOrientation(orientation);
+            if (mTimeBar != null) {
+                mTimeBar.setVisibility(View.VISIBLE);
+            }
             showControlsInternal(false);
             logPip("enter-refused-restored");
         } else {
@@ -2252,6 +2326,9 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         if (mControlsRoot != null) {
             mControlsRoot.setVisibility(View.GONE);
+        }
+        if (mTimeBar != null) {
+            mTimeBar.setVisibility(View.GONE); // not even its line: the pinned window is all video
         }
         if (mWatchScroll != null) {
             mWatchScroll.setVisibility(View.GONE);
@@ -2517,6 +2594,10 @@ public class MobilePlaybackActivity extends MobileActivity
             applyWatchLayoutForOrientation(orientation);
             applySystemBarsForOrientation(orientation);
             updatePlayPauseIcon();
+            if (mTimeBar != null) {
+                mTimeBar.setVisibility(View.VISIBLE);
+                updateSeekBarLine();
+            }
             if (mControlsRoot != null) {
                 showControlsInternal(false);
             }
@@ -3158,6 +3239,10 @@ public class MobilePlaybackActivity extends MobileActivity
         } else {
             mControlsRoot.setAlpha(1f);
         }
+        if (mScrubChromeHidden && !mScrubbing) {
+            setScrubChrome(false); // a drag that ended while hidden must not leave them invisible
+        }
+        mTimeBar.setShown(true, animate);
         updatePlayPauseIcon();
 
         // NEWTUBE(perf): drive the 500ms progress loop only while controls are visible. startProgress
@@ -3178,8 +3263,10 @@ public class MobilePlaybackActivity extends MobileActivity
 
         mControlsVisible = false;
         cancelAutoHide();
-        // NEWTUBE(perf): controls hidden -> stop the 500ms progress loop (nothing visible to update).
-        stopProgressUpdates();
+        // NEWTUBE(perf): controls hidden -> the progress loop stops; in portrait the seek bar's line
+        // keeps a slower one (startProgressUpdates picks).
+        startProgressUpdates();
+        mTimeBar.setShown(false, true);
         mControlsRoot.animate().cancel();
         mControlsRoot.animate().alpha(0f).setDuration(150)
                 .withEndAction(() -> {
@@ -3726,32 +3813,105 @@ public class MobilePlaybackActivity extends MobileActivity
                 : R.drawable.ic_player_fullscreen);
     }
 
+    private static final int GLYPH_NONE = 0;
+    private static final int GLYPH_PLAY = 1;
+    private static final int GLYPH_PAUSE = 2;
+    private static final int GLYPH_REPLAY = 3;
+    /** What the center button shows; the progress tick re-asks every few hundred ms. */
+    private int mPlayPauseGlyph = GLYPH_NONE;
+
+    /**
+     * The center button's glyph. NEWTUBE(motion): play and pause MORPH into each other, like
+     * YouTube's, when the change happens in front of the viewer (the controls are up); otherwise,
+     * and for replay, the glyph is simply set.
+     */
     private void updatePlayPauseIcon() {
         if (mPlayPauseButton == null) {
             return;
         }
 
+        int glyph;
         if (mIsEnded) {
-            mPlayPauseButton.setImageResource(R.drawable.ic_player_replay);
-            mPlayPauseButton.setContentDescription(getString(R.string.mobile_player_replay));
+            glyph = GLYPH_REPLAY;
         } else if (mExoPlayerController != null && mExoPlayerController.getPlayWhenReady()) {
-            mPlayPauseButton.setImageResource(R.drawable.ic_player_pause);
-            mPlayPauseButton.setContentDescription(getString(R.string.mobile_player_pause));
+            glyph = GLYPH_PAUSE;
         } else {
-            mPlayPauseButton.setImageResource(R.drawable.ic_player_play);
-            mPlayPauseButton.setContentDescription(getString(R.string.mobile_player_play));
+            glyph = GLYPH_PLAY;
         }
+        if (glyph == mPlayPauseGlyph) {
+            return;
+        }
+
+        boolean morph = mControlsVisible && mControlsRoot != null && mControlsRoot.getAlpha() > 0f
+                && (mPlayPauseGlyph == GLYPH_PLAY && glyph == GLYPH_PAUSE
+                        || mPlayPauseGlyph == GLYPH_PAUSE && glyph == GLYPH_PLAY);
+        mPlayPauseGlyph = glyph;
+        Drawable morphing = morph ? ContextCompat.getDrawable(this, glyph == GLYPH_PAUSE
+                ? R.drawable.avd_player_play_to_pause : R.drawable.avd_player_pause_to_play) : null;
+        if (morphing instanceof android.graphics.drawable.Animatable) {
+            mPlayPauseButton.setImageDrawable(morphing);
+            ((android.graphics.drawable.Animatable) morphing).start();
+        } else {
+            mPlayPauseButton.setImageResource(glyph == GLYPH_REPLAY ? R.drawable.ic_player_replay
+                    : glyph == GLYPH_PAUSE ? R.drawable.ic_player_pause : R.drawable.ic_player_play);
+        }
+        mPlayPauseButton.setContentDescription(getString(glyph == GLYPH_REPLAY ? R.string.mobile_player_replay
+                : glyph == GLYPH_PAUSE ? R.string.mobile_player_pause : R.string.mobile_player_play));
     }
 
+    /**
+     * The controls' progress loop while they are up; while they are hidden, the seek bar's line
+     * loop when the bar shows one (portrait), else nothing.
+     */
     private void startProgressUpdates() {
         stopProgressUpdates();
-        if (!mIsStopped && mControlsVisible) {
+        if (mIsStopped) {
+            return;
+        }
+        if (mControlsVisible) {
             Utils.postDelayed(mProgressUpdateRunnable, 0);
+        } else if (mTimeBar != null && mTimeBar.isLineShownWhenHidden()) {
+            Utils.postDelayed(mLineUpdateRunnable, 0);
         }
     }
 
     private void stopProgressUpdates() {
         Utils.removeCallbacks(mProgressUpdateRunnable);
+        Utils.removeCallbacks(mLineUpdateRunnable);
+    }
+
+    /**
+     * NEWTUBE(seek bar): how long until the bar's dot moves a pixel (the bar's own estimate, faster
+     * at a raised speed), within [{@code minMs}, {@code maxMs}].
+     */
+    private long barUpdateDelayMs(long minMs, long maxMs) {
+        long delay = mTimeBar != null ? mTimeBar.getPreferredUpdateDelay() : maxMs;
+        float speed = mPlayer != null ? mPlayer.getPlaybackParameters().speed : 1f;
+        if (speed > 0f && delay != Long.MAX_VALUE) {
+            delay = (long) (delay / speed);
+        }
+        return Math.max(minMs, Math.min(maxMs, delay));
+    }
+
+    /**
+     * Controls hidden, portrait: the seek bar's line along the video's bottom edge. Pixel-paced
+     * while playing (a short video's line glides instead of stepping), once a second otherwise.
+     */
+    private void onLineTick() {
+        if (mIsStopped || mControlsVisible || mPlayer == null || mExoPlayerController == null
+                || !mTimeBar.isLineShownWhenHidden()) {
+            return;
+        }
+        long duration = getDurationMs();
+        mTimeBar.setDuration(Math.max(duration, 0));
+        mTimeBar.setPosition(Math.max(mExoPlayerController.getPositionMs(), 0));
+        Utils.postDelayed(mLineUpdateRunnable, isPlaying() ? barUpdateDelayMs(100, 1_000) : 1_000);
+    }
+
+    private static void setTextIfChanged(@Nullable TextView view, CharSequence text) {
+        if (view != null && !TextUtils.equals(view.getText(), text)) {
+            view.setText(text);
+        }
     }
 
     private void onProgressTick() {
@@ -3774,15 +3934,18 @@ public class MobilePlaybackActivity extends MobileActivity
             mTimeBar.setDuration(duration);
             mTimeBar.setPosition(position);
             mTimeBar.setBufferedPosition(buffered);
-            mPositionView.setText(formatTime(position));
-            mDurationView.setText(formatTime(duration));
+            setTextIfChanged(mPositionView, formatTime(position));
+            setTextIfChanged(mDurationView, getString(R.string.mobile_player_duration, formatTime(duration)));
             updateLiveChip(position, duration);
             updateChapterButton(position);
         }
 
         updatePlayPauseIcon();
 
-        Utils.postDelayed(mProgressUpdateRunnable, PROGRESS_UPDATE_MS);
+        // Pixel-paced like the line: the bar now spans the whole width, and a short video's dot
+        // stepped visibly at a fixed 500 ms.
+        Utils.postDelayed(mProgressUpdateRunnable,
+                isPlaying() ? barUpdateDelayMs(100, PROGRESS_UPDATE_MS) : PROGRESS_UPDATE_MS);
     }
 
     /**
@@ -3797,6 +3960,7 @@ public class MobilePlaybackActivity extends MobileActivity
 
         boolean isLive = getVideo() != null && getVideo().isLive;
         mLiveChip.setVisibility(isLive ? View.VISIBLE : View.GONE);
+        updateSeekBarLine();
 
         if (isLive) {
             boolean atEdge = durationMs - positionMs <= LIVE_EDGE_THRESHOLD_MS;
@@ -3822,7 +3986,7 @@ public class MobilePlaybackActivity extends MobileActivity
         if (timeMs < 0) {
             timeMs = 0;
         }
-        return Util.getStringForTime(mFormatBuilder, mFormatter, timeMs);
+        return PlayerTimeBar.formatTime(mFormatBuilder, mFormatter, timeMs);
     }
 
     private final Player.Listener mUiPlayerListener = new Player.Listener() {
@@ -5030,7 +5194,10 @@ public class MobilePlaybackActivity extends MobileActivity
     public void showOverlay(boolean show) {
         if (show) {
             showControlsInternal(true);
-        } else {
+        } else if (!mScrubbing) {
+            // NEWTUBE(seek bar): the shared UI timer (PlayerUIController's auto-hide) fires on its
+            // own clock; it used to pull the controls - and now the seek bar with its drag - out
+            // from under a finger that was still dragging.
             hideControls();
         }
     }
@@ -5502,10 +5669,10 @@ public class MobilePlaybackActivity extends MobileActivity
         // SponsorBlock colored ranges on the seek bar. SponsorBlockController resolves each range to
         // start/end progress fractions + an ARGB color and pushes them here (null to reset); the
         // overlay draws them on the scrubber track. Skipping itself is done by the controller.
-        if (mSegmentsView == null) {
+        if (mTimeBar == null) {
             return;
         }
-        runOnUiThread(() -> mSegmentsView.setSegments(segments));
+        runOnUiThread(() -> mTimeBar.setSegments(segments));
     }
 
     @Override
@@ -5578,10 +5745,6 @@ public class MobilePlaybackActivity extends MobileActivity
             mChapterVideos.addAll(chapters);
         }
 
-        if (mScrubChapterView != null && mChapterVideos.isEmpty()) {
-            mScrubChapterView.setVisibility(View.GONE);
-        }
-
         updateChapterMarks();
         mChapterButtonIndex = -1;
         updateChapterButton(mExoPlayerController != null ? mExoPlayerController.getPositionMs() : 0);
@@ -5652,21 +5815,17 @@ public class MobilePlaybackActivity extends MobileActivity
         return offset;
     }
 
-    /** One mark on the time bar per chapter start after the first (media3's marker layer). */
+    /** The seek bar's chapter gaps: one per chapter start after the first. */
     private void updateChapterMarks() {
         if (mTimeBar == null) {
             return;
         }
 
         long[] starts = new long[mChapterVideos.size()];
-        int count = 0;
-        for (Video chapter : mChapterVideos) {
-            if (chapter.startTimeMs > 0) {
-                starts[count++] = chapter.startTimeMs;
-            }
+        for (int i = 0; i < starts.length; i++) {
+            starts[i] = mChapterVideos.get(i).startTimeMs;
         }
-
-        mTimeBar.setAdGroupTimesMs(count > 0 ? starts : null, count > 0 ? new boolean[count] : null, count);
+        mTimeBar.setChapterStarts(starts);
     }
 
     /** The chapter playing at {@code positionMs}: an index into mChapterVideos, -1 if none. */
@@ -5682,13 +5841,16 @@ public class MobilePlaybackActivity extends MobileActivity
         return index;
     }
 
-    /** The playing chapter's title above the seek bar; hidden without chapters and while scrubbing. */
+    /**
+     * The playing chapter's title after the time ("· Title >"); hidden without chapters. While the
+     * bar is dragged the whole row is faded aside, so it keeps what it showed.
+     */
     private void updateChapterButton(long positionMs) {
         if (mChapterButton == null) {
             return;
         }
 
-        int index = mScrubbing ? -1 : chapterIndexAt(positionMs);
+        int index = chapterIndexAt(positionMs);
         if (index >= 0 && TextUtils.isEmpty(mChapterVideos.get(index).title)) {
             index = -1;
         }
@@ -5700,30 +5862,94 @@ public class MobilePlaybackActivity extends MobileActivity
         }
 
         if (index != mChapterButtonIndex) {
+            boolean changed = mChapterButtonIndex >= 0 && mChapterButton.getVisibility() == View.VISIBLE;
             mChapterButtonIndex = index;
             String title = mChapterVideos.get(index).title;
-            mChapterButton.setText(title);
+            CharSequence text = getString(R.string.mobile_player_chapter_title, title);
             mChapterButton.setContentDescription(getString(R.string.mobile_player_chapter_button, title));
+            if (changed && mControlsVisible && !mScrubbing) {
+                // Playback moved into the next chapter under the reader's eyes: a quick fade-through.
+                crossfadeText(mChapterButton, text);
+            } else {
+                mChapterButton.animate().cancel(); // a pending fade-through would put its text back
+                mChapterButton.setAlpha(1f);
+                mChapterButton.setText(text);
+            }
         }
         mChapterButton.setVisibility(View.VISIBLE);
     }
 
-    /** While scrubbing: show the title of the chapter under the scrub position (hidden if none). */
-    private void updateScrubChapterLabel(long positionMs) {
+    /** Fade {@code view} out, swap its text, fade it back in (Motion's fade-through timing). */
+    private static void crossfadeText(TextView view, CharSequence text) {
+        view.animate().cancel();
+        view.animate().alpha(0f).setDuration(Motion.FADE_OUT_MS).setInterpolator(Motion.STANDARD_ACCELERATE)
+                .withEndAction(() -> {
+                    view.setText(text);
+                    view.animate().alpha(1f).setDuration(Motion.FADE_IN_MS)
+                            .setInterpolator(Motion.STANDARD_DECELERATE).start();
+                }).start();
+    }
+
+    /** While scrubbing: the pill above the bar - the time under the finger, then its chapter. */
+    private void updateScrubLabel(long positionMs) {
         if (mScrubChapterView == null) {
             return;
         }
 
         int index = chapterIndexAt(positionMs);
         CharSequence title = index >= 0 ? mChapterVideos.get(index).title : null;
+        String time = formatTime(positionMs);
+        setTextIfChanged(mScrubChapterView, TextUtils.isEmpty(title) ? time : time + "   " + title);
+    }
 
-        if (TextUtils.isEmpty(title)) {
-            mScrubChapterView.setVisibility(View.GONE);
-        } else {
-            if (!TextUtils.equals(mScrubChapterView.getText(), title)) {
-                mScrubChapterView.setText(title);
+    /**
+     * NEWTUBE(seek bar): while the bar is dragged the other controls step aside, like YouTube's: the
+     * top row, the transport, the bottom row and the top scrim fade out and the time + chapter under
+     * the finger shows in a pill above the bar (the bottom scrim stays, so the bar and the pill
+     * read over a bright picture). Letting go brings everything back.
+     */
+    private void setScrubChrome(boolean scrubbing) {
+        mScrubChromeHidden = scrubbing;
+        float alpha = scrubbing ? 0f : 1f;
+        long duration = scrubbing ? Motion.FADE_OUT_MS : Motion.FADE_IN_MS;
+        for (View view : new View[] {mBackButton, mTitleView, mOptionsRow, mTransport, mBottomRow, mTopScrim}) {
+            if (view != null) {
+                view.animate().cancel();
+                view.animate().alpha(alpha).setDuration(duration).setInterpolator(Motion.STANDARD).start();
             }
-            mScrubChapterView.setVisibility(View.VISIBLE);
+        }
+        fadePill(mScrubChapterView, scrubbing);
+    }
+
+    /** The pill over the top of the video ({@code null} hides it). */
+    private void showTopPill(@Nullable CharSequence text) {
+        if (mTopPill == null) {
+            return;
+        }
+        if (text != null) {
+            setTextIfChanged(mTopPill, text);
+        }
+        fadePill(mTopPill, text != null);
+    }
+
+    /** A pill appears with a short fade and scale-up from 90%, and leaves with a shorter fade. */
+    private static void fadePill(@Nullable View pill, boolean show) {
+        if (pill == null) {
+            return;
+        }
+        pill.animate().cancel();
+        if (show) {
+            if (pill.getVisibility() != View.VISIBLE) {
+                pill.setAlpha(0f);
+                pill.setScaleX(0.9f);
+                pill.setScaleY(0.9f);
+                pill.setVisibility(View.VISIBLE);
+            }
+            pill.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(Motion.FADE_IN_MS)
+                    .setInterpolator(Motion.STANDARD_DECELERATE).start();
+        } else if (pill.getVisibility() == View.VISIBLE) {
+            pill.animate().alpha(0f).setDuration(Motion.FADE_OUT_MS).setInterpolator(Motion.STANDARD_ACCELERATE)
+                    .withEndAction(() -> pill.setVisibility(View.GONE)).start();
         }
     }
 
@@ -6680,7 +6906,11 @@ public class MobilePlaybackActivity extends MobileActivity
             return;
         }
         int ratingAfter = currentRating();
-        WatchActionFeedback.confirmRating(this, actionId == R.id.action_thumbs_up, stateAfter == BUTTON_ON,
+        // NEWTUBE(haptics): the tap took effect - a click and a pop of the thumb, like YouTube's.
+        boolean like = actionId == R.id.action_thumbs_up;
+        Haptics.click(like ? mWatchLike : mWatchDislike);
+        Motion.pop(like ? mWatchLikeIcon : mWatchDislikeIcon);
+        WatchActionFeedback.confirmRating(this, like, stateAfter == BUTTON_ON,
                 undoRating(ratingBefore, ratingAfter));
     }
 
@@ -6735,6 +6965,7 @@ public class MobilePlaybackActivity extends MobileActivity
         onActionButtonClicked(R.id.action_subscribe);
         int after = getButtonState(R.id.action_subscribe); // set synchronously by the controller
         if (after != before) {
+            Haptics.click(mWatchSubscribe);
             Video video = getVideo();
             WatchActionFeedback.confirmSubscription(this, after == BUTTON_ON,
                     video != null ? video.getAuthor() : null,
@@ -7202,7 +7433,14 @@ public class MobilePlaybackActivity extends MobileActivity
 
     private void toggleQueueExpanded() {
         mQueueExpanded = !mQueueExpanded;
+        float chevronFrom = mQueueChevron != null ? mQueueChevron.getRotation() : 0f;
         applyQueueExpanded();
+        if (mQueueChevron != null) {
+            // NEWTUBE(motion): the chevron spins like the description's instead of snapping.
+            mQueueChevron.setRotation(chevronFrom);
+            mQueueChevron.animate().rotation(mQueueExpanded ? 180f : 0f).setDuration(180)
+                    .setInterpolator(Motion.STANDARD).start();
+        }
 
         // Jump straight to the playing row so expanding a long playlist doesn't open on item 1.
         // Matched by videoId, NOT List.indexOf: Video.equals is a composite hash (playlistId,
@@ -7224,6 +7462,7 @@ public class MobilePlaybackActivity extends MobileActivity
         }
 
         mQueueList.setVisibility(mQueueExpanded ? View.VISIBLE : View.GONE);
+        mQueueChevron.animate().cancel();
         mQueueChevron.setRotation(mQueueExpanded ? 180f : 0f);
     }
 

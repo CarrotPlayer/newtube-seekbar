@@ -343,6 +343,24 @@
     </style>
 
     <!-- Watch-page loading skeleton (alpha-pulsed from code while related videos load). -->
+    <!-- NEWTUBE(seek bar): a pill over the video (the seek bar's time/chapter, "Release to cancel",
+         "2x"). -->
+    <style name="MobilePlayerPill">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/bg_mobile_player_pill</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
     <style name="MobileSkeletonRelatedRow">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>

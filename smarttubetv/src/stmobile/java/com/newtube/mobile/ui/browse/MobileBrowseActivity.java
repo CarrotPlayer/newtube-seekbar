@@ -27,6 +27,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
@@ -907,16 +908,47 @@ public class MobileBrowseActivity extends MobileActivity
     private void setupBottomNav() {
         mBottomNav.setOnItemSelectedListener(item -> {
             if (!mSuppressNavCallback) {
-                if (item.getItemId() == YOU_ITEM_ID) {
-                    showYouPanel();
-                } else {
-                    mSectionFromYou = false;
-                    hideYouPanel();
-                    onSectionChosen(item.getItemId() - ITEM_ID_OFFSET);
-                }
+                onNavItemChosen(item.getItemId());
             }
             return true;
         });
+        // NEWTUBE(motion): tapping the tab you are on glides a scrolled feed back to the top, like
+        // YouTube; at the top it does what it always did (repaint + refresh the section).
+        mBottomNav.setOnItemReselectedListener(item -> {
+            if (mSuppressNavCallback) {
+                return;
+            }
+            if (item.getItemId() != YOU_ITEM_ID && mContentGrid != null
+                    && mContentGrid.getVisibility() == View.VISIBLE && mContentGrid.canScrollVertically(-1)) {
+                smoothScrollGridToTop();
+            } else {
+                onNavItemChosen(item.getItemId());
+            }
+        });
+    }
+
+    private void onNavItemChosen(int itemId) {
+        if (itemId == YOU_ITEM_ID) {
+            showYouPanel();
+        } else {
+            mSectionFromYou = false;
+            hideYouPanel();
+            onSectionChosen(itemId - ITEM_ID_OFFSET);
+        }
+    }
+
+    /** A long way down, jump most of it first: the glide covers the last few rows only. */
+    private void smoothScrollGridToTop() {
+        RecyclerView.LayoutManager layout = mContentGrid.getLayoutManager();
+        if (layout instanceof LinearLayoutManager) {
+            int first = ((LinearLayoutManager) layout).findFirstVisibleItemPosition();
+            int jumpTo = 6 * Math.max(1, layout instanceof GridLayoutManager
+                    ? ((GridLayoutManager) layout).getSpanCount() : 1);
+            if (first > jumpTo) {
+                mContentGrid.scrollToPosition(jumpTo);
+            }
+        }
+        mContentGrid.smoothScrollToPosition(0);
     }
 
     // ---------------------------------------------------------------------------------
