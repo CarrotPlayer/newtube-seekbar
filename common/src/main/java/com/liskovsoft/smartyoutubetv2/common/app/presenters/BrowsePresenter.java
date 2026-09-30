@@ -146,7 +146,9 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     /**
      * NEWTUBE(shelf-tail): phone gate. Once a row section's section list is done, the end of the
      * grid fetches the next page of its shelves in turn instead of only the last card's shelf - see
-     * {@link ShelfTail}. TV never calls this -> scroll-end continues the focused row as before.
+     * {@link ShelfTail}. A grid section (Subscriptions, History...) pages its one group the same way,
+     * so a page the grid filtered away entirely (all Shorts) fetches the next one instead of
+     * stalling. TV never calls this -> scroll-end continues the focused row as before.
      */
     private static volatile boolean sShelfTailEnabled;
 
@@ -155,13 +157,16 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     /**
-     * Per row section, replaced by that section's next load. Kept across section switches: a section
-     * repainted from FeedCache within its TTL shows the same groups (FeedCache pins them), so its
-     * shelves can still be continued without a reload.
+     * Per row or grid section, replaced by that section's next load. Kept across section switches: a
+     * section repainted from FeedCache within its TTL shows the same groups (FeedCache pins them), so
+     * its shelves can still be continued without a reload.
      */
     private final Map<Integer, ShelfTail<VideoGroup>> mShelfTails = new HashMap<>();
-    /** A row section's section list is still being walked: its pages come before any shelf page. */
-    private boolean mRowWalkActive;
+    /**
+     * The section's own load is still running (a row section's section list, a grid section's first
+     * page): its pages come before any tail page.
+     */
+    private boolean mSectionWalkActive;
     /** The grid ran short while the walk was active: ask the shelf tail once the walk is done. */
     private boolean mTailDemanded;
     private int mTailDemandGridSize = -1;
@@ -655,8 +660,8 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             return;
         }
 
-        if (mRowWalkActive) {
-            mTailDemanded = true; // replayed when the walk is done (onRowWalkCompleted)
+        if (mSectionWalkActive) {
+            mTailDemanded = true; // replayed when the walk is done (onSectionWalkCompleted)
             mTailDemandGridSize = gridSize;
             return;
         }
@@ -1004,7 +1009,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         mHomeWalkActive = pacedHome;
         mHomeWalkDelivered = false;
         mPendingScrollEndItem = null;
-        mRowWalkActive = true;
+        mSectionWalkActive = true;
         mTailDemanded = false;
 
         Disposable updateAction = groups
@@ -1065,7 +1070,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                                 mHomeWalkActive = false;
                                 mPendingScrollEndItem = null;
                             }
-                            mRowWalkActive = false; // shelves delivered so far can still be continued
+                            mSectionWalkActive = false; // shelves delivered so far can still be continued
                             mTailDemanded = false;
                             if (append) {
                                 if (getView() != null) {
@@ -1078,7 +1083,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                             if (pacedHome) {
                                 onHomeWalkCompleted();
                             }
-                            onRowWalkCompleted(shelfTail);
+                            onSectionWalkCompleted(shelfTail);
                             if (!append) {
                                 handleLoadError(null);
                             } else if (getView() != null) {
@@ -1172,7 +1177,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         mPendingScrollEndItem = null;
         if (pending != null && isHomeSection()) {
             if (getShelfTail() != null) {
-                mTailDemanded = true; // onRowWalkCompleted asks the shelf tail instead
+                mTailDemanded = true; // onSectionWalkCompleted asks the shelf tail instead
             } else {
                 continueGroup(pending.getGroup());
             }
@@ -1180,12 +1185,12 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     /**
-     * NEWTUBE(shelf-tail): the row section's section list is done. A grid that ran short meanwhile
-     * gets its next page from the shelves now - it will not ask again by itself: with nothing new at
-     * the bottom it cannot scroll, and without a scroll it never reports the end.
+     * NEWTUBE(shelf-tail): the section's own load is done. A grid that ran short meanwhile gets its
+     * next page from the tail now - it will not ask again by itself: with nothing new at the bottom
+     * it cannot scroll, and without a scroll it never reports the end.
      */
-    private void onRowWalkCompleted(@Nullable ShelfTail<VideoGroup> tail) {
-        mRowWalkActive = false;
+    private void onSectionWalkCompleted(@Nullable ShelfTail<VideoGroup> tail) {
+        mSectionWalkActive = false;
         boolean demanded = mTailDemanded;
         mTailDemanded = false;
         if (tail != null && tail == getShelfTail()) {
@@ -1197,13 +1202,22 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         }
     }
 
-    /** The current section's shelf tail: a row section on the phone, loaded in this process. */
+    /** The current section's shelf tail: a row or grid section on the phone, loaded in this process. */
     @Nullable
     private ShelfTail<VideoGroup> getShelfTail() {
-        if (!sShelfTailEnabled || mCurrentSection == null || mCurrentSection.getType() != BrowseSection.TYPE_ROW) {
+        if (!sShelfTailEnabled || mCurrentSection == null || !isTailSection(mCurrentSection)) {
             return null;
         }
         return mShelfTails.get(mCurrentSection.getId());
+    }
+
+    /**
+     * Sections the tail pages: row sections (their shelves) and plain grid sections (their one group:
+     * Subscriptions, History, playlists...). Not the Shorts grid, the multi-column channels grid, or
+     * the local grids (no continuation at all).
+     */
+    private static boolean isTailSection(BrowseSection section) {
+        return section.getType() == BrowseSection.TYPE_ROW || section.getType() == BrowseSection.TYPE_GRID;
     }
 
     /** NEWTUBE(shelf-tail): the grid is short - fetch the next shelf page, if one is due. */
@@ -1222,7 +1236,9 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             // Every shelf is spent: fetch the section again and append what is new - what the
             // reader used to do by hand (back to the top, pull to refresh). Signed in, every fetch
             // of Home is a fresh mix; a round that adds too few cards ends the feed.
-            Observable<List<MediaGroup>> groups = mRowMapping.get(mCurrentSection.getId());
+            // A grid section is one list: fetching it again would only repeat its first page.
+            Observable<List<MediaGroup>> groups = mCurrentSection.getType() == BrowseSection.TYPE_ROW
+                    ? mRowMapping.get(mCurrentSection.getId()) : null;
             String reason = tail.isStopped() ? "empty-pages" : "no-more-pages";
             if (groups != null && tail.startRound(gridSize)) {
                 NetPath.log("shelf-tail round=" + tail.rounds() + " section=" + mCurrentSection.getId()
@@ -1312,6 +1328,18 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             return;
         }
 
+        // NEWTUBE(shelf-tail): the grid's one group, paged whenever the grid runs short - also after
+        // a page the grid filtered away entirely (all Shorts), which used to stall the section: no
+        // new card, no scroll, no scroll-end. It replaces the size-based top-up below
+        // (continueGroupIfNeeded), which counted the page's raw items, Shorts included.
+        ShelfTail<VideoGroup> pageTail = sShelfTailEnabled && isTailSection(section)
+                ? new ShelfTail<>(shelf -> shelf.getNextPageKey() != null, false) : null;
+        if (pageTail != null) {
+            mShelfTails.put(section.getId(), pageTail);
+            mSectionWalkActive = true;
+            mTailDemanded = false;
+        }
+
         Disposable updateAction = group
                 .subscribe(
                         mediaGroup -> {
@@ -1331,12 +1359,26 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                                 markSectionFetched(section.getId());
                             }
 
-                            continueGroupIfNeeded(videoGroup);
+                            if (pageTail != null) {
+                                mTailDemanded = false; // the runway check after this update asks again if short
+                                pageTail.offer(videoGroup);
+                            } else {
+                                continueGroupIfNeeded(videoGroup);
+                            }
                         },
                         error -> {
                             Log.e(TAG, "updateGridHeader error: %s", error.getMessage());
+                            if (pageTail != null) {
+                                mSectionWalkActive = false;
+                                mTailDemanded = false;
+                            }
                             handleLoadError(error);
-                        }, () -> handleLoadError(null));
+                        }, () -> {
+                            if (pageTail != null) {
+                                onSectionWalkCompleted(pageTail);
+                            }
+                            handleLoadError(null);
+                        });
 
         mActions.add(updateAction);
     }
@@ -1459,7 +1501,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     private void disposeActions() {
         mHomeWalkActive = false;
         mPendingScrollEndItem = null;
-        mRowWalkActive = false;
+        mSectionWalkActive = false;
         mTailDemanded = false;
         RxHelper.disposeActions(mActions);
         for (ShelfTail<VideoGroup> tail : mShelfTails.values()) {

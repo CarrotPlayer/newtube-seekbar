@@ -199,6 +199,57 @@ public class ShelfTailTest {
         assertSame("a keeps its turn", a, tail.next(8));
     }
 
+    /**
+     * Subscriptions (a grid section: one group, many pages): a page of nothing but Shorts adds no
+     * card, and the grid - unable to scroll to a new end - never asked again. Its tail pages the same
+     * group again, one page at a time, until a page adds cards; 10 empty pages in a row end it.
+     */
+    @Test
+    public void subscriptionsGridKeepsPagingThroughAllShortsPages() {
+        ShelfTail<Shelf> tail = new ShelfTail<>(shelf -> shelf.pagesLeft > 0, false);
+        Shelf subscriptions = new Shelf("subscriptions", 100);
+        tail.offer(subscriptions);
+
+        int grid = 8; // page 1: 8 videos left after its Shorts
+        assertSame(subscriptions, tail.next(grid));
+        assertNull("one page in flight", tail.next(grid));
+        grid = land(tail, subscriptions, grid, 0); // page 2: all Shorts
+
+        assertSame("the same group again, not the end", subscriptions, tail.next(grid));
+        assertEquals(1, tail.emptyPages());
+        grid = land(tail, subscriptions, grid, 0); // page 3: all Shorts
+        assertSame(subscriptions, tail.next(grid));
+        assertEquals(2, tail.emptyPages());
+        grid = land(tail, subscriptions, grid, 6); // page 4: six videos
+
+        assertSame(subscriptions, tail.next(grid));
+        assertEquals("cards again: the run restarts", 0, tail.emptyPages());
+
+        // A subscriptions feed that is nothing but Shorts from here on ends after 10 empty pages.
+        int requests = 0;
+        Shelf shelf = subscriptions;
+        while (shelf != null) {
+            land(tail, shelf, grid, 0);
+            shelf = tail.next(grid);
+            requests++;
+            assertTrue("bounded", requests <= ShelfTail.MAX_EMPTY_PAGES + 1);
+        }
+        assertTrue(tail.isStopped());
+        assertEquals(ShelfTail.MAX_EMPTY_PAGES, requests);
+    }
+
+    @Test
+    public void aGridGroupThatRunsOutEndsWithoutARoundOfItsOwn() {
+        ShelfTail<Shelf> tail = new ShelfTail<>(shelf -> shelf.pagesLeft > 0, false);
+        Shelf history = new Shelf("history", 1);
+        tail.offer(history);
+
+        assertSame(history, tail.next(20));
+        land(tail, history, 20, 20);
+        assertNull("its last page had no key", tail.next(40));
+        assertFalse(tail.isStopped());
+    }
+
     @Test
     public void aRoundThatAddedTooFewCardsEndsTheFeed() {
         ShelfTail<Shelf> tail = tail();

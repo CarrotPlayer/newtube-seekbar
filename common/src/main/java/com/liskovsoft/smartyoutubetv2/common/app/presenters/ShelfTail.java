@@ -23,6 +23,10 @@ import java.util.Iterator;
  * and after {@link #MAX_EMPTY_PAGES} such pages in a row the tail stops asking until a page adds
  * cards again, so a run of useless pages can never become a request loop.</p>
  *
+ * <p>A grid section (Subscriptions, History...) is one group: its tail holds just that group, which
+ * never leaves the rotation - a page of nothing but Shorts is simply followed by the next page, up
+ * to the same {@link #MAX_EMPTY_PAGES} in a row.</p>
+ *
  * <p>When every shelf is spent, the presenter fetches the section again and appends it (a "round":
  * what the reader used to do by hand, back at the top with a pull to refresh - signed in, each Home
  * fetch is a fresh mix). A round that added fewer than {@link #MIN_ROUND_CARDS} cards ends the feed,
@@ -46,6 +50,8 @@ final class ShelfTail<G> {
     }
 
     private final Keys<G> mKeys;
+    /** Rows: a shelf whose page added no card leaves the rotation. A grid's one group never does. */
+    private final boolean mDropEmptyShelves;
     private final ArrayDeque<G> mQueue = new ArrayDeque<>();
     /** The shelf whose page is being fetched, or null. */
     private G mInFlight;
@@ -61,8 +67,19 @@ final class ShelfTail<G> {
     /** Grid size when the current round began (the first load starts from an empty grid). */
     private int mRoundStartGridSize;
 
+    /** A row section's shelves. */
     ShelfTail(Keys<G> keys) {
+        this(keys, true);
+    }
+
+    /**
+     * @param dropEmptyShelves true for a row section's shelves; false for a grid section's single
+     *                         group, which is paged again after a page that added no card (all
+     *                         Shorts) until {@link #MAX_EMPTY_PAGES} such pages in a row
+     */
+    ShelfTail(Keys<G> keys, boolean dropEmptyShelves) {
         mKeys = keys;
+        mDropEmptyShelves = dropEmptyShelves;
     }
 
     /** A shelf with more pages joins the back of the rotation (once). */
@@ -229,7 +246,9 @@ final class ShelfTail<G> {
             mEmptyPages = 0;
         } else {
             mEmptyPages++;
-            remove(judged); // its pages add nothing to this grid: let the other shelves take its turns
+            if (mDropEmptyShelves) {
+                remove(judged); // its pages add nothing to this grid: let the other shelves take its turns
+            }
         }
     }
 

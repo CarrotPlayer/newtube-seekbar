@@ -41,7 +41,6 @@ import java.util.Set;
  */
 public final class FeedCache {
     private static final String TAG = FeedCache.class.getSimpleName();
-    private static final int MAX_ITEMS_PER_SECTION = 120;
     /** Disk cap: a couple of screenfuls — enough to kill the skeleton, cheap to parse. */
     private static final int MAX_PERSISTED_PER_SECTION = 40;
     private static final String SNAPSHOT_DIR = "feed_snapshots";
@@ -70,27 +69,25 @@ public final class FeedCache {
         if (videos == null || videos.isEmpty()) {
             return;
         }
-        int count = Math.min(videos.size(), MAX_ITEMS_PER_SECTION);
-        List<Video> snapshot = new ArrayList<>(videos.subList(0, count));
+        // NEWTUBE(shelf-tail): the whole grid, not its first 120 cards. A section repainted within
+        // its TTL IS the current content - no refetch follows - and it used to come back cut at 120:
+        // everything loaded past that (a deep Home, a long Subscriptions scroll) was gone while the
+        // presenter's tail carried on from where the reader had been. The snapshot holds the same
+        // Video objects the grid already holds; only the disk copy stays small (persist()).
+        List<Video> snapshot = new ArrayList<>(videos);
         sSnapshots.put(sectionId, snapshot);
 
+        // Identity set: a deep feed has hundreds of cards over dozens of shelves, and this runs on
+        // the main thread after every grid update.
+        Set<VideoGroup> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         List<VideoGroup> groups = new ArrayList<>();
         for (Video video : snapshot) {
             VideoGroup group = video.getGroup();
-            if (group != null && !containsIdentity(groups, group)) {
+            if (group != null && seen.add(group)) {
                 groups.add(group);
             }
         }
         sSnapshotGroups.put(sectionId, groups);
-    }
-
-    private static boolean containsIdentity(List<VideoGroup> groups, VideoGroup group) {
-        for (VideoGroup existing : groups) {
-            if (existing == group) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** Snapshot copy, or null when the section was never loaded this process. */
