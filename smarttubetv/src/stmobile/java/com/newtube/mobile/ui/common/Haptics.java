@@ -44,8 +44,15 @@ public final class Haptics {
     private static final float TENSION_GAIN = 0.2f;
     /** SystemUI's SWIPE_THRESHOLD_INDICATOR token: one CLICK primitive at 0.7. */
     private static final float THRESHOLD_CLICK_SCALE = 0.7f;
+    /**
+     * No grain this soon after a click: a new vibration cancels the one playing, and a grain
+     * started with the click (the same touch event that crossed the line back) cut it after 1-5 ms
+     * - the owner felt the click come back only sometimes (Pixel vibrator log: cancelled_superseded).
+     */
+    private static final long CLICK_GUARD_MS = 100;
 
     private static long sLastTensionAt;
+    private static long sLastThresholdAt;
     private static boolean sProbed;
     @Nullable
     private static Vibrator sComposer;
@@ -85,6 +92,7 @@ public final class Haptics {
         if (view == null) {
             return;
         }
+        sLastThresholdAt = SystemClock.uptimeMillis();
         Vibrator composer = composer(view);
         if (composer != null) {
             vibrate(composer, VibrationEffect.startComposition()
@@ -108,7 +116,7 @@ public final class Haptics {
             return;
         }
         long now = SystemClock.uptimeMillis();
-        if (now - sLastTensionAt < TENSION_INTERVAL_MS) {
+        if (now - sLastTensionAt < TENSION_INTERVAL_MS || now - sLastThresholdAt < CLICK_GUARD_MS) {
             return;
         }
         Vibrator composer = composer(view);
