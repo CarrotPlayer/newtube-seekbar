@@ -119,6 +119,8 @@
         -->
         <activity
             android:name="com.newtube.mobile.ui.playback.MobilePlaybackActivity"
+            android:enableOnBackInvokedCallback="true"
+            tools:targetApi="33"
             android:exported="false"
             android:launchMode="singleTop"
             android:supportsPictureInPicture="true"

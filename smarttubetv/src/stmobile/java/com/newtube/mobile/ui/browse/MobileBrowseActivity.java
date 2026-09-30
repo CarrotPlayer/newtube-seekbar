@@ -1,7 +1,6 @@
 package com.newtube.mobile.ui.browse;
 
 import android.Manifest;
-import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -69,9 +68,12 @@ import com.newtube.mobile.casting.CastTarget;
 import com.newtube.mobile.casting.CastVolumeKeys;
 import com.newtube.mobile.ui.common.FeedCache;
 import com.newtube.mobile.ui.common.FeedSwapWarmup;
+import com.newtube.mobile.ui.common.FrameGate;
 import com.newtube.mobile.ui.common.MobileActivity;
 import com.newtube.mobile.ui.common.MobileSnackbar;
+import com.newtube.mobile.ui.common.Motion;
 import com.newtube.mobile.ui.common.ShortsFilter;
+import com.newtube.mobile.ui.common.SkeletonReveal;
 import com.newtube.mobile.ui.update.MobileUpdateActivity;
 import com.newtube.mobile.update.AppUpdates;
 import com.newtube.mobile.ui.playback.MiniPlayerBridge;
@@ -147,7 +149,11 @@ public class MobileBrowseActivity extends MobileActivity
     private RecyclerView mContentGrid;
     private SwipeRefreshLayout mContentSwipe;
     private View mFeedSkeleton;
-    private ValueAnimator mSkeletonPulse;
+    /** NEWTUBE(motion): last session's cards for the current section, shown only if its load fails. */
+    @androidx.annotation.Nullable
+    private List<Video> mLastSessionFallback;
+    /** NEWTUBE(motion): a reload's skeleton hid the grid (showReloadSkeleton). */
+    private boolean mGridHiddenForSkeleton;
     private GridLayoutManager mLayoutManager;
     private VideoCardAdapter mAdapter;
     private BottomNavigationView mBottomNav;
@@ -184,6 +190,16 @@ public class MobileBrowseActivity extends MobileActivity
     /** 500ms UI ticker while the bar is visible: progress line, play/pause icon, liveness check. */
     private final Runnable mMiniPlayerTick = this::onMiniPlayerTick;
     private static final long MINI_TICK_MS = 500;
+    /** NEWTUBE(motion): the longest the expanding player waits for this card to fold. */
+    private static final long MINI_FOLD_WAIT_MS = 50;
+    /** NEWTUBE(motion): the card was pre-drawn for a minimize; its buttons fade in once it is ours. */
+    private boolean mMiniButtonsFadePending;
+    private final MiniPlayerBridge.CardFold mMiniCardFold = onFolded -> {
+        foldMiniCard();
+        if (onFolded != null) {
+            FrameGate.afterNextFrame(mMiniPlayerBar.getRootView(), MINI_FOLD_WAIT_MS, onFolded);
+        }
+    };
 
     private final List<BrowseSection> mSections = new ArrayList<>();
     private final List<Video> mCurrentVideos = new ArrayList<>();
@@ -312,35 +328,43 @@ public class MobileBrowseActivity extends MobileActivity
     }
 
     /**
-     * First-load skeleton: card ghosts instead of a naked spinner, alpha-pulsed like the
-     * watch page's related-list skeleton. Only ever shown over an EMPTY grid - a section
-     * repainted from {@link FeedCache} keeps its content visible while refreshing.
+     * Loading skeleton: card ghosts under a sweeping shimmer (ShimmerLinearLayout) instead of a
+     * naked spinner. Only ever shown over an EMPTY grid - a section repainted from
+     * {@link FeedCache} keeps its content visible while refreshing. NEWTUBE(motion): it leaves by
+     * fading out over the cards that replace it (a cut used to swap one for the other), and at
+     * once when nothing replaces it (an error, an empty section).
      */
     private void setSkeletonVisible(boolean visible) {
-        if (visible == (mFeedSkeleton.getVisibility() == View.VISIBLE)) {
+        if (visible) {
+            mSkeletonShows++;
+            mFeedSkeleton.animate().cancel();
+            mFeedSkeleton.setAlpha(1f);
+            mFeedSkeleton.setVisibility(View.VISIBLE);
             return;
         }
-
-        if (visible) {
-            mFeedSkeleton.setVisibility(View.VISIBLE);
-            if (mSkeletonPulse == null) {
-                mSkeletonPulse = ValueAnimator.ofFloat(1f, 0.45f);
-                mSkeletonPulse.setDuration(700);
-                mSkeletonPulse.setRepeatMode(ValueAnimator.REVERSE);
-                mSkeletonPulse.setRepeatCount(ValueAnimator.INFINITE);
-                mSkeletonPulse.addUpdateListener(a -> mFeedSkeleton.setAlpha((float) a.getAnimatedValue()));
-            }
-            if (!mSkeletonPulse.isStarted()) {
-                mSkeletonPulse.start();
-            }
-        } else {
-            if (mSkeletonPulse != null) {
-                mSkeletonPulse.cancel();
-            }
-            mFeedSkeleton.setAlpha(1f);
-            mFeedSkeleton.setVisibility(View.GONE);
+        if (mGridHiddenForSkeleton) {
+            mGridHiddenForSkeleton = false;
+            mContentGrid.animate().cancel();
+            mContentGrid.setAlpha(1f); // under the skeleton, which fades away over it
         }
+        if (mFeedSkeleton.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        mFeedSkeleton.animate().cancel();
+        if (mCurrentVideos.isEmpty()) {
+            mFeedSkeleton.setVisibility(View.GONE);
+            mFeedSkeleton.setAlpha(1f);
+            return;
+        }
+        int shows = mSkeletonShows;
+        SkeletonReveal.fadeOverCards(mFeedSkeleton, mContentGrid, () -> shows == mSkeletonShows, () -> {
+            mFeedSkeleton.setVisibility(View.GONE);
+            mFeedSkeleton.setAlpha(1f);
+        });
     }
+
+    /** Counts skeleton shows, so a reveal waiting for its cards yields to a newer load. */
+    private int mSkeletonShows;
 
     // ---------------------------------------------------------------------------------
     // In-app mini-player bar
@@ -351,7 +375,11 @@ public class MobileBrowseActivity extends MobileActivity
         // The card keeps rendering until our onPause detaches it (hideMiniPlayer there) - the
         // player's onResume then re-parents the session texture back. Detaching HERE would blank
         // the card for the whole activity-switch latency.
-        View.OnClickListener expand = v -> MiniPlayerBridge.expand(this);
+        View.OnClickListener expand = v -> {
+            if (!mMiniClosing && MiniPlayerBridge.isActive()) { // not while a closed card leaves
+                MiniPlayerBridge.expand(this);
+            }
+        };
         mMiniPlayerBar.setOnClickListener(expand);
         mMiniPlayerFrame.setOnClickListener(expand);
 
@@ -363,14 +391,90 @@ public class MobileBrowseActivity extends MobileActivity
             }
         });
 
-        findViewById(R.id.mobile_mini_close).setOnClickListener(v -> {
-            hideMiniPlayer();
-            MiniPlayerBridge.close();
-        });
+        findViewById(R.id.mobile_mini_close).setOnClickListener(v -> closeMiniPlayer());
+        // NEWTUBE(motion): or swipe the card away sideways.
+        com.newtube.mobile.ui.playback.MiniCardSwipe.attach(mMiniPlayerBar,
+                new com.newtube.mobile.ui.playback.MiniCardSwipe.Callback() {
+                    @Override
+                    public boolean canSwipe() {
+                        return !mMiniClosing && MiniPlayerBridge.isActive();
+                    }
+
+                    @Override
+                    public void onSwipedAway(float toTranslationX, long durationMs) {
+                        closeMiniPlayer(toTranslationX, durationMs);
+                    }
+                }, mMiniPlayerFrame, mMiniPlayerBar);
+    }
+
+    /**
+     * NEWTUBE(motion): X - the sound stops at once and the card, frozen on its last frame, shrinks
+     * and fades away instead of vanishing in one frame. The session itself closes when the card is
+     * gone: finishing the hidden player blocks this main thread for ~60 ms (Pixel 9), which ate
+     * the whole animation when it ran first.
+     */
+    private boolean mMiniClosing;
+    private float mMiniVolumeBeforeClose = 1f;
+
+    private void closeMiniPlayer() {
+        closeMiniPlayer(null, 0);
+    }
+
+    /** {@code flyToX}: swiped away - the card keeps going off that side instead of shrinking. */
+    private void closeMiniPlayer(@androidx.annotation.Nullable Float flyToX, long flyMs) {
+        if (mMiniClosing) {
+            return;
+        }
+        mMiniClosing = true;
+        ExoPlayer player = MiniPlayerBridge.getPlayer();
+        if (player != null) {
+            mMiniVolumeBeforeClose = player.getVolume();
+            player.setVolume(0f); // released with the session right after
+        }
+        MiniPlayerBridge.setClosing(this::abortMiniClose);
+        MiniPlayerBridge.clearPendingCardFold(mMiniCardFold);
+        detachMiniTexture();
+        mMiniPlayerBar.animate().cancel();
+        android.view.ViewPropertyAnimator exit = flyToX != null
+                ? mMiniPlayerBar.animate().translationX(flyToX).alpha(0f).setDuration(flyMs)
+                        .setInterpolator(new android.view.animation.LinearInterpolator())
+                : mMiniPlayerBar.animate().alpha(0f).scaleX(0.9f).scaleY(0.9f)
+                        .setDuration(Motion.EXIT_MS).setInterpolator(Motion.EMPHASIZED_ACCELERATE);
+        exit.withLayer().withEndAction(() -> {
+                    if (mMiniClosing) {
+                        finishMiniClose();
+                    } else {
+                        foldMiniCard(); // aborted: the player took the session back; only the card goes
+                    }
+                }).start();
+    }
+
+    /** The end of closeMiniPlayer; also run at once by anything that would re-show the card. */
+    private void finishMiniClose() {
+        if (!mMiniClosing) {
+            return;
+        }
+        mMiniClosing = false;
+        MiniPlayerBridge.setClosing(null);
+        foldMiniCard();
+        MiniPlayerBridge.close();
+    }
+
+    /** The session was handed a new video while the card left: it lives on; the card still goes. */
+    private void abortMiniClose() {
+        if (!mMiniClosing) {
+            return;
+        }
+        mMiniClosing = false;
+        ExoPlayer player = MiniPlayerBridge.getPlayer();
+        if (player != null) {
+            player.setVolume(mMiniVolumeBeforeClose);
+        }
     }
 
     /** Show the card and adopt the live session texture if a mini session is active. */
     private void syncMiniPlayer() {
+        finishMiniClose(); // a card closing when this runs is closed, not brought back
         ExoPlayer player = MiniPlayerBridge.getPlayer();
         if (player == null) {
             hideMiniPlayer();
@@ -388,6 +492,11 @@ public class MobileBrowseActivity extends MobileActivity
 
         MiniPlayerBridge.fitToVideo(mMiniPlayerFrame); // NEWTUBE(issue #9): letterbox, never stretch
         attachMiniTexture();
+        mMiniPlayerBar.animate().cancel(); // a closing card (closeMiniPlayer) comes back whole
+        mMiniPlayerBar.setAlpha(1f);
+        mMiniPlayerBar.setScaleX(1f);
+        mMiniPlayerBar.setScaleY(1f);
+        mMiniPlayerBar.setTranslationX(0f);
         mMiniPlayerBar.setVisibility(View.VISIBLE);
         updateMiniPlayPauseIcon(player);
 
@@ -419,6 +528,10 @@ public class MobileBrowseActivity extends MobileActivity
         if (mMiniPlayerBar.getVisibility() != View.VISIBLE) {
             return false;
         }
+        // NEWTUBE(motion): the landing video is a bare picture; the card's buttons fade in once
+        // this screen is in front (onResume) rather than appearing with the card in one frame.
+        setMiniButtonsAlpha(0f);
+        mMiniButtonsFadePending = true;
 
         // A pair of frame callbacks only proves that time passed; it does not prove this paused
         // window submitted a buffer. Gate the reorder on an actual draw containing the card, then
@@ -528,6 +641,14 @@ public class MobileBrowseActivity extends MobileActivity
      * repeatedly / when never shown.
      */
     private void hideMiniPlayer() {
+        finishMiniClose();
+        MiniPlayerBridge.clearPendingCardFold(mMiniCardFold);
+        detachMiniTexture();
+        foldMiniCard();
+    }
+
+    /** Freeze the card's last frame and give the session texture back (the card stays as it is). */
+    private void detachMiniTexture() {
         Utils.removeCallbacks(mMiniPlayerTick);
         if (mMiniTexture != null && mMiniTexture.getParent() != null) {
             if (mMiniTexture.isAvailable() && MiniPlayerBridge.isActive()) {
@@ -546,8 +667,39 @@ public class MobileBrowseActivity extends MobileActivity
             mMiniPlayerFrame.removeView(mMiniTexture);
             mMiniTexture = null; // next show builds a fresh view (see attachMiniTexture)
         }
-        if (mMiniPlayerBar != null) {
-            mMiniPlayerBar.setVisibility(View.GONE);
+    }
+
+    private void foldMiniCard() {
+        if (mMiniPlayerBar == null) {
+            return;
+        }
+        mMiniPlayerBar.animate().cancel();
+        mMiniPlayerBar.setVisibility(View.GONE);
+        mMiniPlayerBar.setAlpha(1f);
+        mMiniPlayerBar.setScaleX(1f);
+        mMiniPlayerBar.setScaleY(1f);
+        mMiniPlayerBar.setTranslationX(0f);
+        mMiniButtonsFadePending = false;
+        setMiniButtonsAlpha(1f);
+    }
+
+    private void setMiniButtonsAlpha(float alpha) {
+        View close = findViewById(R.id.mobile_mini_close);
+        for (View view : new View[] {mMiniPlayPause, close, mMiniProgress}) {
+            if (view != null) {
+                view.animate().cancel();
+                view.setAlpha(alpha);
+            }
+        }
+    }
+
+    private void fadeInMiniButtons() {
+        View close = findViewById(R.id.mobile_mini_close);
+        for (View view : new View[] {mMiniPlayPause, close, mMiniProgress}) {
+            if (view != null) {
+                view.animate().alpha(1f).setDuration(Motion.FADE_IN_MS)
+                        .setInterpolator(Motion.STANDARD).start();
+            }
         }
     }
 
@@ -1057,8 +1209,9 @@ public class MobileBrowseActivity extends MobileActivity
             return;
         }
 
+        boolean switched = mCurrentSectionId != sectionId;
         mCurrentSectionId = sectionId;
-        paintCachedSnapshot(sectionId);
+        paintCachedSnapshot(sectionId, switched);
         syncNavHighlight(sectionId);
 
         if (mPresenter != null) {
@@ -1072,7 +1225,7 @@ public class MobileBrowseActivity extends MobileActivity
      * refetches - the single biggest "app feels slow" moment). The presenter's refetch is
      * already on its way; {@link #mAwaitingFreshContent} makes its result replace this.
      */
-    private void paintCachedSnapshot(int sectionId) {
+    private void paintCachedSnapshot(int sectionId, boolean switched) {
         // The error overlay (e.g. the previous section's sign-in gate) belongs to the section
         // that showed it - a switch repaints, so drop it here. updateSection can't be relied on
         // for this: a fresh-within-TTL section skips the refetch and never emits a group.
@@ -1083,6 +1236,13 @@ public class MobileBrowseActivity extends MobileActivity
         // so even a cold start shows cards instead of the skeleton (display-only until the
         // refetch replaces it — see FeedCache class doc).
         List<Video> cached = sectionId == VideoDownloads.SECTION_ID ? null : FeedCache.getOrRestore(sectionId);
+        // NEWTUBE(motion): last session's cards wait behind the skeleton (FeedCache
+        // .isFromLastSession) - only a failed first load shows them (showError).
+        mLastSessionFallback = null;
+        if (cached != null && FeedCache.isFromLastSession(sectionId)) {
+            mLastSessionFallback = cached;
+            cached = null;
+        }
 
         mCurrentVideos.clear();
         mAwaitingFreshContent = cached != null;
@@ -1092,11 +1252,29 @@ public class MobileBrowseActivity extends MobileActivity
 
         mLastPaginationTriggerCount = -1;
         mLastNearEndTriggerCount = -1;
-        mAdapter.submitList(new ArrayList<>(mCurrentVideos));
+        mContentGrid.animate().cancel();
+        mContentGrid.setAlpha(1f);
+        if (switched) {
+            // NEWTUBE(motion): another section is a new page, not an edit of the old one. Through
+            // the item animator it played as a shuffle (Pixel 9, History -> Home: the old cards
+            // faded out, the grid sat empty ~200 ms, then a card both lists shared slid up from the
+            // bottom while the rest faded in - ~400 ms). The new list now replaces the old one in
+            // one frame with the animator parked, pinned to the top, and fades in.
+            parkItemAnimator();
+            mSectionSwapPending = true;
+            mAdapter.submitList(new ArrayList<>(mCurrentVideos), this::onSectionSwapCommitted);
+        } else if (mSectionSwapPending) {
+            // A re-paint landing before the switch's own commit supersedes it: it finishes the switch.
+            mAdapter.submitList(new ArrayList<>(mCurrentVideos), this::onSectionSwapCommitted);
+        } else {
+            mAdapter.submitList(new ArrayList<>(mCurrentVideos));
+        }
         if (!mCurrentVideos.isEmpty()) {
             setSkeletonVisible(false);
             mContentGrid.scrollToPosition(0);
             com.newtube.mobile.LaunchMilestones.onFeedSnapshotPainted(sectionId, mCurrentVideos.size());
+        } else if (mLastSessionFallback != null) {
+            setSkeletonVisible(true);
         }
     }
 
@@ -1567,7 +1745,16 @@ public class MobileBrowseActivity extends MobileActivity
         // Last-resumed host wins: while this screen is (or is about to be) the one under the
         // player, minimize docks its card here.
         MiniPlayerBridge.registerMiniHost(this);
+        MiniPlayerBridge.clearPendingCardFold(mMiniCardFold);
         syncMiniPlayer();
+        if (mMiniButtonsFadePending) {
+            mMiniButtonsFadePending = false;
+            if (mMiniPlayerBar.getVisibility() == View.VISIBLE) {
+                fadeInMiniButtons();
+            } else {
+                setMiniButtonsAlpha(1f);
+            }
+        }
         // Home may have been paused while the player crossed landscape/PiP configurations. Those
         // callbacks can arrive while DisplayMetrics still describe the player window, so always
         // reconcile the retained GridLayoutManager against Home's current configuration on resume.
@@ -1640,7 +1827,15 @@ public class MobileBrowseActivity extends MobileActivity
         // Free the mini bar's video surface whenever this screen leaves the foreground - the
         // playback activity may be about to re-claim it (expand / new video), and a paused
         // Browse must never hold a stale TextureView on the live player. Audio is unaffected.
-        hideMiniPlayer();
+        // NEWTUBE(motion): a docked card stays up, frozen on that last frame, until the player
+        // covers it (see MiniPlayerBridge.setPendingCardFold) - hiding it here was a blink.
+        finishMiniClose();
+        detachMiniTexture();
+        if (mMiniPlayerBar.getVisibility() == View.VISIBLE && MiniPlayerBridge.isActive()) {
+            MiniPlayerBridge.setPendingCardFold(mMiniCardFold);
+        } else {
+            hideMiniPlayer();
+        }
 
         // Tap-feedback spinner (see onVideoClicked): the destination screen is opening (or the
         // user left) - never keep it spinning under the returning grid.
@@ -1650,6 +1845,10 @@ public class MobileBrowseActivity extends MobileActivity
     @Override
     protected void onStop() {
         super.onStop();
+        // Covered: a card still waiting for the player to fold it can go now.
+        if (mMiniTexture == null) {
+            hideMiniPlayer();
+        }
 
         // Snapshot the feeds to disk so the NEXT cold start paints cards instantly. onStop fires
         // once per backgrounding — the last reliable moment before most process deaths.
@@ -1828,8 +2027,9 @@ public class MobileBrowseActivity extends MobileActivity
             }
 
             hideYouPanel();
+            boolean switched = mCurrentSectionId != section.getId();
             mCurrentSectionId = section.getId();
-            paintCachedSnapshot(section.getId());
+            paintCachedSnapshot(section.getId(), switched);
 
             // The section may not be one of the sections shown in the bottom nav - e.g. the
             // sign-out boot fallback can select Music, which the preferred-tab selection
@@ -1893,6 +2093,9 @@ public class MobileBrowseActivity extends MobileActivity
                         mCurrentVideos.addAll(visibleFeedItems(group.getVideos()));
                     }
                     mAwaitingFreshContent = false;
+                    if (emptyReplace) {
+                        showReloadSkeleton();
+                    }
                     break;
                 case VideoGroup.ACTION_PREPEND:
                     mCurrentVideos.addAll(0, visibleFeedItems(group.getVideos()));
@@ -1945,6 +2148,7 @@ public class MobileBrowseActivity extends MobileActivity
             }
 
             if (!mCurrentVideos.isEmpty()) {
+                mLastSessionFallback = null;
                 setSkeletonVisible(false);
                 com.newtube.mobile.LaunchMilestones.onFeedFreshBound(mCurrentSectionId, mCurrentVideos.size());
                 FeedCache.put(mCurrentSectionId, mCurrentVideos);
@@ -2035,19 +2239,53 @@ public class MobileBrowseActivity extends MobileActivity
     private void commitFeedSwap() {
         if (!mCurrentVideos.isEmpty()) {
             mFeedSwapPinTop = isGridAtTopAndIdle();
-            if (mParkedItemAnimator == null && mContentGrid.getItemAnimator() != null) {
-                mParkedItemAnimator = mContentGrid.getItemAnimator();
-                mContentGrid.setItemAnimator(null);
-                // Safety net for a commit that never lands (superseded by a section switch).
-                mContentGrid.postDelayed(mRestoreItemAnimator, 1_000);
-            }
+            parkItemAnimator();
         }
         submitGrid();
     }
 
+    /**
+     * NEWTUBE(motion): a section switch waits for its first commit (onSectionSwapCommitted). Kept as
+     * a flag, not only as the snapshot's commit callback: the section's fresh page often lands right
+     * behind the snapshot, and AsyncListDiffer drops a superseded submission's callback (Pixel 9:
+     * History's switch then skipped the fade and the pin).
+     */
+    private boolean mSectionSwapPending;
+
+    private void parkItemAnimator() {
+        if (mParkedItemAnimator == null && mContentGrid.getItemAnimator() != null) {
+            mParkedItemAnimator = mContentGrid.getItemAnimator();
+            mContentGrid.setItemAnimator(null);
+        }
+        if (mParkedItemAnimator != null) {
+            // Safety net for a commit that never lands (superseded by a section switch), counted
+            // from the LATEST park: an earlier swap's timer must not bring the animator back in the
+            // middle of a newer one.
+            mContentGrid.removeCallbacks(mRestoreItemAnimator);
+            mContentGrid.postDelayed(mRestoreItemAnimator, 1_000);
+        }
+    }
+
+    /** NEWTUBE(motion): a section switch landed (see paintCachedSnapshot) - top of the list, fade in. */
+    private void onSectionSwapCommitted() {
+        if (isDestroyed() || !mSectionSwapPending) {
+            return;
+        }
+        mSectionSwapPending = false;
+        // DiffUtil keeps the viewport anchored on a card both sections share; a new section starts
+        // at its top.
+        mLayoutManager.scrollToPositionWithOffset(0, 0);
+        if (mAdapter.getItemCount() > 0) {
+            mContentGrid.setAlpha(0f);
+            mContentGrid.animate().alpha(1f).setDuration(Motion.FADE_IN_MS)
+                    .setInterpolator(Motion.STANDARD).withLayer().start();
+        }
+        restoreItemAnimatorAfterLayout();
+    }
+
     private void submitGrid() {
         List<Video> list = new ArrayList<>(mCurrentVideos);
-        if (mParkedItemAnimator == null) {
+        if (mParkedItemAnimator == null && !mSectionSwapPending) {
             mAdapter.submitList(list);
         } else {
             // Every submission while parked carries the callback: a later one supersedes the
@@ -2060,12 +2298,21 @@ public class MobileBrowseActivity extends MobileActivity
         if (isDestroyed()) {
             return;
         }
+        if (mSectionSwapPending) {
+            mFeedSwapPinTop = false;
+            onSectionSwapCommitted(); // this commit superseded the switch's own (see the flag)
+            return;
+        }
         boolean pin = mFeedSwapPinTop && isGridAtTopAndIdle(); // a finger may have landed since
         mFeedSwapPinTop = false;
         if (pin) {
             // DiffUtil keeps the viewport anchored on a surviving card; pin the fresh top instead.
             mLayoutManager.scrollToPositionWithOffset(0, 0);
         }
+        restoreItemAnimatorAfterLayout();
+    }
+
+    private void restoreItemAnimatorAfterLayout() {
         // Item animations are decided when the update is LAID OUT (the next frame), so the animator
         // may only come back once RecyclerView has consumed the swap.
         mContentGrid.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
@@ -2183,6 +2430,32 @@ public class MobileBrowseActivity extends MobileActivity
             cancelFeedSwap(); // NEWTUBE(feed-swap)
             mCurrentVideos.clear();
             mAdapter.submitList(new ArrayList<>());
+            showReloadSkeleton();
+        });
+    }
+
+    /**
+     * NEWTUBE(motion): the presenter's clear-before-load (pull-to-refresh, a reload) emptied the
+     * grid. showProgressBar(true) usually came first, when the grid still had cards, so it put up
+     * no skeleton and a refresh sat on a blank page with only the pull indicator. The skeleton now
+     * takes the pull indicator's place until the fresh cards arrive.
+     */
+    private void showReloadSkeleton() {
+        if (!mProgressShowing || !mCurrentVideos.isEmpty() || isDownloadsSectionShowing()
+                || mErrorContainer.getVisibility() == View.VISIBLE) {
+            return;
+        }
+        setSkeletonVisible(true);
+        mContentSwipe.setRefreshing(false);
+        // The old cards leave with the item animator's fade, which showed through the skeleton's
+        // gaps: they go under it - once it is on screen (hidden in the same frame, the grid left a
+        // blank frame while the skeleton drew its first). The grid is back when the skeleton leaves.
+        mGridHiddenForSkeleton = true;
+        FrameGate.afterNextFrame(mFeedSkeleton, 50, () -> {
+            if (mGridHiddenForSkeleton && mFeedSkeleton.getVisibility() == View.VISIBLE) {
+                mContentGrid.animate().cancel();
+                mContentGrid.setAlpha(0f);
+            }
         });
     }
 
@@ -2230,6 +2503,15 @@ public class MobileBrowseActivity extends MobileActivity
             // What the action button will carry. Cleared by the offline branch below, where the
             // button means "retry" rather than "run this error's own action".
             ErrorFragmentData actionData = data;
+
+            // NEWTUBE(motion): the first load after a cold start failed - last session's cards
+            // beat an error page (the pre-skeleton behaviour); pull-to-refresh is the retry.
+            if (!hasSignInAction && mCurrentVideos.isEmpty() && mLastSessionFallback != null) {
+                mCurrentVideos.addAll(visibleFeedItems(mLastSessionFallback));
+                mLastSessionFallback = null;
+                mAwaitingFreshContent = true;
+                mAdapter.submitList(new ArrayList<>(mCurrentVideos));
+            }
 
             setSkeletonVisible(false);
             mContentSwipe.setRefreshing(false);
@@ -2316,7 +2598,21 @@ public class MobileBrowseActivity extends MobileActivity
             // black void read as "the app hangs"). Grid with content (FeedCache repaint or
             // pagination): no overlay at all - the pull-to-refresh indicator covers the
             // user-initiated case, and background refreshes just swap content in when ready.
-            setSkeletonVisible(show && mCurrentVideos.isEmpty());
+            if (show || mFeedSkeleton.getVisibility() != View.VISIBLE) {
+                setSkeletonVisible(show && mCurrentVideos.isEmpty());
+            } else {
+                // NEWTUBE(motion): the presenter says "done" just BEFORE it hands over the rows (in
+                // the same callback): decide once they are in, so the skeleton fades over them
+                // instead of vanishing onto an empty grid.
+                mFeedSkeleton.post(() -> {
+                    if (!mProgressShowing) {
+                        setSkeletonVisible(false);
+                    }
+                });
+            }
+            if (show && mCurrentVideos.isEmpty()) {
+                mContentSwipe.setRefreshing(false); // the skeleton says it
+            }
             if (!show) {
                 mContentSwipe.setRefreshing(false);
             }
@@ -2356,6 +2652,12 @@ public class MobileBrowseActivity extends MobileActivity
             // scroll-end APPEND extends the grid instead of swap-replacing it through the
             // stale-snapshot path, and make sure no loading affordance lingers.
             mAwaitingFreshContent = false;
+            if (mCurrentVideos.isEmpty() && mLastSessionFallback != null) {
+                // No fetch is coming for a section held back behind the skeleton: its cards it is.
+                mCurrentVideos.addAll(visibleFeedItems(mLastSessionFallback));
+                mAdapter.submitList(new ArrayList<>(mCurrentVideos));
+            }
+            mLastSessionFallback = null;
             setSkeletonVisible(false);
             mContentSwipe.setRefreshing(false);
         });

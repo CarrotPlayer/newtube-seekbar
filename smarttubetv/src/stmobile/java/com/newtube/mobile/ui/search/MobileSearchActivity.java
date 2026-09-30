@@ -20,6 +20,9 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsAnimationCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -35,6 +38,7 @@ import com.newtube.mobile.ui.browse.VideoCardAdapter;
 import com.newtube.mobile.ui.common.FilteredPageTopUp;
 import com.newtube.mobile.ui.common.MobileActivity;
 import com.newtube.mobile.ui.common.ShortsFilter;
+import com.newtube.mobile.ui.common.SkeletonReveal;
 import com.newtube.mobile.ui.playback.MiniPlayerBridge;
 import com.newtube.mobile.ui.playback.MobileMiniPlayerController;
 
@@ -93,7 +97,9 @@ public class MobileSearchActivity extends MobileActivity
     private RecyclerView mGrid;
     private GridLayoutManager mLayoutManager;
     private VideoCardAdapter mAdapter;
-    private ProgressBar mProgressBar;
+    private View mSkeleton;
+    /** The presenter's loading state (showProgressBar), for a clear that lands mid-load. */
+    private boolean mLoading;
     private View mSearchMessage;
     private SearchLoadState mLoadState;
     /** LoadFailure state of the search in flight, set by showLoadFailure; -1 = none reported. */
@@ -166,13 +172,69 @@ public class MobileSearchActivity extends MobileActivity
         mGrid = findViewById(R.id.mobile_search_grid);
         // NEWTUBE(mini-inset): the last row can scroll clear of the docked mini-player card.
         com.newtube.mobile.ui.playback.MiniPlayerListInset.attach(findViewById(R.id.mobile_mini_player), mGrid);
-        mProgressBar = findViewById(R.id.mobile_search_progress);
+        mSkeleton = findViewById(R.id.mobile_feed_skeleton);
+        installImeInsets((View) mGrid.getParent());
         mSearchMessage = findViewById(R.id.mobile_search_message);
         mLoadState = new SearchLoadState(mSearchMessage, () -> {
             if (mSubmittedQuery != null) {
                 submitSearch(mSubmittedQuery);
             }
         });
+    }
+
+    /**
+     * NEWTUBE(motion): the results area ends at the keyboard's top edge and follows it frame by
+     * frame as it slides. Under enforced edge-to-edge (Android 15+ for this target) adjustResize no
+     * longer resizes the window, so the keyboard simply covered the lower suggestions and results;
+     * where the window is still resized for it (the opt-out, up to Android 15) the keyboard's inset
+     * arrives already absorbed and this adds nothing. The content container already keeps clear of
+     * the navigation bar, which the keyboard's inset includes.
+     */
+    private boolean mImeAnimating;
+
+    private void installImeInsets(View area) {
+        ViewCompat.setOnApplyWindowInsetsListener(area, (v, insets) -> {
+            if (!mImeAnimating) {
+                applyImePadding(v, insets);
+            }
+            return insets;
+        });
+        ViewCompat.setWindowInsetsAnimationCallback(area,
+                new WindowInsetsAnimationCompat.Callback(WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_STOP) {
+                    @Override
+                    public void onPrepare(@NonNull WindowInsetsAnimationCompat animation) {
+                        if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {
+                            mImeAnimating = true;
+                        }
+                    }
+
+                    @NonNull
+                    @Override
+                    public WindowInsetsCompat onProgress(@NonNull WindowInsetsCompat insets,
+                            @NonNull java.util.List<WindowInsetsAnimationCompat> running) {
+                        if (mImeAnimating) {
+                            applyImePadding(area, insets);
+                        }
+                        return insets;
+                    }
+
+                    @Override
+                    public void onEnd(@NonNull WindowInsetsAnimationCompat animation) {
+                        if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {
+                            mImeAnimating = false;
+                            ViewCompat.requestApplyInsets(area);
+                        }
+                    }
+                });
+    }
+
+    private static void applyImePadding(View area, WindowInsetsCompat insets) {
+        int ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+        int bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom;
+        int bottom = Math.max(0, ime - bars);
+        if (area.getPaddingBottom() != bottom) {
+            area.setPadding(area.getPaddingLeft(), area.getPaddingTop(), area.getPaddingRight(), bottom);
+        }
     }
 
     private void setupSuggestions() {
@@ -532,13 +594,22 @@ public class MobileSearchActivity extends MobileActivity
     protected void onPause() {
         // Free the mini bar's video surface whenever this screen leaves the foreground - the
         // playback activity may be about to re-claim it (expand / new video).
+        // NEWTUBE(motion): a docked card stays up frozen until the player covers it.
         if (mMiniPlayer != null) {
-            mMiniPlayer.hide();
+            mMiniPlayer.onHostPause();
         }
         super.onPause();
 
         if (mPresenter != null) {
             mPresenter.onViewPaused();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mMiniPlayer != null) {
+            mMiniPlayer.onHostStop();
         }
     }
 
@@ -667,6 +738,7 @@ public class MobileSearchActivity extends MobileActivity
                     + " shortsHidden=" + shortsHidden + " total=" + mVideos.size());
             if (!mVideos.isEmpty()) {
                 mSearchMessage.setVisibility(View.GONE);
+                setSkeletonVisible(false);
             }
         });
     }
@@ -720,6 +792,37 @@ public class MobileSearchActivity extends MobileActivity
         }
     }
 
+    /**
+     * NEWTUBE(motion): the results' loading state - card ghosts under a shimmer where a spinner
+     * used to sit, only while the list is empty (a next page loads silently below the rows). They
+     * fade out over the first results, and go at once when none come (the message takes over).
+     */
+    private void setSkeletonVisible(boolean visible) {
+        if (visible) {
+            mSkeletonShows++;
+            mSkeleton.animate().cancel();
+            mSkeleton.setAlpha(1f);
+            mSkeleton.setVisibility(View.VISIBLE);
+            return;
+        }
+        if (mSkeleton.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        mSkeleton.animate().cancel();
+        if (mVideos.isEmpty()) {
+            mSkeleton.setVisibility(View.GONE);
+            return;
+        }
+        int shows = mSkeletonShows;
+        SkeletonReveal.fadeOverCards(mSkeleton, mGrid, () -> shows == mSkeletonShows, () -> {
+            mSkeleton.setVisibility(View.GONE);
+            mSkeleton.setAlpha(1f);
+        });
+    }
+
+    /** Counts skeleton shows, so a reveal waiting for its results yields to a newer search. */
+    private int mSkeletonShows;
+
     @Override
     public void clearSearch() {
         runOnUiThread(() -> {
@@ -729,6 +832,9 @@ public class MobileSearchActivity extends MobileActivity
             mTopUp.clear();
             mGenerations.next();
             mAdapter.submitList(new ArrayList<>());
+            if (mLoading) {
+                setSkeletonVisible(true); // the load began over the previous results
+            }
             NetPath.log("search-results sid=" + mSubmitSequence + " cleared");
         });
     }
@@ -767,7 +873,18 @@ public class MobileSearchActivity extends MobileActivity
             if (!show && topUpIfShort()) {
                 return; // NEWTUBE(shorts): another page is on its way - still loading
             }
-            mProgressBar.setVisibility(show ? View.VISIBLE : View.GONE);
+            mLoading = show;
+            if (show || mSkeleton.getVisibility() != View.VISIBLE) {
+                setSkeletonVisible(show && mVideos.isEmpty());
+            } else {
+                // NEWTUBE(motion): results handed over right after "done" fade the skeleton out
+                // over themselves; decided once they are in.
+                mSkeleton.post(() -> {
+                    if (!mLoading) {
+                        setSkeletonVisible(false);
+                    }
+                });
+            }
             NetPath.log("search-progress sid=" + mSubmitSequence
                     + " visible=" + (show ? "y" : "n")
                     + " results=" + mVideos.size());

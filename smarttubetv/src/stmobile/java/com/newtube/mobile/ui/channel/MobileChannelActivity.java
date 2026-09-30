@@ -453,13 +453,22 @@ public class MobileChannelActivity extends MobileActivity
 
     @Override
     protected void onPause() {
+        // NEWTUBE(motion): a docked card stays up frozen until the player covers it.
         if (mMiniPlayer != null) {
-            mMiniPlayer.hide();
+            mMiniPlayer.onHostPause();
         }
         super.onPause();
 
         if (mPresenter != null) {
             mPresenter.onViewPaused();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mMiniPlayer != null) {
+            mMiniPlayer.onHostStop();
         }
     }
 

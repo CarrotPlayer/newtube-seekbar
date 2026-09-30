@@ -39,6 +39,12 @@ public class PlayerContainerLayout extends FrameLayout {
 
         /** Released while dragging. Implementor decides to dismiss or spring back. */
         void onDismissDragReleased(float dy, float yVelocity);
+
+        /**
+         * NEWTUBE(motion): the drag was taken away (ACTION_CANCEL: a parent or the system claimed
+         * the gesture). Not a release - it used to be one, and could minimize the player.
+         */
+        void onDismissDragCancelled();
     }
 
     private DragListener mListener;
@@ -68,6 +74,11 @@ public class PlayerContainerLayout extends FrameLayout {
 
     public void setDragListener(DragListener listener) {
         mListener = listener;
+    }
+
+    /** Raw screen Y of the current gesture's first touch - where the drag grabbed the video. */
+    public float getDownRawY() {
+        return mDownRawY;
     }
 
     /**
@@ -176,8 +187,15 @@ public class PlayerContainerLayout extends FrameLayout {
                 float dy = Math.max(0f, ev.getRawY() - mDownRawY);
                 mListener.onDismissDrag(dy);
                 return true;
-            case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
+                if (mVelocityTracker != null) {
+                    mVelocityTracker.recycle();
+                    mVelocityTracker = null;
+                }
+                mDragging = false;
+                mListener.onDismissDragCancelled();
+                return true;
+            case MotionEvent.ACTION_UP:
                 float releaseDy = Math.max(0f, ev.getRawY() - mDownRawY);
                 float yVelocity = 0f;
                 if (mVelocityTracker != null) {

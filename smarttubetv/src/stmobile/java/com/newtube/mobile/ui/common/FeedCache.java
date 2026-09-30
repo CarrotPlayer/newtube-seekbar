@@ -53,6 +53,11 @@ public final class FeedCache {
      * exactly as long as the snapshot itself lives: replaced on put(), dropped on clear().
      */
     private static final Map<Integer, List<VideoGroup>> sSnapshotGroups = new HashMap<>();
+    /**
+     * NEWTUBE(motion): sections whose snapshot came from disk and has not been replaced by this
+     * process's own fetch - last session's cards (see {@link #isFromLastSession}).
+     */
+    private static final Set<Integer> sFromLastSession = new HashSet<>();
     /** One disk attempt per section per process — a missing/corrupt file shouldn't be re-read. */
     private static final Set<Integer> sDiskRestoreTried = new HashSet<>();
     private static volatile Context sAppContext;
@@ -76,6 +81,7 @@ public final class FeedCache {
         // Video objects the grid already holds; only the disk copy stays small (persist()).
         List<Video> snapshot = new ArrayList<>(videos);
         sSnapshots.put(sectionId, snapshot);
+        sFromLastSession.remove(sectionId);
 
         // Identity set: a deep feed has hundreds of cards over dozens of shelves, and this runs on
         // the main thread after every grid update.
@@ -114,6 +120,7 @@ public final class FeedCache {
             return null;
         }
         sSnapshots.put(sectionId, restored);
+        sFromLastSession.add(sectionId);
         Log.d(TAG, "Restored %s videos from disk for section %s", restored.size(), sectionId);
         return new ArrayList<>(restored);
     }
@@ -148,9 +155,20 @@ public final class FeedCache {
         writer.start();
     }
 
+    /**
+     * NEWTUBE(motion): the section's snapshot is the previous session's (restored from disk, not
+     * yet refetched). Home shows the loading skeleton over it rather than those cards: they were
+     * then replaced by the fresh feed in one cut a moment later, which read as a glitch (owner,
+     * 2026-09-30). They stay the fallback when that first load fails.
+     */
+    public static synchronized boolean isFromLastSession(int sectionId) {
+        return sFromLastSession.contains(sectionId);
+    }
+
     /** Drops everything - call when the signed-in account changes (feeds are per-account). */
     public static synchronized void clear() {
         sSnapshots.clear();
+        sFromLastSession.clear();
         sSnapshotGroups.clear();
         sDiskRestoreTried.clear();
         final Context context = sAppContext;

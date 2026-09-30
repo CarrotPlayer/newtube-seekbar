@@ -98,15 +98,13 @@
             android:scrollbars="vertical"
             tools:listitem="@layout/item_video_card" />
 
-        <ProgressBar
-            android:id="@+id/mobile_search_progress"
-            style="?android:attr/progressBarStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:visibility="gone"
-            android:indeterminateTint="@color/mobile_color_primary"
-            android:indeterminateTintMode="src_in" />
+        <!-- NEWTUBE(motion): results load under card ghosts (the feed's shimmering skeleton), not
+             a centered spinner; only over an empty list (MobileSearchActivity.showProgressBar). -->
+        <include
+            layout="@layout/mobile_feed_skeleton"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
 
         <!-- A search that ends with zero rows used to just... stop (spinner gone, screen
              blank). Shown by showProgressBar(false) when the grid is empty, worded by

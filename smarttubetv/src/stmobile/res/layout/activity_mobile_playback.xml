@@ -106,10 +106,10 @@
                     android:layout_marginStart="4dp"
                     android:layout_marginTop="4dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/mobile_player_back"
+                    android:contentDescription="@string/mobile_player_minimize"
                     android:padding="12dp"
                     android:scaleType="fitCenter"
-                    android:src="@drawable/ic_mobile_back_arrow"
+                    android:src="@drawable/ic_player_minimize"
                     android:tint="@color/mobile_player_on_video" />
 
                 <!-- paddingEnd must clear the full top-right options row (mobile_player_options):

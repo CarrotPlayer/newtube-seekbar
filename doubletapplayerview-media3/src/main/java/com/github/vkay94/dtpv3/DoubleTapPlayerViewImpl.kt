@@ -35,6 +35,20 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
     private val gestureDetector: GestureDetector
     private val gestureListener: DoubleTapGestureListener = DoubleTapGestureListener(this)
 
+    /**
+     * NEWTUBE(motion): a single tap acts when the finger lifts, not once the double-tap timeout
+     * has ruled out a second tap (~300 ms of "the tap did nothing"). A second tap then turns the
+     * pair into a double tap after all: [doubleTapBeganListener] is told first, so the owner can
+     * undo what the first tap did.
+     */
+    var isInstantSingleTap = false
+
+    fun interface DoubleTapBeganListener {
+        fun onDoubleTapBegan(posX: Float)
+    }
+
+    var doubleTapBeganListener: DoubleTapBeganListener? = null
+
     private val contentFrame: AspectRatioFrameLayout = AspectRatioFrameLayout(context)
     private val subtitleView: SubtitleView = SubtitleView(context)
 
@@ -138,6 +152,11 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
     override fun onTouchEvent(ev: MotionEvent): Boolean {
         if (isDoubleTapEnabled) {
             gestureDetector.onTouchEvent(ev)
+            // NEWTUBE(motion): a parent took the touch (drag, pinch) - the detector forgets its
+            // taps, and the double-tap mode must not outlive them to swallow the next tap.
+            if (ev.actionMasked == MotionEvent.ACTION_CANCEL && gestureListener.isDoubleTapping) {
+                gestureListener.cancelInDoubleTapMode()
+            }
 
             // Do not trigger original behavior when double tapping
             // otherwise the controller would show/hide - it would flack
@@ -149,7 +168,7 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
     /**
      * Gesture Listener for double tapping
      */
-    private class DoubleTapGestureListener(private val rootView: View) : GestureDetector.SimpleOnGestureListener() {
+    private class DoubleTapGestureListener(private val rootView: DoubleTapPlayerViewImpl) : GestureDetector.SimpleOnGestureListener() {
 
         private val mHandler = Handler(Looper.getMainLooper())
         private val mRunnable = Runnable {
@@ -188,11 +207,15 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
                 controls?.onDoubleTapProgressUp(e.x, e.y)
                 return true
             }
+            if (rootView.isInstantSingleTap) {
+                return rootView.performClick()
+            }
             return super.onSingleTapUp(e)
         }
 
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
             if (isDoubleTapping) return true
+            if (rootView.isInstantSingleTap) return true // already handled on the tap's release
             if (DEBUG) Log.d(TAG, "onSingleTapConfirmed: isDoubleTap = false")
             return rootView.performClick()
         }
@@ -200,6 +223,9 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
         override fun onDoubleTap(e: MotionEvent): Boolean {
             if (DEBUG) Log.d(TAG, "onDoubleTap")
             if (!isDoubleTapping) {
+                if (rootView.isInstantSingleTap) {
+                    rootView.doubleTapBeganListener?.onDoubleTapBegan(e.x)
+                }
                 isDoubleTapping = true
                 keepInDoubleTapMode()
                 controls?.onDoubleTapStarted(e.x, e.y)
