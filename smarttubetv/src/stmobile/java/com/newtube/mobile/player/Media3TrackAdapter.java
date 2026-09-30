@@ -356,26 +356,18 @@ class Media3TrackAdapter {
 
     /**
      * Locates the media3 track a {@link FormatItem} means. Exact format-id (itag) match first -
-     * ids are stable across sessions - then the legacy fallback chain (same rung + codec family,
-     * then same language variant for audio). Audio itags are NOT unique on multi-language
-     * videos (every dub carries its own "251"), so for audio an id hit is only exact when the
-     * language variant matches too; id-only hits are kept as a second tier, preferring the
-     * untranslated variant (this once pinned a pt-br auto-dub on a Spanish video because the
-     * persisted "en-us (original)" 251 matched the dub's group first).
-     *
-     * <p>NEWTUBE(audio-track): for audio the language variant outranks the itag. An item without a
-     * language (a single-language video's track, or the Audio track sheet's "Default" row) only
-     * matches exactly an untagged track - it used to take the first track with its itag, which on
-     * a dubbed video can be a dub. And a same-variant rendition (same language, same codec family)
-     * beats the same itag in another language: a stored Spanish "251-drc" on a video whose Spanish
-     * has no DRC track plays Spanish 251, not English "251-drc".</p>
+     * ids are stable across sessions - then the legacy fallback chain (same rung + codec family
+     * for video, same language for subtitles). Audio itags are NOT unique on multi-language
+     * videos (every dub carries its own "251"; a persisted "en-us (original)" 251 once pinned a
+     * pt-br auto-dub on a Spanish video), so audio ranks by language first:
+     * {@link #findAudioTrack}.
      */
     @Nullable
     private TrackLocation findTrack(int rendererIndex, FormatItem item) {
+        if (rendererIndex == TrackSelectorManager.RENDERER_INDEX_AUDIO) {
+            return findAudioTrack(item);
+        }
         String targetId = item.getFormatId();
-        boolean audio = rendererIndex == TrackSelectorManager.RENDERER_INDEX_AUDIO;
-        TrackLocation idMatch = null;
-        boolean idMatchOriginal = false;
         TrackLocation fallback = null;
 
         for (Tracks.Group group : mTracks.getGroups()) {
@@ -389,15 +381,7 @@ class Media3TrackAdapter {
                 androidx.media3.common.Format format = group.getTrackFormat(i);
 
                 if (targetId != null && targetId.equals(format.id)) {
-                    if (!audio || languageEquals(item.getLanguage(), Media3FormatConverter.pickLanguage(format))) {
-                        return new TrackLocation(group, i);
-                    }
-                    boolean original = isOriginalAudio(format);
-                    if (idMatch == null || (original && !idMatchOriginal)) {
-                        idMatch = new TrackLocation(group, i);
-                        idMatchOriginal = original;
-                    }
-                    continue;
+                    return new TrackLocation(group, i);
                 }
 
                 if (fallback == null && matchesLoosely(rendererIndex, item, format)) {
@@ -406,10 +390,90 @@ class Media3TrackAdapter {
             }
         }
 
-        if (audio && fallback != null) {
-            return fallback;
+        return fallback;
+    }
+
+    /**
+     * NEWTUBE(audio-track): the track a stored audio pick means on the current video - the
+     * language variant first, the itag last, because every variant repeats the same itags.
+     * <ol>
+     *   <li>the same variant and itag (exact);</li>
+     *   <li>the same variant in the same codec family, then in any codec (a stored Spanish Opus
+     *       251 plays Spanish AAC where the video has no Spanish Opus - not English 251);</li>
+     *   <li>otherwise the original: its track with the same itag, then the same codec family,
+     *       then its best one (a stored untagged 251 plays an AAC-only original - not a dub's
+     *       251);</li>
+     *   <li>only on a video with no original marked, the same itag in any variant.</li>
+     * </ol>
+     * An item without a language (a single-language video's track, the sheet's "Default" row)
+     * is its own variant: it matches untagged tracks only.
+     */
+    @Nullable
+    private TrackLocation findAudioTrack(FormatItem item) {
+        String targetId = item.getFormatId();
+        String language = item.getLanguage();
+        String codec = codecOf(item);
+
+        TrackLocation sameLanguageSameCodec = null;
+        TrackLocation sameLanguage = null;
+        int sameLanguageBitrate = Integer.MIN_VALUE;
+        TrackLocation originalSameId = null;
+        TrackLocation originalSameCodec = null;
+        TrackLocation originalBest = null;
+        int originalBestBitrate = Integer.MIN_VALUE;
+        TrackLocation sameId = null;
+
+        for (Tracks.Group group : mTracks.getGroups()) {
+            if (group.getType() != C.TRACK_TYPE_AUDIO) {
+                continue;
+            }
+            for (int i = 0; i < group.length; i++) {
+                if (!group.isTrackSupported(i)) {
+                    continue;
+                }
+                androidx.media3.common.Format format = group.getTrackFormat(i);
+                boolean idEquals = targetId != null && targetId.equals(format.id);
+
+                if (languageEquals(language, Media3FormatConverter.pickLanguage(format))) {
+                    if (idEquals) {
+                        return new TrackLocation(group, i);
+                    }
+                    if (sameLanguageSameCodec == null && codecFamilyEquals(codec, format.codecs)) {
+                        sameLanguageSameCodec = new TrackLocation(group, i);
+                    }
+                    if (format.bitrate > sameLanguageBitrate) {
+                        sameLanguageBitrate = format.bitrate;
+                        sameLanguage = new TrackLocation(group, i);
+                    }
+                    continue;
+                }
+
+                if (isOriginalAudio(format)) {
+                    if (idEquals && originalSameId == null) {
+                        originalSameId = new TrackLocation(group, i);
+                    }
+                    if (originalSameCodec == null && codecFamilyEquals(codec, format.codecs)) {
+                        originalSameCodec = new TrackLocation(group, i);
+                    }
+                    if (format.bitrate > originalBestBitrate) {
+                        originalBestBitrate = format.bitrate;
+                        originalBest = new TrackLocation(group, i);
+                    }
+                }
+                if (idEquals && sameId == null) {
+                    sameId = new TrackLocation(group, i);
+                }
+            }
         }
-        return idMatch != null ? idMatch : fallback;
+
+        TrackLocation[] ranked = {sameLanguageSameCodec, sameLanguage,
+                originalSameId, originalSameCodec, originalBest, sameId};
+        for (TrackLocation location : ranked) {
+            if (location != null) {
+                return location;
+            }
+        }
+        return null;
     }
 
     /** The untranslated variant: Role=main in our generated MPDs, "(original)" in the label. */

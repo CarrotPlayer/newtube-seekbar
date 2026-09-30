@@ -74,6 +74,22 @@ public class OrientationHandBackTest {
     }
 
     @Test
+    public void timeWithoutReadingsDoesNotCountAsHolding() {
+        OrientationHandBack handBack = new OrientationHandBack();
+        handBack.arm(LANDSCAPE);
+
+        assertFalse(handBack.onOrientation(90, 0));  // the hold starts...
+        handBack.pause();                              // ...then PiP / background, 200 ms later
+        assertTrue(handBack.isArmed());                // the target survives
+        assertEquals(-1, handBack.remainingMs(5_000));
+
+        // Back in front much later: the first reading starts a new hold, it does not hand back.
+        assertFalse(handBack.onOrientation(90, 5_000));
+        assertEquals(OrientationHandBack.SETTLE_MS, handBack.remainingMs(5_000));
+        assertTrue(handBack.onOrientation(90, 5_000 + OrientationHandBack.SETTLE_MS));
+    }
+
+    @Test
     public void disarmedNeverHandsBack() {
         OrientationHandBack handBack = new OrientationHandBack();
         assertFalse(handBack.isArmed());

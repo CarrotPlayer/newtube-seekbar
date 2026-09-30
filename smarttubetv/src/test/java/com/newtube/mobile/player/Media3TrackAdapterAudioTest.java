@@ -232,6 +232,42 @@ public class Media3TrackAdapterAudioTest {
     }
 
     @Test
+    public void aStoredLanguageInAnotherCodecBeatsTheSameItagInAnotherLanguage() {
+        // Stored: Spanish Opus 251. The next video has Spanish only in AAC, English in Opus 251.
+        FormatItem spanishOpus = stored(audio("251", "opus", 158_000, "es (dubbed)", C.ROLE_FLAG_DUB));
+        TrackGroup englishOpus = new TrackGroup("en-webm",
+                audio("251", "opus", 158_000, "en (original)", C.ROLE_FLAG_MAIN));
+        TrackGroup spanishAac = new TrackGroup("es-mp4",
+                audio("140", "mp4a.40.2", 129_000, "es (dubbed)", C.ROLE_FLAG_DUB),
+                audio("139", "mp4a.40.5", 48_000, "es (dubbed)", C.ROLE_FLAG_DUB));
+
+        adapter.selectFormat(spanishOpus);
+        adapter.onTracksChanged(new Tracks(ImmutableList.of(group(englishOpus), group(spanishAac))));
+
+        String[] playing = audioOverride();
+        assertEquals("es (dubbed)", playing[0]);
+        assertEquals("140", playing[1]); // the best Spanish rendition
+    }
+
+    @Test
+    public void aStoredUntaggedTrackPlaysAnAacOnlyOriginalNotADubsSameItag() {
+        // Stored on a single-language video: untagged Opus 251. Here only the dub has 251.
+        FormatItem untagged = stored(audio("251", "opus", 158_000, null, C.ROLE_FLAG_MAIN));
+        TrackGroup dubOpus = new TrackGroup("es-webm",
+                audio("251", "opus", 158_000, "es (dubbed)", C.ROLE_FLAG_DUB));
+        TrackGroup originalAac = new TrackGroup("en-mp4",
+                audio("140", "mp4a.40.2", 129_000, "en (original)", C.ROLE_FLAG_MAIN),
+                audio("139", "mp4a.40.5", 48_000, "en (original)", C.ROLE_FLAG_MAIN));
+
+        adapter.selectFormat(untagged);
+        adapter.onTracksChanged(new Tracks(ImmutableList.of(group(dubOpus), group(originalAac))));
+
+        String[] playing = audioOverride();
+        assertEquals("en (original)", playing[0]);
+        assertEquals("140", playing[1]);
+    }
+
+    @Test
     public void aStoredDubTheNextVideoLacksFallsBackToItsOriginal() {
         adapter.onTracksChanged(dubbedVideo());
         FormatItem french = offered("fr (dubbed-auto)", "251");
