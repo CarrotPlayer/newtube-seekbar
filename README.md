@@ -6,7 +6,7 @@
 
 ### Built on SmartTube. Made for your phone.
 
-An unofficial YouTube client for Android phones and tablets, built on
+**SmartTube for phones**, unofficial: a YouTube client for Android phones and tablets, built on
 [SmartTube](https://github.com/yuliskov/SmartTube) by [@yuliskov](https://github.com/yuliskov).<br>
 Sign in with a code, keep it playing in the background, save videos for offline,
 and cast to SmartTube on your TV.
@@ -17,7 +17,7 @@ and cast to SmartTube on your TV.
 [![Built on SmartTube](https://img.shields.io/badge/built_on-SmartTube-1E2A78?style=flat-square)](https://github.com/yuliskov/SmartTube)
 [![Discord](https://img.shields.io/badge/Discord-join-1E2A78?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/xu3v6euSHq)
 
-**[Download](#download) · [Features](#features) · [How sign-in works](#how-sign-in-works) · [FAQ](#faq) · [Credits](#built-on-smarttube)**
+**[Website](https://newtube-app.github.io/) · [Download](#download) · [Features](#features) · [How sign-in works](#how-sign-in-works) · [FAQ](#faq) · [Credits](#built-on-smarttube)**
 
 <br>
 
@@ -179,6 +179,15 @@ and NewTube can cast to it.
 ## FAQ
 
 <details>
+<summary><b>Can SmartTube be installed on phones?</b></summary>
+
+SmartTube is made for Android TV and TV boxes, and its README says "There will not be a phone
+version." NewTube is an unofficial phone client built on SmartTube's engine, with a touch interface,
+its own player and offline saving. It is an independent project, not endorsed by SmartTube's developer.
+
+</details>
+
+<details>
 <summary><b>Do I need microG, GmsCore, root or ReVanced?</b></summary>
 
 No. NewTube isn't a patched YouTube app. It signs in with a code the way a TV does, so it
@@ -216,7 +225,8 @@ SHA-256 in its release notes. Every release is tagged, so you can read the exact
 The app has no analytics, no crash reporting and no ad SDKs, and the developer receives nothing.
 It talks to YouTube (which sees what you watch, as it would anywhere), to the community services
 you can switch off (SponsorBlock, DeArrow, Return YouTube Dislike), and to GitHub. Details are
-in [PRIVACY.md](PRIVACY.md).
+in [PRIVACY.md](PRIVACY.md). Every check, with links, is also on the website under
+[Trust and verification](https://newtube-app.github.io/#trust).
 
 </details>
 

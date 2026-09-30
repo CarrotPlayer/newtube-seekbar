@@ -885,3 +885,11 @@ tbody td { color: var(--text-2); }
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- SmartTube for phones / Trust ---------- */
+.cards + .cta-row { margin-top: 32px; }
+.panel p + p { margin-top: 12px; }
+.checklist-tight { margin-top: 16px; }
+.checklist-tight li { padding: 10px 0 10px 30px; font-size: 0.95rem; }
+.checklist-tight code { word-break: break-word; }
+.faq-body p + p { margin-top: 10px; }
