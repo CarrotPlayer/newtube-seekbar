@@ -3,6 +3,17 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
+## Sin publicar
+
+### Nuevo
+
+- **Escribe comentarios.** Con la sesión iniciada, «Añade un comentario…»
+  encabeza el panel de comentarios y cada comentario tiene un botón Responder
+  (empieza la respuesta con el @nombre de la persona). Lo que publicas aparece
+  arriba al momento. Tus comentarios tienen un menú ⋮ con Eliminar, previa
+  confirmación. Un comentario a medias te espera hasta que cambias de vídeo, y
+  si falla la publicación la app dice por qué y conserva el texto.
+
 ## 1.12.0 — 30-09-2026 — Edición Paco Martínez Soria
 
 «Cada cosa en su sitio, y con la luz encendida…» Homenaje ficticio a Paco

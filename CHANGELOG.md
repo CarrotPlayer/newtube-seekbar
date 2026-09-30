@@ -2,6 +2,17 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## Unreleased
+
+### New
+
+- **Write comments.** When you're signed in, "Add a comment…" heads the
+  comments panel and a Reply button sits under every comment (it starts the
+  reply with the person's @handle). What you post shows up at the top right
+  away. Your own comments get a ⋮ menu with Delete, after a confirmation. A
+  half-written comment waits for you until you change videos, and if posting
+  fails the app says why and keeps your text.
+
 ## 1.12.0 — 2026-09-30 — Paco Martínez Soria Edition
 
 "Everything in its place, and the lights on…" A fictional homage to Paco
