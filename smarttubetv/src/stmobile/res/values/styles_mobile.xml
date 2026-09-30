@@ -356,6 +356,60 @@
         <item name="android:background">@drawable/bg_skeleton_block</item>
     </style>
 
+    <!-- NEWTUBE(comments-panel): rows of the Top / Newest menu (mobile_comments_sort_menu). -->
+    <style name="MobileCommentsSortRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+    <style name="MobileCommentsSortCheck">
+        <item name="android:layout_width">20dp</item>
+        <item name="android:layout_height">20dp</item>
+        <item name="android:layout_marginEnd">16dp</item>
+        <item name="android:src">@drawable/ic_mobile_check</item>
+        <item name="android:contentDescription">@null</item>
+    </style>
+    <style name="MobileCommentsSortText">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+    <style name="MobileCommentsSortTitle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/mobile_color_on_surface</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+    <style name="MobileCommentsSortHint">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/mobile_color_on_surface_secondary</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <!-- NEWTUBE(comments-panel): comment loading rows (item_mobile_comment_skeleton). A line is a
+         weighted bar + spacer so the bars keep their share of the column at any width. -->
+    <style name="MobileSkeletonCommentLine">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">10dp</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+    <style name="MobileSkeletonCommentBar">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:background">@drawable/bg_skeleton_block</item>
+    </style>
+
     <!-- Feed first-load skeleton (alpha-pulsed from code) - ghosts of the full-width video cards. -->
     <style name="MobileSkeletonFeedCard">
         <item name="android:layout_width">match_parent</item>

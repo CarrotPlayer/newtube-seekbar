@@ -262,8 +262,14 @@ public class MobilePlaybackActivity extends MobileActivity
     private RecyclerView mWatchRelated;
     private RelatedVideoAdapter mRelatedAdapter;
 
-    // Comments + live chat entries (open bottom sheets). Keys come from the loaded metadata.
+    // Comments + live chat entries. Keys come from the loaded metadata. Comments open the panel
+    // over the watch page (CommentsPanel); live chat opens its bottom sheet.
     private View mWatchCommentsEntry;
+    private TextView mWatchCommentsCount;
+    private CommentsPanel mCommentsPanel;
+    /** NEWTUBE(comments-panel): best effort, a little after the video starts, so the panel opens full. */
+    private static final long COMMENTS_PREFETCH_DELAY_MS = 2_000;
+    private final Runnable mPrefetchComments = this::prefetchComments;
     /** Chapters of the current video (Video.isChapter items from the suggestions pipeline). */
     private final List<Video> mChapterVideos = new ArrayList<>();
     /** Shown above the seek bar ONLY while scrubbing: the chapter under the scrub position. */
@@ -634,6 +640,7 @@ public class MobilePlaybackActivity extends MobileActivity
         mQueueChevron = findViewById(R.id.mobile_watch_queue_chevron);
         mQueueList = findViewById(R.id.mobile_watch_queue_list);
         mWatchCommentsEntry = findViewById(R.id.mobile_watch_comments_entry);
+        mWatchCommentsCount = findViewById(R.id.mobile_watch_comments_count);
         mWatchChatEntry = findViewById(R.id.mobile_watch_chat_entry);
         mScrubChapterView = findViewById(R.id.mobile_player_scrub_chapter);
     }
@@ -830,7 +837,9 @@ public class MobilePlaybackActivity extends MobileActivity
             channelRow.setOnClickListener(v -> openCurrentChannel());
         }
 
-        // Comments / live-chat entries open their respective bottom sheets.
+        // Comments open the panel over the watch page; live chat opens its bottom sheet. The
+        // panel is created here, after the player's back handler, so its own is asked first.
+        mCommentsPanel = new CommentsPanel(this, findViewById(R.id.mobile_comments_panel), mCommentsHost);
         if (mWatchCommentsEntry != null) {
             mWatchCommentsEntry.setOnClickListener(v -> onCommentsEntryClicked());
         }
@@ -884,6 +893,10 @@ public class MobilePlaybackActivity extends MobileActivity
             if (mWatchScroll != null) {
                 mWatchScroll.setVisibility(View.GONE);
             }
+            // Fullscreen hides an open comments panel and keeps its place for portrait.
+            if (mCommentsPanel != null) {
+                mCommentsPanel.setSuspended(true);
+            }
             // The watch-page title is hidden with the content in fullscreen, so retain the compact
             // title in the player chrome there.
             if (mTitleView != null) {
@@ -903,6 +916,9 @@ public class MobilePlaybackActivity extends MobileActivity
             }
             if (mWatchScroll != null) {
                 mWatchScroll.setVisibility(View.VISIBLE);
+            }
+            if (mCommentsPanel != null) {
+                mCommentsPanel.setSuspended(false);
             }
             // Portrait already presents the complete title immediately below the video. Repeating
             // it in the overlay squeezes five useful controls into half the top bar and makes the
@@ -1316,7 +1332,13 @@ public class MobilePlaybackActivity extends MobileActivity
         // The expand path immediately re-applies the morph in onResume, so this never fights it.
         if (mContainer != null && mMorphFraction != 0f) {
             resetMorph();
+            // Minimized with comments open: they went with the watch page, and the player comes
+            // back without them (kept, so reopening is instant and in place).
+            if (mCommentsPanel != null) {
+                mCommentsPanel.closeImmediately();
+            }
         }
+        Utils.removeCallbacks(mPrefetchComments);
     }
 
     /**
@@ -1363,6 +1385,10 @@ public class MobilePlaybackActivity extends MobileActivity
         hideRelatedSkeleton(); // cancels the pulse animator + pending timeout
         Utils.removeCallbacks(mReleaseImageRequests);
         Utils.removeCallbacks(mReleaseWatchMetadata);
+        Utils.removeCallbacks(mPrefetchComments);
+        if (mCommentsPanel != null) {
+            mCommentsPanel.release();
+        }
         mRelatedRenderGate.cancelPending();
         // The loading still is loaded through the application request manager (see
         // maybeShowLoadingStill), which has no lifecycle of its own - clear it by hand or the
@@ -1783,6 +1809,9 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         if (mWatchScroll != null) {
             mWatchScroll.setVisibility(View.GONE);
+        }
+        if (mCommentsPanel != null) {
+            mCommentsPanel.setSuspended(true);
         }
         if (mVideoArea != null) {
             mVideoArea.setVisibility(View.VISIBLE);
@@ -3903,6 +3932,9 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mControlsRoot != null && mControlsRoot.getVisibility() == View.VISIBLE) {
             mControlsRoot.setAlpha(contentAlpha);
         }
+        if (mCommentsPanel != null) {
+            mCommentsPanel.setMorphAlpha(contentAlpha);
+        }
     }
 
     /**
@@ -3954,6 +3986,9 @@ public class MobilePlaybackActivity extends MobileActivity
         setWindowBackdropAlpha(1f);
         if (mControlsRoot != null) {
             mControlsRoot.setAlpha(mControlsVisible ? 1f : 0f);
+        }
+        if (mCommentsPanel != null) {
+            mCommentsPanel.setMorphAlpha(1f);
         }
     }
 
@@ -5163,16 +5198,54 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     private void onCommentsEntryClicked() {
-        if (mCommentsKey == null) {
+        if (mCommentsKey == null || mCommentsPanel == null) {
             return;
         }
-        // Opening a sheet full of avatars outranks the open-time image hold: the person is now
-        // looking at images, not waiting for a first frame.
-        releaseImageRequests("comments-sheet");
-        Video video = getVideo();
-        CharSequence title = video != null ? video.getTitleFull() : getString(R.string.mobile_comments_title);
-        CommentsSheet.show(getSupportFragmentManager(), mCommentsKey, title);
+        // NEWTUBE(comments-panel): the open-time image hold is NOT lifted here (the old sheet did):
+        // that resumed every queued watch-page image before the first frame. Avatars wait for the
+        // hold's normal release like the rest of the page.
+        Utils.removeCallbacks(mPrefetchComments);
+        mCommentsPanel.open();
     }
+
+    /** Best effort: the first comments page, fetched while the video plays, so the panel opens full. */
+    private void prefetchComments() {
+        if (mCommentsPanel == null || mIsInPip || mIsStopped || isFinishing()) {
+            return;
+        }
+        mCommentsPanel.prefetch();
+    }
+
+    private final CommentsPanel.Host mCommentsHost = new CommentsPanel.Host() {
+        @Override
+        public void onCommentTimestamp(long positionMs) {
+            if (mCastSessionManager != null && mCastSessionManager.isConnected()) {
+                mCastSessionManager.seekTo(positionMs);
+            } else if (mExoPlayerController != null) {
+                mExoPlayerController.setPositionMs(positionMs);
+            }
+            // Show where it landed: the controls (time + seek bar) come up for their usual while.
+            if (mControlsRoot != null && !mIsInPip) {
+                showControlsInternal(true);
+                armAutoHide();
+            }
+        }
+
+        @Override
+        public void onCommentVideoLink(String videoId) {
+            onRelatedClicked(Video.from(videoId));
+        }
+
+        @Override
+        public void onCommentsPanelShown(boolean shown) {
+            // The page under the panel is covered: keep TalkBack off it (the video stays reachable).
+            if (mWatchScroll != null) {
+                mWatchScroll.setImportantForAccessibility(shown
+                        ? View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                        : View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+            }
+        }
+    };
 
     private void onChatEntryClicked() {
         // If the reused ChatController already pushed a receiver (live chat auto-enabled in settings),
@@ -5265,6 +5338,11 @@ public class MobilePlaybackActivity extends MobileActivity
             Utils.postDelayed(mReleaseWatchMetadata, WATCH_METADATA_TIMEOUT_MS);
             clearSuggestions();
             resetWatchHeader();
+            // A new video closes the comments panel and forgets the old video's comments.
+            Utils.removeCallbacks(mPrefetchComments);
+            if (mCommentsPanel != null) {
+                mCommentsPanel.onVideoChanged(item.videoId);
+            }
             if (mWatchScroll != null) {
                 mWatchScroll.scrollTo(0, 0);
             }
@@ -5341,6 +5419,9 @@ public class MobilePlaybackActivity extends MobileActivity
         mLiveChatKey = null;
         if (mWatchCommentsEntry != null) {
             mWatchCommentsEntry.setVisibility(View.VISIBLE); // reserved; see above
+        }
+        if (mWatchCommentsCount != null) {
+            mWatchCommentsCount.setText(null);
         }
         if (mWatchChatEntry != null) {
             mWatchChatEntry.setVisibility(View.GONE);
@@ -5464,6 +5545,20 @@ public class MobilePlaybackActivity extends MobileActivity
             mLiveChatKey = metadata.getLiveChatKey();
             if (mWatchCommentsEntry != null) {
                 mWatchCommentsEntry.setVisibility(mCommentsKey != null ? View.VISIBLE : View.GONE);
+            }
+            // NEWTUBE(comments-panel): the panel's source, the total on the card, and - best
+            // effort, once the video has played a moment - the first page (bound after the first
+            // frame already, see mWatchMetadataGate).
+            String commentsCount = mCommentsKey != null ? metadata.getCommentsCount() : null;
+            if (mWatchCommentsCount != null && !TextUtils.isEmpty(commentsCount)) {
+                mWatchCommentsCount.setText(commentsCount);
+            }
+            if (mCommentsPanel != null) {
+                mCommentsPanel.setSource(mWatchVideoId, mCommentsKey, metadata.getNewestCommentsKey(), commentsCount);
+                Utils.removeCallbacks(mPrefetchComments);
+                if (mCommentsKey != null) {
+                    Utils.postDelayed(mPrefetchComments, COMMENTS_PREFETCH_DELAY_MS);
+                }
             }
             if (mWatchChatEntry != null && mLiveChatKey != null) {
                 mWatchChatEntry.setVisibility(View.VISIBLE);
