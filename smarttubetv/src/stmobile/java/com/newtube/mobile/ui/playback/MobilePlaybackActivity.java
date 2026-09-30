@@ -4783,8 +4783,14 @@ public class MobilePlaybackActivity extends MobileActivity
     private boolean mMagnetDragging;
     /** NEWTUBE(haptics): a flick this fast (dp/s) minimizes even before the drag lets go. */
     private static final float MINIMIZE_FLICK_DP = 800f;
-    private static final long SETTLE_MIN_MS = 90;
-    private static final long SETTLE_MAX_MS = 280;
+    /**
+     * NEWTUBE(haptics): the springs a released minimize drag settles on (Motion.Spring). Landing on
+     * the card: reaches it in ~170 ms and settles ~9 px past it before coming to rest - the small
+     * landing the Pixel's recents flick has. Going back up: critically damped and stiffer, no bounce.
+     */
+    private static final float SETTLE_LAND_STIFFNESS = 800f;
+    private static final float SETTLE_LAND_DAMPING = 0.85f;
+    private static final float SETTLE_RETURN_STIFFNESS = 1000f;
     private boolean mMorphOverOwnBackdrop;
     /** NEWTUBE(motion): an open/expand morph is posted but has not placed its first frame yet. */
     private boolean mMorphStartPending;
@@ -4899,7 +4905,10 @@ public class MobilePlaybackActivity extends MobileActivity
         // moving video. Any positive Z keeps the live TextureView visually on top during the morph.
         float density = getResources().getDisplayMetrics().density;
         mVideoArea.setTranslationZ(f > 0f ? MORPH_ELEVATION_DP * density : 0f);
-        applyMorphCorners(f, Math.min(sx, sy), density);
+        // NEWTUBE(haptics): the settle spring lands a few px past the card (f a little over 1):
+        // the box moves and shrinks on with it, but corners and fades stop at their card values.
+        float settled = Math.min(1f, f);
+        applyMorphCorners(settled, Math.min(sx, sy), density);
 
         // Remove labels/cards early so they do not ghost over Browse, then fade the solid watch
         // background more slowly. This reads as a black sheet becoming transparent while the live
@@ -4908,7 +4917,7 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mWatchContent != null) {
             mWatchContent.setAlpha(contentAlpha);
         }
-        float backdrop = morphBackdropAlpha(f, mMorphOverOwnBackdrop); // NEWTUBE(no-host-minimize)
+        float backdrop = morphBackdropAlpha(settled, mMorphOverOwnBackdrop); // NEWTUBE(no-host-minimize)
         if (mWatchScroll != null && mWatchScroll.getBackground() != null) {
             int backdropAlpha = Math.round(255f * backdrop);
             mWatchScroll.getBackground().mutate().setAlpha(backdropAlpha);
@@ -5122,22 +5131,17 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     /**
-     * NEWTUBE(motion): finish a released drag at the finger's own speed - a decelerating settle
-     * whose first frames carry on at the release velocity (DecelerateInterpolator starts at twice
-     * its average speed), so a flick lands fast and a slow release eases in. Bounded, so a
-     * near-still release still moves promptly and a fast one never snaps in a frame or two.
+     * NEWTUBE(motion): finish a released drag on a spring that starts at the finger's own speed
+     * (NEWTUBE(haptics): it used to be a decelerating curve of 90-280 ms). Onto the card it lands
+     * with a small settle; back to full size it stops dead on its place, never past it.
      */
     private void settleMorph(float to, float yVelocity, Runnable endAction) {
-        float distance = Math.abs(to - mMorphFraction);
-        float speedToward = to > mMorphFraction ? yVelocity : -yVelocity; // px/s, >0 = the way we go
-        long durationMs;
-        if (speedToward > 300f) {
-            durationMs = Math.round(2000f * distance * mDragTravelPx / speedToward);
-        } else {
-            durationMs = Math.round(60f + 150f * distance);
-        }
-        durationMs = Math.max(SETTLE_MIN_MS, Math.min(SETTLE_MAX_MS, durationMs));
-        animateMorph(to, durationMs, new android.view.animation.DecelerateInterpolator(), endAction);
+        float travel = Math.max(1f, mDragTravelPx);
+        boolean landing = to > mMorphFraction;
+        Motion.Spring spring = new Motion.Spring(mMorphFraction, to, yVelocity / travel,
+                landing ? SETTLE_LAND_STIFFNESS : SETTLE_RETURN_STIFFNESS,
+                landing ? SETTLE_LAND_DAMPING : 1f, 1f / travel, !landing);
+        animateMorph(to, spring.durationMs, spring, endAction);
     }
 
     /** Start a minimize morph: the drag's first move, a back gesture or Back itself. */
