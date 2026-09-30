@@ -5841,6 +5841,9 @@ public class MobilePlaybackActivity extends MobileActivity
             }
         }
 
+        NetPath.log("related-list rows=" + mSuggestionVideos.size() + " size=" + mRelatedVideos.size()
+                + " queue=" + mQueueVideos.size());
+
         // Keep these models current for controller queries and queue actions, but coalesce the
         // adapter submissions/row inflation until moving playback has priority on the main thread.
         mRelatedRenderGate.renderWhenReady(this::renderRelatedList);

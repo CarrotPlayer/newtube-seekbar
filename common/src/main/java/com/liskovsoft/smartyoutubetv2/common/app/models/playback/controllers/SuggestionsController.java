@@ -443,7 +443,10 @@ public class SuggestionsController extends BasePlayerController {
 
         VideoGroup group = item.getGroup();
 
-        continueGroup(group);
+        // NEWTUBE(related-more): on the touch watch page this is the related list's next page. The
+        // player's progress bar is the buffering spinner over the video there - a video that plays
+        // fine would look stalled while more related videos load - so page it quietly.
+        continueGroup(group, !sRowContinuationsDisabled);
     }
 
     @Override

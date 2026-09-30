@@ -859,6 +859,10 @@ public class MobileMainApplication extends MainApplication {
         // that competed with the stream fetch right at open. TV never calls these -> TV unchanged.
         SuggestionsController.setEagerSuggestionsEnabled(true);
         SuggestionsController.setRowContinuationsDisabled(true);
+        // RELATED DEPTH (mobile-only): the TV /next answer holds 30 related videos plus a
+        // continuation for the next 30 that nothing read, so Up next ended at 30. The last row now
+        // carries it, and scrolling to the end of the list loads it (MSC WatchNextGates).
+        com.liskovsoft.youtubeapi.next.v2.WatchNextGates.setSuggestionsSectionContinuation(true);
 
         // FIRST-RUN FIX (mobile-only): run the one-time YouTube session setup (visitor identity,
         // app info, player-JS de-scrambler parse, client probing - ~15-20s on a fresh install) in
