@@ -211,14 +211,43 @@ public class MotherActivity extends FragmentActivity {
      */
     private void applyUiScale(Context base) {
         float uiScale = MainUIData.instance(base).getUIScale();
+        boolean scaled = uiScale > 0 && !Helpers.floatEquals(uiScale, 1.0f);
+        int nightMode = sNightModeSource != null
+                ? sNightModeSource.getNightMode(base) : Configuration.UI_MODE_NIGHT_UNDEFINED;
 
-        if (uiScale <= 0 || Helpers.floatEquals(uiScale, 1.0f)) {
+        if (!scaled && nightMode == Configuration.UI_MODE_NIGHT_UNDEFINED) {
             return;
         }
 
+        // One override for both: applyOverrideConfiguration may only be called once per activity.
         Configuration override = new Configuration();
-        override.densityDpi = Math.round(base.getResources().getConfiguration().densityDpi * uiScale);
+        if (scaled) {
+            override.densityDpi = Math.round(base.getResources().getConfiguration().densityDpi * uiScale);
+        }
+        if (nightMode != Configuration.UI_MODE_NIGHT_UNDEFINED) {
+            // Night bits only (the type bits stay UNDEFINED, so the system's are kept).
+            override.uiMode = nightMode;
+        }
         applyOverrideConfiguration(override);
+    }
+
+    /**
+     * NEWTUBE(theme): phone gate. The phone app's Theme setting (System default / Light / Dark)
+     * reaches every screen as a night-mode configuration override, applied with UI scale above
+     * when the screen is created. The TV flavors never set a source, so nothing changes there.
+     */
+    public interface NightModeSource {
+        /**
+         * {@link Configuration#UI_MODE_NIGHT_YES} or {@link Configuration#UI_MODE_NIGHT_NO} to force
+         * a theme, {@link Configuration#UI_MODE_NIGHT_UNDEFINED} to follow the system.
+         */
+        int getNightMode(Context context);
+    }
+
+    private static NightModeSource sNightModeSource;
+
+    public static void setNightModeSource(NightModeSource source) {
+        sNightModeSource = source;
     }
 
     @Override

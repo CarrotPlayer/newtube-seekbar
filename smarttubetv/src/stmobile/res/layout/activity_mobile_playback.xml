@@ -34,12 +34,16 @@
         android:orientation="vertical">
 
         <!-- Video area: 16:9 in portrait (set in code), match_parent in landscape.
-             PinchZoomLayout adds the YouTube pinch gesture (fill <-> original) over all of it. -->
+             PinchZoomLayout adds the YouTube pinch gesture (fill <-> original) over all of it.
+             NEWTUBE(theme): the player stays dark in both themes - PlayerChrome gives everything
+             in here the dark theme's ripples and control colours, and the glyphs that are shared
+             with the (themed) pages are tinted mobile_player_on_video. -->
         <com.newtube.mobile.ui.playback.PinchZoomLayout
             android:id="@+id/mobile_video_area"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:background="@android:color/black"
+            android:theme="@style/ThemeOverlay.NewTube.PlayerChrome"
             tools:ignore="Suspicious0dp">
 
             <!-- surface_type=none: the video renders on a code-managed TextureView with a
@@ -105,7 +109,8 @@
                     android:contentDescription="@string/mobile_player_back"
                     android:padding="12dp"
                     android:scaleType="fitCenter"
-                    android:src="@drawable/ic_mobile_back_arrow" />
+                    android:src="@drawable/ic_mobile_back_arrow"
+                    android:tint="@color/mobile_player_on_video" />
 
                 <!-- paddingEnd must clear the full top-right options row (mobile_player_options):
                      3 icon buttons * 48dp (no end margin) = 144dp. Otherwise the wrapped
@@ -152,7 +157,8 @@
                         android:contentDescription="@string/mobile_cast_button"
                         android:padding="12dp"
                         android:scaleType="fitCenter"
-                        android:src="@drawable/ic_mobile_cast" />
+                        android:src="@drawable/ic_mobile_cast"
+                        android:tint="@color/mobile_player_on_video" />
 
                     <ImageButton
                         android:id="@+id/mobile_player_subtitles"
@@ -176,7 +182,8 @@
                         android:contentDescription="@string/mobile_player_settings"
                         android:padding="12dp"
                         android:scaleType="fitCenter"
-                        android:src="@drawable/ic_mobile_settings" />
+                        android:src="@drawable/ic_mobile_settings"
+                        android:tint="@color/mobile_player_on_video" />
 
                 </LinearLayout>
 
@@ -430,7 +437,8 @@
                     android:layout_width="48dp"
                     android:layout_height="48dp"
                     android:contentDescription="@null"
-                    android:src="@drawable/ic_mobile_cast" />
+                    android:src="@drawable/ic_mobile_cast"
+                    android:tint="@color/mobile_player_on_video" />
 
                 <TextView
                     android:id="@+id/mobile_cast_overlay_title"
@@ -467,7 +475,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="16dp"
-                        android:background="@drawable/mobile_watch_pill_bg"
+                        android:background="@drawable/mobile_player_pill_bg"
                         android:paddingHorizontal="16dp"
                         android:paddingVertical="8dp"
                         android:text="@string/mobile_cast_disconnect"
@@ -479,7 +487,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
-                        android:background="@drawable/mobile_watch_pill_bg"
+                        android:background="@drawable/mobile_player_pill_bg"
                         android:paddingHorizontal="16dp"
                         android:paddingVertical="8dp"
                         android:text="@string/mobile_cast_more_options"
@@ -830,7 +838,8 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:contentDescription="@string/mobile_watch_save"
-                            android:src="@drawable/ic_player_playlist_add" />
+                            android:src="@drawable/ic_player_playlist_add"
+                            android:tint="@color/mobile_color_on_surface" />
 
                         <TextView
                             android:id="@+id/mobile_watch_save_label"
@@ -906,7 +915,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
-                        android:backgroundTint="@android:color/white"
+                        android:backgroundTint="@color/mobile_color_inverse_surface"
                         android:fontFamily="sans-serif-medium"
                         android:insetTop="4dp"
                         android:insetBottom="4dp"
@@ -916,7 +925,7 @@
                         android:paddingVertical="0dp"
                         android:text="@string/mobile_watch_subscribe"
                         android:textAllCaps="false"
-                        android:textColor="@android:color/black"
+                        android:textColor="@color/mobile_color_on_inverse_surface"
                         android:textSize="14sp"
                         app:cornerRadius="20dp" />
 
@@ -1053,7 +1062,8 @@
                             android:layout_width="22dp"
                             android:layout_height="22dp"
                             android:contentDescription="@null"
-                            android:src="@drawable/ic_player_queue" />
+                            android:src="@drawable/ic_player_queue"
+                            android:tint="@color/mobile_color_on_surface" />
 
                         <LinearLayout
                             android:layout_width="0dp"

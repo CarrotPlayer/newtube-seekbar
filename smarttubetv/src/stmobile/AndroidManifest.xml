@@ -74,11 +74,12 @@
          Instance reuse (what singleInstance used to provide) comes from
          FLAG_ACTIVITY_REORDER_TO_FRONT, added by ViewManager on the touch flavor
          (setReorderToFrontEnabled in MobileMainApplication) and by the notification intent. -->
-    <!-- NEWTUBE(ui-mode): every touch activity also lists uiMode in configChanges. The phone theme is
-         dark whatever the system mode (Theme.NewTube, styles_mobile.xml), so a light/dark switch -
-         which a scheduled dark mode or battery saver does unattended - changes nothing on screen;
-         letting it recreate the activities reloaded the playing video and dropped Browse's You
-         panel and the open Settings screen. -->
+    <!-- NEWTUBE(ui-mode): every touch activity also lists uiMode in configChanges. A light/dark switch
+         - which a scheduled dark mode or battery saver does unattended - used to recreate them,
+         which reloaded the playing video. With the Theme setting (System default / Light / Dark,
+         ThemeMode) the app decides itself when a screen changes side: MobileActivity.checkTheme
+         recreates an ordinary screen (Browse and Settings keep their state across it), and the
+         player re-colours its watch page in place so the video never stops. -->
     <application
         android:name="com.newtube.mobile.MobileMainApplication"
         android:theme="@style/Theme.NewTube"

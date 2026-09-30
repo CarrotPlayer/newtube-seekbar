@@ -29,7 +29,10 @@ import com.newtube.mobile.ui.adddevice.MobileAddDeviceActivity;
 import com.newtube.mobile.ui.browse.MobileBrowseActivity;
 import com.newtube.mobile.ui.channel.MobileChannelActivity;
 import com.newtube.mobile.ui.channel.MobileChannelUploadsActivity;
+import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
+import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.newtube.mobile.ui.common.FeedCache;
+import com.newtube.mobile.ui.common.ThemeMode;
 import com.newtube.mobile.ui.dialog.MobileAppDialogActivity;
 import com.newtube.mobile.ui.playback.MobilePlaybackActivity;
 import com.newtube.mobile.ui.playback.SystemPipBridge;
@@ -185,6 +188,31 @@ public class MobileMainApplication extends MainApplication {
         // style picked after this run sticks (the flag prevents re-migrating).
         android.content.SharedPreferences migrations =
                 getSharedPreferences("newtube_migrations", MODE_PRIVATE);
+
+        // THEME (issue #8, mobile-only): Settings > User interface > Theme - System default / Light /
+        // Dark, applied before any screen exists. The first launch of this version picks the
+        // default: System default on a new install, Dark on an install upgrading from the
+        // dark-only app (so nothing changes colour on update). "Upgrading" is read off this
+        // migrations file BEFORE the one-shot migrations below write to it: every version since
+        // 2026-07 leaves an entry on its first launch (ThemeMode.isExistingInstall).
+        ThemeMode.init(this, ThemeMode.isExistingInstall(this, migrations));
+        com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.MainUISettingsPresenter.setPhoneTopRows(
+                (context, presenter) -> {
+                    java.util.List<com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem> options =
+                            new java.util.ArrayList<>();
+                    int current = ThemeMode.get();
+                    int[][] choices = {
+                            {R.string.mobile_theme_system, ThemeMode.SYSTEM},
+                            {R.string.mobile_theme_light, ThemeMode.LIGHT},
+                            {R.string.mobile_theme_dark, ThemeMode.DARK}};
+                    for (int[] choice : choices) {
+                        int mode = choice[1];
+                        options.add(UiOptionItem.from(context.getString(choice[0]),
+                                option -> ThemeMode.set(context, mode), current == mode));
+                    }
+                    presenter.appendRadioCategory(context.getString(R.string.mobile_theme), options);
+                });
+
         if (!migrations.getBoolean("caption_style_white_default", false)) {
             PlayerData playerData = PlayerData.instance(this);
             java.util.List<com.liskovsoft.smartyoutubetv2.common.exoplayer.other.SubtitleStyle> styles =

@@ -92,6 +92,11 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             return !isReply && item.getNestedCommentsKey() != null
                     && !TextUtils.isEmpty(count) && !"0".equals(count.trim());
         }
+
+        /** NEWTUBE(theme): the styled text carries the link colour; build it again on next bind. */
+        void forgetStyledText() {
+            mText = null;
+        }
     }
 
     static final int FOOTER_NONE = 0;

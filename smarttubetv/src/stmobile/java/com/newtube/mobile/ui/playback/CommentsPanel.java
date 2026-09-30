@@ -959,6 +959,26 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
                 .setInterpolator(CommentsPanelLayout.STANDARD).start();
     }
 
+    /**
+     * NEWTUBE(theme): the app changed theme under an open panel (the player re-colours its page in
+     * place). The panel's own views are re-coloured with the page and its lists' rows rebuilt;
+     * here the comments forget the link colour baked into their text, and the sort menu - a popup
+     * with the old colours - closes.
+     */
+    void onThemeChanged() {
+        dismissSortMenu(false);
+        for (Feed feed : new Feed[] {mTop, mNewest, mThread}) {
+            if (feed != null) {
+                for (CommentsAdapter.Entry entry : feed.entries) {
+                    entry.forgetStyledText();
+                }
+            }
+        }
+        if (mThreadParent != null) {
+            mThreadParent.forgetStyledText();
+        }
+    }
+
     private void dismissSortMenu(boolean animate) {
         if (!animate && mClosingMenu != null) {
             // A fade already under way: teardown can't wait for it.

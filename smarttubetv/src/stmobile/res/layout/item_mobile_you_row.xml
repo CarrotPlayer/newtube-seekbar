@@ -18,7 +18,7 @@
         android:layout_height="24dp"
         android:contentDescription="@null"
         android:scaleType="fitCenter"
-        app:tint="@color/mobile_color_on_surface" />
+        android:tint="@color/mobile_color_on_surface" />
 
     <TextView
         android:id="@+id/mobile_you_row_label"

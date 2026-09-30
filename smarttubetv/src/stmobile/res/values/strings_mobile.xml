@@ -406,4 +406,9 @@
     <string name="mobile_update_row_ready">Update ready to install</string>
     <string name="mobile_update_channel_name">App updates</string>
     <string name="mobile_update_channel_desc">Downloading a NewTube update</string>
+    <!-- NEWTUBE(theme): Settings > User interface > Theme. -->
+    <string name="mobile_theme">Theme</string>
+    <string name="mobile_theme_system">System default</string>
+    <string name="mobile_theme_light">Light</string>
+    <string name="mobile_theme_dark">Dark</string>
 </resources>

@@ -233,8 +233,7 @@
                     android:layout_width="20dp"
                     android:layout_height="20dp"
                     android:contentDescription="@null"
-                    android:src="@drawable/ic_chevron_right"
-                    app:tint="@color/mobile_color_on_surface_secondary" />
+                    android:src="@drawable/ic_chevron_right" />
 
             </LinearLayout>
 
@@ -323,7 +322,8 @@
                 android:background="@drawable/bg_mini_scrim_circle_touch"
                 android:contentDescription="@string/mobile_mini_close"
                 android:padding="15dp"
-                android:src="@drawable/ic_sheet_close" />
+                android:src="@drawable/ic_sheet_close"
+                android:tint="@color/mobile_player_on_video" />
 
             <ProgressBar
                 android:id="@+id/mobile_mini_progress"
