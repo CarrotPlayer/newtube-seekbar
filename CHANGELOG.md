@@ -2,6 +2,15 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## Unreleased
+
+### New
+
+- **Star and share NewTube.** Settings → About ends with two rows: "Star
+  NewTube on GitHub" opens the project page, and "Share NewTube" opens your
+  phone's share sheet with a line about the app and its website link. Nothing
+  asks you to do either.
+
 ## 1.13.0 — 2026-09-30 — Faemino y Cansado Edition
 
 "You say one thing, I answer another, and each of us gets a chapter…" A

@@ -175,6 +175,11 @@ public class MobileMainApplication extends MainApplication {
         com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.VideoActionPresenter.setPlayingReturn(
                 tapped -> com.newtube.mobile.ui.playback.PlayingReturn.bringToFront(this, tapped));
 
+        // Settings > About ends with "Star NewTube on GitHub" and "Share NewTube" (phone strings,
+        // so the rows are built here, not in the shared presenter).
+        com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.AboutSimpleSettingsPresenter.setPhoneExtraRows(
+                com.newtube.mobile.ui.about.AboutShareRows::create);
+
         // NETWORK FORENSICS (mobile-only): observe default-network replacements/capability changes
         // so a Wi-Fi -> 5G transition can be correlated with URL remints, media errors and ABR
         // resets. The monitor is read-only and logs no SSID, carrier, IP, DNS or account data.
