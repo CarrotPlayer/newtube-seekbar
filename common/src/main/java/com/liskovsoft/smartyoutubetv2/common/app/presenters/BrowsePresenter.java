@@ -144,6 +144,29 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     private Video mPendingScrollEndItem;
 
     /**
+     * NEWTUBE(shelf-tail): phone gate. Once a row section's section list is done, the end of the
+     * grid fetches the next page of its shelves in turn instead of only the last card's shelf - see
+     * {@link ShelfTail}. TV never calls this -> scroll-end continues the focused row as before.
+     */
+    private static volatile boolean sShelfTailEnabled;
+
+    public static void setShelfTailEnabled(boolean enabled) {
+        sShelfTailEnabled = enabled;
+    }
+
+    /**
+     * Per row section, replaced by that section's next load. Kept across section switches: a section
+     * repainted from FeedCache within its TTL shows the same groups (FeedCache pins them), so its
+     * shelves can still be continued without a reload.
+     */
+    private final Map<Integer, ShelfTail<VideoGroup>> mShelfTails = new HashMap<>();
+    /** A row section's section list is still being walked: its pages come before any shelf page. */
+    private boolean mRowWalkActive;
+    /** The grid ran short while the walk was active: ask the shelf tail once the walk is done. */
+    private boolean mTailDemanded;
+    private int mTailDemandGridSize = -1;
+
+    /**
      * NEWTUBE(boot-prefetch): phone gate. On a cold launch Home's first /browse used to leave only
      * once MobileBrowseActivity had been created and its presenter had focused the boot section -
      * 150-360 ms after SplashActivity had already decided to open Home (Pixel 9 release logs:
@@ -601,6 +624,12 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             return;
         }
 
+        // NEWTUBE(shelf-tail): a row section's end is extended by onScrollNearEnd (which fires
+        // further from the end, and again after every update), one shelf page at a time.
+        if (getShelfTail() != null) {
+            return;
+        }
+
         VideoGroup group = item.getGroup();
 
         continueGroup(group);
@@ -610,12 +639,29 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
      * NEWTUBE(lazy-home): the grid has less than a screen plus the view's lookahead of cards left
      * (while scrolling, or after an update that added too little - e.g. a page of filtered rows).
      * Releases Home's next section page early enough that it lands before the reader gets there.
+     * NEWTUBE(shelf-tail): once the section list is done, the next shelf page instead.
+     *
+     * @param gridSize cards the grid shows now (-1: unknown) - how the shelf tail tells a page that
+     *                 added cards from one the grid filtered away entirely
      */
-    public void onScrollNearEnd() {
+    public void onScrollNearEnd(int gridSize) {
         HomeSectionPacer pacer = sHomePacer;
         if (pacer != null && mHomeWalkActive && isHomeSection()) {
             pacer.demand();
         }
+
+        ShelfTail<VideoGroup> tail = getShelfTail();
+        if (tail == null) {
+            return;
+        }
+
+        if (mRowWalkActive) {
+            mTailDemanded = true; // replayed when the walk is done (onRowWalkCompleted)
+            mTailDemandGridSize = gridSize;
+            return;
+        }
+
+        requestShelfPage(tail, gridSize);
     }
 
     @Override
@@ -936,10 +982,30 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             groups = prefetched;
         }
 
+        // NEWTUBE(shelf-tail): this load's shelves, continued in turn once its section list is done.
+        ShelfTail<VideoGroup> shelfTail = sShelfTailEnabled ? new ShelfTail<>(shelf -> shelf.getNextPageKey() != null) : null;
+        if (shelfTail != null) {
+            mShelfTails.put(section.getId(), shelfTail);
+        }
+
+        walkRows(section, groups, shelfTail, false);
+    }
+
+    /**
+     * Subscribes a row section's section list and hands its rows to the view.
+     *
+     * @param append NEWTUBE(shelf-tail): a further round of an already painted section - rows are
+     *               appended (the grid drops the cards it already shows), nothing is cleared, and a
+     *               failure leaves the grid alone instead of showing the error screen
+     */
+    private void walkRows(BrowseSection section, Observable<List<MediaGroup>> groups,
+                          @Nullable ShelfTail<VideoGroup> shelfTail, boolean append) {
         boolean pacedHome = sHomePacer != null && section.getId() == MediaGroup.TYPE_HOME;
         mHomeWalkActive = pacedHome;
         mHomeWalkDelivered = false;
         mPendingScrollEndItem = null;
+        mRowWalkActive = true;
+        mTailDemanded = false;
 
         Disposable updateAction = groups
                 .subscribe(
@@ -950,6 +1016,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                                 mHomeWalkDelivered = true;
                                 mPendingScrollEndItem = null; // the grid grew; the view re-triggers if needed
                             }
+                            mTailDemanded = false; // likewise: a short grid asks again after this page
 
                             filterHomeIfNeeded(mediaGroups);
 
@@ -973,6 +1040,10 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                                 mBrowseProcessor.process(videoGroup);
                                 markSectionFetched(section.getId());
 
+                                if (shelfTail != null) {
+                                    shelfTail.offer(videoGroup);
+                                }
+
                                 continueGroupIfNeeded(videoGroup, false);
                             }
 
@@ -989,12 +1060,25 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                                 mHomeWalkActive = false;
                                 mPendingScrollEndItem = null;
                             }
+                            mRowWalkActive = false; // shelves delivered so far can still be continued
+                            mTailDemanded = false;
+                            if (append) {
+                                if (getView() != null) {
+                                    getView().showProgressBar(false);
+                                }
+                                return; // the painted grid stays; a later scroll asks the tail again
+                            }
                             handleLoadError(error);
                         }, () -> {
                             if (pacedHome) {
                                 onHomeWalkCompleted();
                             }
-                            handleLoadError(null);
+                            onRowWalkCompleted(shelfTail);
+                            if (!append) {
+                                handleLoadError(null);
+                            } else if (getView() != null) {
+                                getView().showProgressBar(false);
+                            }
                         });
 
         mActions.add(updateAction);
@@ -1082,8 +1166,120 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         Video pending = mPendingScrollEndItem;
         mPendingScrollEndItem = null;
         if (pending != null && isHomeSection()) {
-            continueGroup(pending.getGroup());
+            if (getShelfTail() != null) {
+                mTailDemanded = true; // onRowWalkCompleted asks the shelf tail instead
+            } else {
+                continueGroup(pending.getGroup());
+            }
         }
+    }
+
+    /**
+     * NEWTUBE(shelf-tail): the row section's section list is done. A grid that ran short meanwhile
+     * gets its next page from the shelves now - it will not ask again by itself: with nothing new at
+     * the bottom it cannot scroll, and without a scroll it never reports the end.
+     */
+    private void onRowWalkCompleted(@Nullable ShelfTail<VideoGroup> tail) {
+        mRowWalkActive = false;
+        boolean demanded = mTailDemanded;
+        mTailDemanded = false;
+        if (tail != null && tail == getShelfTail()) {
+            NetPath.log("shelf-tail ready section=" + mCurrentSection.getId() + " shelves=" + tail.size()
+                    + " demanded=" + (demanded ? "y" : "n"));
+            if (demanded) {
+                requestShelfPage(tail, mTailDemandGridSize);
+            }
+        }
+    }
+
+    /** The current section's shelf tail: a row section on the phone, loaded in this process. */
+    @Nullable
+    private ShelfTail<VideoGroup> getShelfTail() {
+        if (!sShelfTailEnabled || mCurrentSection == null || mCurrentSection.getType() != BrowseSection.TYPE_ROW) {
+            return null;
+        }
+        return mShelfTails.get(mCurrentSection.getId());
+    }
+
+    /** NEWTUBE(shelf-tail): the grid is short - fetch the next shelf page, if one is due. */
+    private void requestShelfPage(ShelfTail<VideoGroup> tail, int gridSize) {
+        if (getView() == null || mCurrentSection == null) {
+            return;
+        }
+
+        VideoGroup shelf = tail.next(gridSize);
+
+        if (shelf == null) {
+            if (tail.isFetching()) {
+                return;
+            }
+
+            // Every shelf is spent: fetch the section again and append what is new - what the
+            // reader used to do by hand (back to the top, pull to refresh). Signed in, every fetch
+            // of Home is a fresh mix; a round that adds too few cards ends the feed.
+            Observable<List<MediaGroup>> groups = mRowMapping.get(mCurrentSection.getId());
+            String reason = tail.isStopped() ? "empty-pages" : "no-more-pages";
+            if (groups != null && tail.startRound(gridSize)) {
+                NetPath.log("shelf-tail round=" + tail.rounds() + " section=" + mCurrentSection.getId()
+                        + " grid=" + gridSize + " after=" + reason);
+                getView().showProgressBar(true);
+                walkRows(mCurrentSection, groups, tail, true);
+            } else if (tail.consumeEndNotice()) {
+                NetPath.log("shelf-tail end section=" + mCurrentSection.getId() + " grid=" + gridSize
+                        + " rounds=" + tail.rounds() + " reason=" + reason);
+            }
+            return;
+        }
+
+        NetPath.log("shelf-tail page section=" + mCurrentSection.getId() + " shelf=" + NetPath.trunc(shelf.getTitle(), 32)
+                + " grid=" + gridSize + " queued=" + tail.size() + " emptyRun=" + tail.emptyPages());
+
+        getView().showProgressBar(true);
+
+        final boolean[] landed = {false};
+        Disposable action = getContentService().continueGroupObserve(shelf.getMediaGroup())
+                .subscribe(
+                        continued -> {
+                            landed[0] = true;
+                            tail.onLanded(shelf);
+
+                            if (getView() == null) {
+                                return;
+                            }
+
+                            getView().showProgressBar(false);
+
+                            VideoGroup videoGroup = VideoGroup.from(shelf, continued);
+                            getView().updateSection(videoGroup); // the view's runway check asks again if still short
+                            mBrowseProcessor.process(videoGroup);
+                        },
+                        error -> {
+                            if (getView() != null) {
+                                getView().showProgressBar(false);
+                            }
+
+                            if (Helpers.containsAny(error.getMessage(), "fromNullable result is null")) {
+                                // No page at all (the shelf's end): no grid update follows, so ask
+                                // for the next shelf now. ShelfTail counts it toward its empty-page cap.
+                                tail.onNothing(shelf);
+                                requestShelfPage(tail, tail.lastGridSize());
+                            } else {
+                                Log.e(TAG, "shelf-tail error: %s", error.getMessage());
+                                tail.onFailed(shelf);
+                            }
+                        },
+                        () -> {
+                            if (getView() != null) {
+                                getView().showProgressBar(false);
+                            }
+                            if (!landed[0]) {
+                                tail.onNothing(shelf);
+                                requestShelfPage(tail, tail.lastGridSize());
+                            }
+                        }
+                );
+
+        mActions.add(action);
     }
 
     private void updateVideoGrid(BrowseSection section, Observable<MediaGroup> group, int column) {
@@ -1257,7 +1453,12 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     private void disposeActions() {
         mHomeWalkActive = false;
         mPendingScrollEndItem = null;
+        mRowWalkActive = false;
+        mTailDemanded = false;
         RxHelper.disposeActions(mActions);
+        for (ShelfTail<VideoGroup> tail : mShelfTails.values()) {
+            tail.onCancelled(); // its shelf page (if any) was one of the disposed actions
+        }
         wakeHomeWalk(); // a parked Home walk notices its disposal now, not at its next poll
         Utils.removeCallbacks(mRefreshSection);
         mLastUpdateTimeMs = -1;
@@ -1478,6 +1679,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         Log.d(TAG, "On account changed");
 
         mSectionFetchTimeMs.clear(); // feeds are per-account
+        mShelfTails.clear(); // so are their shelves
         dropBootPrefetch("account-change");
 
         // An in-flight load belongs to the PREVIOUS account; without this the refocus guard

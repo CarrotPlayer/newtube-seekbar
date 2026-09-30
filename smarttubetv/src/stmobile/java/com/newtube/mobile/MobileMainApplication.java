@@ -679,6 +679,18 @@ public class MobileMainApplication extends MainApplication {
             android.util.Log.w("NetPath", "lazy home walk disabled (debug)");
         }
 
+        // FEED DEPTH (mobile-only): once a row section's section list is done (signed-in Home after
+        // ~7 pages, signed-out Home after its one merged page), the end of the grid continues its
+        // shelves in turn. It used to continue only the LAST card's shelf, so the feed stopped after
+        // a few of its pages (124 cards signed out) - reported as "Home isn't infinite". See
+        // ShelfTail. Debug A/B: setprop debug.arc.shelf_tail 0.
+        boolean noShelfTail = com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG
+                && "0".equals(getDebugSystemProperty("debug.arc.shelf_tail"));
+        com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter.setShelfTailEnabled(!noShelfTail);
+        if (noShelfTail) {
+            android.util.Log.w("NetPath", "shelf tail disabled (debug)");
+        }
+
         // FEED LAUNCH (mobile-only, round 3): Splash starts Home's first /browse the moment it
         // decides to open Home, instead of 150-360 ms later from the Browse Activity (see
         // BrowsePresenter.prefetchBootSection). Debug A/B: setprop debug.arc.home_prefetch 0.

@@ -1194,7 +1194,7 @@ public class MobileBrowseActivity extends MobileActivity
         if (com.newtube.mobile.ui.common.FeedRunway.isShort(lastVisible, itemCount, NEAR_END_LOOKAHEAD_ITEMS)
                 && itemCount != mLastNearEndTriggerCount) {
             mLastNearEndTriggerCount = itemCount;
-            mPresenter.onScrollNearEnd();
+            mPresenter.onScrollNearEnd(mCurrentVideos.size());
         }
 
         if (lastVisible >= itemCount - SCROLL_END_THRESHOLD_ITEMS && itemCount != mLastPaginationTriggerCount) {
@@ -1209,7 +1209,9 @@ public class MobileBrowseActivity extends MobileActivity
      * The scroll listener alone cannot cover this: a page whose rows were all filtered out (Shorts,
      * channel shelves, duplicates) leaves the grid unchanged, so nothing scrolls and no new size is
      * ever reported, and the walk would sit waiting for a demand while usable sections exist.
-     * Only Home's paced walk acts on it (see BrowsePresenter.onScrollNearEnd).
+     * Home's paced walk acts on it, and once a row section's section list is done, its shelf tail
+     * (the next shelf page; the grid size tells it whether the last page added any card - see
+     * BrowsePresenter.onScrollNearEnd).
      */
     private void checkFeedRunway() {
         // Posted, and once per burst: a page arrives as one updateSection per shelf, all inside
@@ -1231,7 +1233,7 @@ public class MobileBrowseActivity extends MobileActivity
         // for an empty grid): a lower bound of what will be visible, which is what the check needs.
         int lastVisible = mLayoutManager.findLastVisibleItemPosition();
         if (com.newtube.mobile.ui.common.FeedRunway.isShort(lastVisible, mCurrentVideos.size(), NEAR_END_LOOKAHEAD_ITEMS)) {
-            mPresenter.onScrollNearEnd();
+            mPresenter.onScrollNearEnd(mCurrentVideos.size());
         }
     };
 
@@ -1909,6 +1911,10 @@ public class MobileBrowseActivity extends MobileActivity
 
             mLastPaginationTriggerCount = -1; // allow pagination to trigger again on the new size
             mLastNearEndTriggerCount = -1;
+            // Grid growth per update (how deep a feed scrolls, and which pages added nothing).
+            com.liskovsoft.smartyoutubetv2.common.misc.NetPath.log("feed-grid section=" + mCurrentSectionId
+                    + " action=" + group.getAction() + " in=" + (group.getVideos() != null ? group.getVideos().size() : 0)
+                    + " size=" + mCurrentVideos.size());
             submitFeed(staleSwap);
             checkFeedRunway();
 
