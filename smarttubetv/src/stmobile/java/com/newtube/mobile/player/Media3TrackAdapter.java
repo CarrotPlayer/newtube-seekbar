@@ -362,6 +362,13 @@ class Media3TrackAdapter {
      * language variant matches too; id-only hits are kept as a second tier, preferring the
      * untranslated variant (this once pinned a pt-br auto-dub on a Spanish video because the
      * persisted "en-us (original)" 251 matched the dub's group first).
+     *
+     * <p>NEWTUBE(audio-track): for audio the language variant outranks the itag. An item without a
+     * language (a single-language video's track, or the Audio track sheet's "Default" row) only
+     * matches exactly an untagged track - it used to take the first track with its itag, which on
+     * a dubbed video can be a dub. And a same-variant rendition (same language, same codec family)
+     * beats the same itag in another language: a stored Spanish "251-drc" on a video whose Spanish
+     * has no DRC track plays Spanish 251, not English "251-drc".</p>
      */
     @Nullable
     private TrackLocation findTrack(int rendererIndex, FormatItem item) {
@@ -382,8 +389,7 @@ class Media3TrackAdapter {
                 androidx.media3.common.Format format = group.getTrackFormat(i);
 
                 if (targetId != null && targetId.equals(format.id)) {
-                    if (!audio || item.getLanguage() == null
-                            || languageEquals(item.getLanguage(), Media3FormatConverter.pickLanguage(format))) {
+                    if (!audio || languageEquals(item.getLanguage(), Media3FormatConverter.pickLanguage(format))) {
                         return new TrackLocation(group, i);
                     }
                     boolean original = isOriginalAudio(format);
@@ -400,6 +406,9 @@ class Media3TrackAdapter {
             }
         }
 
+        if (audio && fallback != null) {
+            return fallback;
+        }
         return idMatch != null ? idMatch : fallback;
     }
 

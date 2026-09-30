@@ -9,11 +9,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * NEWTUBE(audio-label): what the quality sheet's Audio rows say. The track language arrives as a
- * raw tag built from the stream URL's xtags ("en (original)", "pt (dubbed)", sometimes "en‐US" with
- * a U+2010 hyphen), which the sheet used to show capitalized as "En (original)" / "Pt (dubbed)".
- * This turns it into the language's name in the app's UI language - "English (original)",
- * "Portuguese (dubbed)" - for display only; selection and persistence keep the raw tag.
+ * NEWTUBE(audio-label): what the Audio track rows say. The track language arrives as a raw tag
+ * built from the stream URL's xtags ("en (original)", "pt (dubbed)", "es (dubbed-auto)", sometimes
+ * "en‐US" with a U+2010 hyphen), which the sheet used to show capitalized as "En (original)" /
+ * "Pt (dubbed)". This turns it into the language's name in the app's UI language - "English
+ * (original)", "Portuguese (dubbed)", "Spanish (auto-dubbed)" - for display only; selection and
+ * persistence keep the raw tag.
  */
 final class AudioTrackLabel {
     /** A BCP-47-ish tag, optionally followed by one parenthesized role: "en", "pt-BR (dubbed)". */
@@ -28,11 +29,13 @@ final class AudioTrackLabel {
         return format(raw, uiLocale,
                 context.getString(R.string.mobile_audio_role_original),
                 context.getString(R.string.mobile_audio_role_dubbed),
+                context.getString(R.string.mobile_audio_role_auto_dubbed),
                 context.getString(R.string.mobile_audio_role_descriptive));
     }
 
     /** Pure form of {@link #format(Context, String)}; returns {@code raw} when it is not a tag. */
-    static String format(String raw, Locale uiLocale, String original, String dubbed, String descriptive) {
+    static String format(String raw, Locale uiLocale, String original, String dubbed,
+                         String autoDubbed, String descriptive) {
         if (raw == null) {
             return null;
         }
@@ -53,8 +56,10 @@ final class AudioTrackLabel {
             return name;
         }
         String roleKey = role.trim().toLowerCase(Locale.ROOT);
+        // YouTube's acont values: original, dubbed, dubbed-auto (its own AI dub), descriptive, secondary.
         String roleLabel = roleKey.equals("original") ? original
                 : roleKey.equals("dubbed") ? dubbed
+                : roleKey.equals("dubbed-auto") ? autoDubbed
                 : roleKey.equals("descriptive") ? descriptive
                 : role.trim();
         // "Portuguese (Brazil)" + dubbed reads "Portuguese (Brazil, dubbed)", not two brackets.

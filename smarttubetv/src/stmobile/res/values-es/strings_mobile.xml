@@ -100,6 +100,7 @@
     <string name="mobile_player_replay">Volver a reproducir</string>
     <string name="mobile_player_fullscreen">Pantalla completa</string>
     <string name="mobile_player_quality">Calidad</string>
+    <string name="mobile_player_audio_track">Pista de audio</string>
     <string name="mobile_player_pip">Imagen en imagen</string>
     <string name="mobile_player_previous">Anterior</string>
     <string name="mobile_player_next">Siguiente</string>
@@ -134,7 +135,6 @@
     <string name="mobile_menu_zoom">Zoom y relación de aspecto</string>
     <string name="mobile_menu_background">Reproducir en segundo plano</string>
     <string name="mobile_menu_stats">Estadísticas para nerds</string>
-    <string name="mobile_menu_rotate_lock">Bloquear la rotación</string>
     <!-- Same wording as the card menu and the Save sheet title (dialog_add_to_playlist). -->
     <string name="mobile_menu_playlist_add">Guardar en una lista</string>
     <string name="mobile_menu_queue">Cola de reproducción</string>
@@ -146,11 +146,12 @@
     <string name="mobile_quality_auto">Automática (recomendada)</string>
     <string name="mobile_quality_auto_current">Automática (%1$s)</string>
     <string name="mobile_quality_auto_short">Automática</string>
-    <string name="mobile_audio_title">Audio</string>
     <string name="mobile_audio_default">Predeterminado</string>
     <string name="mobile_audio_role_original">original</string>
     <string name="mobile_audio_role_dubbed">doblado</string>
+    <string name="mobile_audio_role_auto_dubbed">doblaje automático</string>
     <string name="mobile_audio_role_descriptive">audiodescripción</string>
+    <string name="mobile_audio_track_toast">Pista de audio: %1$s</string>
 
     <!-- Comments -->
     <string name="mobile_comments_entry">Comentarios</string>

@@ -9,13 +9,20 @@ import java.util.Locale;
 /** NEWTUBE(audio-label): raw audio-track tags become language names, display only. */
 public class AudioTrackLabelTest {
     private static String en(String raw) {
-        return AudioTrackLabel.format(raw, Locale.ENGLISH, "original", "dubbed", "audio description");
+        return AudioTrackLabel.format(raw, Locale.ENGLISH, "original", "dubbed", "auto-dubbed",
+                "audio description");
     }
 
     @Test
     public void originalAndDubbedTracksReadAsLanguageNames() {
         assertEquals("English (original)", en("En (original)"));
         assertEquals("Portuguese (dubbed)", en("pt (dubbed)"));
+    }
+
+    @Test
+    public void youTubeAutoDubsReadAsAutoDubbed() {
+        assertEquals("Spanish (auto-dubbed)", en("es (dubbed-auto)"));
+        assertEquals("Portuguese (Brazil, auto-dubbed)", en("pt‐br (dubbed-auto)"));
     }
 
     @Test
@@ -27,7 +34,8 @@ public class AudioTrackLabelTest {
     @Test
     public void namesFollowTheAppLanguage() {
         assertEquals("Inglés (original)",
-                AudioTrackLabel.format("en (original)", new Locale("es"), "original", "doblado", "audiodescripción"));
+                AudioTrackLabel.format("en (original)", new Locale("es"), "original", "doblado",
+                        "doblaje automático", "audiodescripción"));
     }
 
     @Test

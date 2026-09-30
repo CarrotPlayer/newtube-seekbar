@@ -227,9 +227,6 @@ public class MobilePlaybackActivity extends MobileActivity
     private Media3SubtitleManager mSubtitleManager;
     private Media3DebugInfoManager mDebugInfoManager;
 
-    // Screen-orientation lock toggled from the overflow menu ("Rotate lock").
-    private boolean mOrientationLocked;
-
     // Watch page (portrait content column under the video).
     private View mWatchRoot;
     private NestedScrollView mWatchScroll;
@@ -2464,9 +2461,6 @@ public class MobilePlaybackActivity extends MobileActivity
         View content = getLayoutInflater().inflate(R.layout.sheet_mobile_quality, null);
         dialog.setContentView(content);
         LinearLayout qualityList = content.findViewById(R.id.quality_sheet_quality_list);
-        content.findViewById(R.id.quality_sheet_divider).setVisibility(View.GONE);
-        content.findViewById(R.id.quality_sheet_audio_title).setVisibility(View.GONE);
-        content.findViewById(R.id.quality_sheet_audio_list).setVisibility(View.GONE);
 
         int selectedHeight = mCastSessionManager.getDirectQualityHeight();
         addQualityRow(qualityList, getString(R.string.mobile_cast_quality_auto_1080),
@@ -2838,8 +2832,8 @@ public class MobilePlaybackActivity extends MobileActivity
     // VideoPlayerGlue used) so the reused PlayerUIController does the real work: dialog-opening
     // actions (repeat/zoom/playlist/queue) show their AppDialog via the touch
     // MobileAppDialogActivity; simple toggles (stats/screen-off) flip and are reflected here.
-    // Actions with no mobile meaning (AFR) are omitted; "Rotate lock" is a native
-    // screen-orientation lock rather than the TV video-frame rotate.
+    // Actions with no mobile meaning (AFR) are omitted. There is no rotate lock: rotation follows
+    // the phone, and the fullscreen button forces an orientation (toggleFullscreen).
     // ---------------------------------------------------------------------------------
 
     private void openPlayerMenu() {
@@ -2854,10 +2848,18 @@ public class MobilePlaybackActivity extends MobileActivity
 
         // Mirrors the official app's gear sheet: no title, a handful of everyday rows, icon +
         // current value on every everyday action; the long tail nests behind "More". Quality opens
-        // the simple YouTube-style picker (Auto + resolutions, plus audio language when dubbed) -
-        // the exhaustive TV HQ dialog stays reachable for power users deeper in that sheet.
+        // the simple YouTube-style picker (Auto + resolutions) - the exhaustive TV HQ dialog stays
+        // reachable for power users deeper in that sheet.
         addMenuRow(content, sheet, R.drawable.ic_player_quality, R.string.mobile_player_quality,
                 currentQualityLabel(), true, this::showQualitySheet);
+        // Audio track, like YouTube: only on videos that ship more than one language (dubs).
+        List<AudioTrackChoices.Choice> audioChoices = audioTrackChoices();
+        if (audioChoices.size() > 1) {
+            AudioTrackChoices.Choice playing = AudioTrackChoices.selected(audioChoices);
+            addMenuRow(content, sheet, R.drawable.ic_player_audio_track,
+                    R.string.mobile_player_audio_track, playing != null ? playing.label : null,
+                    true, this::showAudioTrackSheet);
+        }
         // Captions: the native captions sheet (same target as long-pressing the overlay CC button).
         addMenuRow(content, sheet, R.drawable.ic_player_cc, R.string.mobile_player_subtitles,
                 currentCaptionsLabel(), true, this::showCaptionsSheet);
@@ -2868,10 +2870,6 @@ public class MobilePlaybackActivity extends MobileActivity
             addMenuRow(content, sheet, R.drawable.ic_player_pip, R.string.mobile_player_pip,
                     null, false, this::enterPipMode);
         }
-        // Rotate lock (native screen-orientation lock) - the phone-holdable equivalent of the
-        // official sheet's "Lock screen" slot.
-        addMenuRow(content, sheet, R.drawable.ic_player_lock, R.string.mobile_menu_rotate_lock,
-                stateLabel(mOrientationLocked), false, this::toggleRotateLock);
         addMenuRow(content, sheet, R.drawable.ic_mobile_settings, R.string.mobile_menu_more,
                 null, true, this::openPlayerMoreMenu);
 
@@ -3106,14 +3104,6 @@ public class MobilePlaybackActivity extends MobileActivity
                 this, PlayerData.instance(this), GeneralData.instance(this));
         dialog.appendRadioCategory(category.title, category.options);
         dialog.showDialog(getString(R.string.mobile_menu_background));
-    }
-
-    /** Native screen-orientation lock (mobile equivalent of "rotate lock"). */
-    private void toggleRotateLock() {
-        mOrientationLocked = !mOrientationLocked;
-        setRequestedOrientation(mOrientationLocked
-                ? ActivityInfo.SCREEN_ORIENTATION_LOCKED
-                : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
     }
 
     private void updateFullscreenIcon(int orientation) {
@@ -4747,7 +4737,7 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     // ---------------------------------------------------------------------------------
-    // Simple quality / audio-language sheet (the quality button's everyday picker)
+    // Simple Quality and Audio track sheets (the gear sheet's everyday pickers)
     // ---------------------------------------------------------------------------------
 
     /** Distinct resolution rung of the current video: "1080p" / "1080p60" style. */
@@ -4784,7 +4774,6 @@ public class MobilePlaybackActivity extends MobileActivity
         dialog.setContentView(content);
 
         LinearLayout qualityList = content.findViewById(R.id.quality_sheet_quality_list);
-        LinearLayout audioList = content.findViewById(R.id.quality_sheet_audio_list);
 
         // ---- Quality: Auto + one row per distinct resolution rung (best track of each rung). ----
         // The ACTIVE choice is the per-session override when one is set (explicit rung picked
@@ -4837,42 +4826,68 @@ public class MobilePlaybackActivity extends MobileActivity
             });
         }
 
-        // ---- Audio: only when the video actually ships multiple languages (dubs). ----
-        List<FormatItem> audioFormats = getAudioFormats();
-        java.util.LinkedHashMap<String, FormatItem> languages = new java.util.LinkedHashMap<>();
-        String selectedLanguage = null;
-        if (audioFormats != null) {
-            for (FormatItem item : audioFormats) {
-                String language = item.getLanguage();
-                String label = TextUtils.isEmpty(language)
-                        ? getString(R.string.mobile_audio_default) : capitalize(language);
-                if (!languages.containsKey(label)) {
-                    languages.put(label, item);
-                }
-                if (item.isSelected()) {
-                    selectedLanguage = label;
-                }
-            }
+        showPlayerSheet(dialog);
+    }
+
+    /** The current video's audio language variants, one per row ({@link AudioTrackChoices}). */
+    private List<AudioTrackChoices.Choice> audioTrackChoices() {
+        List<FormatItem> audioFormats = mExoPlayerController != null ? getAudioFormats() : null;
+        return AudioTrackChoices.from(audioFormats, this::audioTrackLabel,
+                getResources().getConfiguration().getLocales().get(0));
+    }
+
+    /** "English (original)"; an untagged track (no language at all) reads "Default". */
+    private String audioTrackLabel(@Nullable String language) {
+        return TextUtils.isEmpty(language)
+                ? getString(R.string.mobile_audio_default) : AudioTrackLabel.format(this, language);
+    }
+
+    /**
+     * The Audio track picker (gear sheet -> Audio track), same anatomy as the Quality sheet: one
+     * row per language, the check on the one playing. A pick applies at once and is the stored
+     * audio preference from then on (PlayerData), exactly what the old Audio section of the
+     * Quality sheet did: the next video plays the same language variant when it has one, and its
+     * original track when it does not (Media3TrackAdapter.findTrack / applyOriginalAudioDefault).
+     */
+    private void showAudioTrackSheet() {
+        List<AudioTrackChoices.Choice> choices = audioTrackChoices();
+        if (choices.size() < 2) {
+            return; // the video changed under the gear sheet
         }
 
-        if (languages.size() > 1) {
-            for (java.util.Map.Entry<String, FormatItem> language : languages.entrySet()) {
-                FormatItem item = language.getValue();
-                // Display only: the row reads "English (original)", the key stays the raw tag.
-                addQualityRow(audioList, AudioTrackLabel.format(this, language.getKey()),
-                        language.getKey().equals(selectedLanguage), () -> {
-                    setFormat(item);
-                    playerData.setFormat(item);
-                    dialog.dismiss();
-                });
-            }
-        } else {
-            // Single-language video: hide the whole audio section.
-            content.findViewById(R.id.quality_sheet_divider).setVisibility(View.GONE);
-            content.findViewById(R.id.quality_sheet_audio_title).setVisibility(View.GONE);
-            audioList.setVisibility(View.GONE);
+        cancelAutoHide();
+
+        BottomSheetDialog dialog = new BottomSheetDialog(this);
+        View content = getLayoutInflater().inflate(R.layout.sheet_mobile_quality, null);
+        dialog.setContentView(content);
+        ((TextView) content.findViewById(R.id.quality_sheet_quality_title))
+                .setText(R.string.mobile_player_audio_track);
+        LinearLayout list = content.findViewById(R.id.quality_sheet_quality_list);
+
+        PlayerData playerData = PlayerData.instance(this);
+        Video openedFor = getVideo();
+        String openedForId = openedFor != null ? openedFor.videoId : null;
+        for (AudioTrackChoices.Choice choice : choices) {
+            addQualityRow(list, choice.label, choice.selected, () -> {
+                dialog.dismiss();
+                Video now = getVideo();
+                if (!TextUtils.equals(openedForId, now != null ? now.videoId : null)) {
+                    return; // autoplay moved on under the open sheet: these rows are another video's
+                }
+                setFormat(choice.item);
+                playerData.setFormat(choice.item);
+                // An explicit pick outranks the error fixer's per-video audio fallback, which
+                // restoreAudioFormat would otherwise re-apply on a reload of this video.
+                playerData.setTempAudioFormat(null);
+                com.google.android.material.snackbar.Snackbar.make(
+                                findViewById(android.R.id.content),
+                                getString(R.string.mobile_audio_track_toast, choice.label),
+                                com.google.android.material.snackbar.Snackbar.LENGTH_SHORT)
+                        .show();
+            });
         }
 
+        dialog.setOnDismissListener(d -> armAutoHide());
         showPlayerSheet(dialog);
     }
 
