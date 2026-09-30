@@ -36,7 +36,11 @@ import com.liskovsoft.smartyoutubetv2.tv.R;
 public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.RelatedViewHolder> {
 
     public interface OnRelatedClickListener {
-        void onRelatedClick(Video video);
+        /**
+         * @param thumbnail the row's picture, so the player can show it in the video box at once
+         *                  (NEWTUBE(motion)); null when the row has none
+         */
+        void onRelatedClick(Video video, @androidx.annotation.Nullable ImageView thumbnail);
     }
 
     /** NEWTUBE(touch-prefetch, experiment): a finger has rested on a row, see PressIntentDetector. */
@@ -139,7 +143,7 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
 
             itemView.setOnClickListener(v -> {
                 if (mVideo != null && clickListener != null) {
-                    clickListener.onRelatedClick(mVideo);
+                    clickListener.onRelatedClick(mVideo, mThumbnail);
                 }
             });
 

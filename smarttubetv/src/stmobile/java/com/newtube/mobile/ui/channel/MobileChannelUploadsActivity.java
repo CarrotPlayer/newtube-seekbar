@@ -502,13 +502,22 @@ public class MobileChannelUploadsActivity extends MobileActivity
     protected void onPause() {
         // Free the mini bar's video surface whenever this screen leaves the foreground - the
         // playback activity may be about to re-claim it (expand / new video).
+        // NEWTUBE(motion): a docked card stays up frozen until the player covers it.
         if (mMiniPlayer != null) {
-            mMiniPlayer.hide();
+            mMiniPlayer.onHostPause();
         }
         super.onPause();
 
         if (mPresenter != null) {
             mPresenter.onViewPaused();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mMiniPlayer != null) {
+            mMiniPlayer.onHostStop();
         }
     }
 

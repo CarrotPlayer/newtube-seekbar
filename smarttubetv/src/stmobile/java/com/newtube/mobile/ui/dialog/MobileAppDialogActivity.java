@@ -8,6 +8,7 @@ import android.os.Parcelable;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewTreeObserver;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -30,6 +31,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.views.AppDialogView;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.newtube.mobile.ui.common.MobileActivity;
+import com.newtube.mobile.ui.common.Motion;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -131,6 +133,12 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
     private boolean mFullScreen;
     /** Presentation (sheet vs full-screen) is locked in on the first show() call. */
     private boolean mModeConfigured;
+    /**
+     * NEWTUBE(motion): the sheet is sliding away and {@code super.finish()} lands when it is gone.
+     * A {@link #show} arriving meanwhile (the presenter re-uses a live view for a follow-up dialog)
+     * brings the sheet back instead.
+     */
+    private boolean mExiting;
 
     private final List<DialogLevel> mLevels = new ArrayList<>();
     /** See {@link DialogRowAdapter#submit}. Keyed by category identity; stale entries from a
@@ -245,7 +253,7 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         mBackButton = findViewById(R.id.mobile_dialog_back);
 
         // Sheet mode: tapping the dim scrim dismisses the whole dialog (like a Material sheet).
-        mScrim.setOnClickListener(v -> finish());
+        mScrim.setOnClickListener(v -> dismissSheet());
 
         ViewCompat.setOnApplyWindowInsetsListener(mRoot, (view, windowInsets) -> {
             mSystemInsets = windowInsets.getInsets(
@@ -453,13 +461,73 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
 
         applyDialogInsets();
 
-        // Enter animation: scrim fades in, sheet slides up.
+        // NEWTUBE(motion): the scrim fades in and the sheet slides up, decelerating. The sheet is
+        // parked below the window BEFORE its first frame: starting the slide from a post() let the
+        // first frame draw it fully open, then jump down and slide up (seen frame by frame on the
+        // Pixel 9).
         mScrim.setAlpha(0f);
-        mScrim.animate().alpha(1f).setDuration(180).start();
-        mContent.post(() -> {
-            mContent.setTranslationY(mContent.getHeight());
-            mContent.animate().translationY(0f).setDuration(220).start();
+        mScrim.animate().alpha(1f).setDuration(Motion.ENTER_MS).setInterpolator(Motion.STANDARD).start();
+        mContent.setTranslationY(getResources().getDisplayMetrics().heightPixels);
+        mContent.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                ViewTreeObserver observer = mContent.getViewTreeObserver();
+                if (observer.isAlive()) {
+                    observer.removeOnPreDrawListener(this);
+                }
+                if (!mExiting) {
+                    mContent.setTranslationY(mContent.getHeight());
+                    mContent.animate().translationY(0f).setDuration(Motion.ENTER_MS)
+                            .setInterpolator(Motion.EMPHASIZED_DECELERATE).start();
+                }
+                return true;
+            }
         });
+    }
+
+    /**
+     * NEWTUBE(motion): slide the sheet away (and fade the scrim), then finish. It used to vanish in
+     * one frame. False = nothing to animate, finish at once. The window keeps its touches while it
+     * leaves (a tap there is a no-op): passed through, a tap that opened a screen below would be
+     * buried by this finish's parent routing a moment later, as in {@link #dismissSheet}.
+     */
+    private boolean animateSheetExit() {
+        if (mExiting) {
+            return true;
+        }
+        if (mFullScreen || !mModeConfigured || mContent == null || !mContent.isLaidOut()
+                || isFinishing() || isDestroyed()) {
+            return false;
+        }
+        mExiting = true;
+        mScrim.animate().cancel();
+        mScrim.animate().alpha(0f).setDuration(Motion.EXIT_MS).setInterpolator(Motion.STANDARD).start();
+        mContent.animate().cancel();
+        mContent.animate().translationY(mContent.getHeight()).setDuration(Motion.EXIT_MS)
+                .setInterpolator(Motion.EMPHASIZED_ACCELERATE)
+                .withEndAction(this::finishAfterExit).start();
+        return true;
+    }
+
+    private void finishAfterExit() {
+        if (mExiting) {
+            mExiting = false;
+            super.finish();
+        }
+    }
+
+    /**
+     * A follow-up {@link #show} while the sheet was leaving: keep this window for it. The dismissed
+     * flow's levels are gone, so the new one is a root flow of its own - its presentation (sheet or
+     * full-screen Settings) is chosen again, with its own entrance (Codex review of this change).
+     */
+    private void cancelSheetExit() {
+        mExiting = false;
+        mScrim.animate().cancel();
+        mScrim.setAlpha(1f);
+        mContent.animate().cancel();
+        mContent.setTranslationY(0f);
+        mModeConfigured = false;
     }
 
     // ---------------------------------------------------------------------------------
@@ -488,6 +556,13 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         if (mFullScreen) {
             applyMobileSystemBars();
         }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Covered by the screen an item opened: nobody sees the rest of the slide.
+        finishAfterExit();
     }
 
     @Override
@@ -525,7 +600,27 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         if (canGoBack()) {
             goBack();
         } else {
-            finish();
+            dismissSheet();
+        }
+    }
+
+    /**
+     * NEWTUBE(motion): the person dismissed the sheet (scrim tap, Back): slide it away, then finish.
+     * Only here, not in {@link #finish()}: that is the presenter's close, which an item's action
+     * follows with the next screen - delayed, the finish's parent routing (startParentView with a
+     * docked mini player) landed AFTER that launch and buried it (Share's chooser ended up under
+     * Home on the emulator).
+     */
+    private void dismissSheet() {
+        if (mExiting) {
+            return;
+        }
+        if (mPresenter != null && mPresenter.getView() == this) {
+            mPresenter.onFinish();
+        }
+        mLevels.clear();
+        if (!animateSheetExit()) {
+            super.finish();
         }
     }
 
@@ -538,6 +633,9 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         runOnUiThread(() -> {
             if (isFinishing() || isDestroyed()) {
                 return;
+            }
+            if (mExiting) {
+                cancelSheetExit();
             }
 
             // Only the root level can make the whole dialog transparent (mirrors AppDialogFragment.show()).
@@ -571,9 +669,11 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         // AppDialogView contract: always end the whole dialog flow (used by
         // AppDialogPresenter.closeDialog()), regardless of how many levels are pushed - see class
         // javadoc for why this is deliberately NOT the same as popping one level.
-        if (mPresenter != null && mPresenter.getView() == this) {
+        // NEWTUBE(motion): at once, even over a sheet already sliding away (see dismissSheet).
+        if (!mExiting && mPresenter != null && mPresenter.getView() == this) {
             mPresenter.onFinish();
         }
+        mExiting = false;
 
         mLevels.clear();
 

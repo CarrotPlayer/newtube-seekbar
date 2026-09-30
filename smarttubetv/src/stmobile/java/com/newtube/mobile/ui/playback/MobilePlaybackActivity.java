@@ -46,6 +46,7 @@ import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
@@ -128,7 +129,9 @@ import com.newtube.mobile.downloads.DownloadMenu;
 import com.newtube.mobile.downloads.DownloadOption;
 import com.newtube.mobile.downloads.DownloadRegistry;
 import com.newtube.mobile.SessionWarmup;
+import com.newtube.mobile.ui.common.FrameGate;
 import com.newtube.mobile.ui.common.MobileActivity;
+import com.newtube.mobile.ui.common.Motion;
 import com.newtube.mobile.ui.common.ThemeMode;
 import com.newtube.mobile.ui.common.ThemeRefresh;
 import com.newtube.mobile.ui.dialog.MaxHeightRecyclerView;
@@ -257,7 +260,6 @@ public class MobilePlaybackActivity extends MobileActivity
     private MaterialButton mWatchSubscribe;
     private TextView mWatchRelatedLabel;
     private View mRelatedSkeleton;
-    private android.animation.ValueAnimator mSkeletonPulse;
     private RecyclerView mWatchRelated;
     private RelatedVideoAdapter mRelatedAdapter;
 
@@ -436,7 +438,30 @@ public class MobilePlaybackActivity extends MobileActivity
 
         setContentView(R.layout.activity_mobile_playback);
 
-        registerBackHandler(this::handleBack);
+        // NEWTUBE(motion): Back minimizes like YouTube, and the back gesture previews it (the video
+        // shrinks toward the mini card with the finger). Added here, before the comments panel's
+        // callback, so an open panel still takes Back first.
+        getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackStarted(@NonNull androidx.activity.BackEventCompat backEvent) {
+                onBackGestureStarted();
+            }
+
+            @Override
+            public void handleOnBackProgressed(@NonNull androidx.activity.BackEventCompat backEvent) {
+                onBackGestureProgressed(backEvent.getProgress());
+            }
+
+            @Override
+            public void handleOnBackCancelled() {
+                onBackGestureCancelled();
+            }
+
+            @Override
+            public void handleOnBackPressed() {
+                handleBack();
+            }
+        });
 
         bindViews();
         setupVideoSurface();
@@ -532,6 +557,7 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     protected void onNewIntent(Intent intent) {
+        cancelClose();
         super.onNewIntent(intent);
         // REORDER_TO_FRONT reuses this instance after mini mode. The pending card snapshot means
         // this is a new feed selection, not a plain mini-card expansion.
@@ -630,6 +656,8 @@ public class MobilePlaybackActivity extends MobileActivity
         mTimeBar = findViewById(R.id.mobile_player_time_bar);
         mSegmentsView = findViewById(R.id.mobile_player_segments);
         mProgressBar = findViewById(R.id.mobile_player_progress);
+        mSpinnerShown = mProgressBar != null && mProgressBar.getVisibility() == View.VISIBLE;
+        syncPlayPauseWithSpinner();
         mSetupHint = findViewById(R.id.mobile_player_setup_hint);
         mNoticeView = findViewById(R.id.mobile_player_notice);
         mCastButton = findViewById(R.id.mobile_player_cast);
@@ -727,10 +755,46 @@ public class MobilePlaybackActivity extends MobileActivity
         // Single tap on the video surface toggles the overlay. DoubleTapPlayerViewImpl routes a
         // single (non-double) tap to performClick() on the view captured at construction (itself,
         // since it isn't attached yet), so an OnClickListener here is exactly that single tap.
-        mPlayerView.setOnClickListener(v -> toggleControls());
+        mPlayerView.setOnClickListener(v -> {
+            boolean reveal = !mControlsVisible;
+            toggleControls();
+            mInstantRevealAt = reveal ? android.os.SystemClock.uptimeMillis() : 0L;
+        });
+        // NEWTUBE(motion): ...on the tap's release, like YouTube - it used to wait out the double-tap
+        // timeout (~300 ms of a tap doing nothing). A second tap makes it a double tap after all:
+        // a seek puts the controls away (the seek ripple takes the screen), anything else undoes
+        // the first tap's toggle.
+        mPlayerView.setInstantSingleTap(true);
+        mPlayerView.setDoubleTapBeganListener(posX -> {
+            if (mPlayer != null && doubleTapSeekForward(mPlayer, posX) != null) {
+                hideControls();
+            } else {
+                toggleControls();
+            }
+        });
 
         // Tap on empty overlay space hides the controls (buttons/seek bar consume their own taps).
         mControlsRoot.setOnClickListener(v -> hideControls());
+        // NEWTUBE(motion): empty overlay space passes its touches to the player's tap detector (the
+        // two views cover the same box), so the first tap's controls do not swallow the second tap
+        // of a double tap, and a double tap seeks with the controls up too. A single tap still
+        // hides them (the detector's click toggles). The click listener above stays for TalkBack.
+        mControlsRoot.setOnTouchListener((v, event) -> mPlayerView.onTouchEvent(event));
+        // A tap right after one that revealed the controls may be the second of a double tap: it
+        // goes to the detector whole, not to a control that just appeared under the finger.
+        mVideoArea.setTapRouter(new PinchZoomLayout.TapRouter() {
+            @Override
+            public boolean claimDown(android.view.MotionEvent down) {
+                return mInstantRevealAt != 0L && mControlsVisible
+                        && down.getEventTime() - mInstantRevealAt
+                                <= android.view.ViewConfiguration.getDoubleTapTimeout();
+            }
+
+            @Override
+            public void route(android.view.MotionEvent event) {
+                mPlayerView.onTouchEvent(event);
+            }
+        });
 
         mBackButton.setOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
         mPlayPauseButton.setOnClickListener(v -> togglePlayPause());
@@ -1147,19 +1211,11 @@ public class MobilePlaybackActivity extends MobileActivity
 
                     @Override
                     public Boolean shouldForward(Player player, DoubleTapPlayerView playerView, float posX) {
-                        int state = player.getPlaybackState();
-                        if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) {
-                            return null;
+                        Boolean forward = doubleTapSeekForward(player, posX);
+                        if (forward != null) {
+                            setUserSeekDirection(forward);
                         }
-                        if (player.getCurrentPosition() > 500 && posX < playerView.getPlayerWidth() * 0.35f) {
-                            setUserSeekDirection(false);
-                            return false;
-                        }
-                        if (posX > playerView.getPlayerWidth() * 0.65f) {
-                            setUserSeekDirection(true);
-                            return true;
-                        }
-                        return null;
+                        return forward;
                     }
                 })
                 .player(mPlayer)
@@ -1313,11 +1369,17 @@ public class MobilePlaybackActivity extends MobileActivity
                 armStillForReady();
             }
             startOpenMorph(launch.sourceBounds, 300);
+            // A docked card elsewhere on the host (another video was tapped): it goes once the
+            // player's first frame is up.
+            FrameGate.afterNextFrame(mContainer, HOST_CARD_FOLD_WAIT_MS,
+                    () -> MiniPlayerBridge.foldHostCard(null));
         } else if (fromMini && mContainer != null) {
             // Plain mini-card expansion: exact reverse of minimize, from the card rectangle.
             overridePendingTransition(0, 0);
             mContainer.setVisibility(View.INVISIBLE);
+            mMorphStartPending = true;
             mContainer.post(() -> {
+                mMorphStartPending = false;
                 if (miniBounds != null) {
                     computeMorphTarget(miniBounds);
                 } else {
@@ -1325,8 +1387,18 @@ public class MobilePlaybackActivity extends MobileActivity
                 }
                 applyMorph(1f);
                 mContainer.setVisibility(View.VISIBLE);
-                mContainer.postOnAnimation(() -> animateMorph(0f, 240, this::resetMorph));
+                // NEWTUBE(motion): the host kept its card up, frozen (MiniPlayerBridge
+                // .setPendingCardFold). Our frame over it first, then the card folds, then the video
+                // grows: no frame without either. Each step waits at most HOST_CARD_FOLD_WAIT_MS.
+                FrameGate.afterNextFrame(mContainer, HOST_CARD_FOLD_WAIT_MS,
+                        () -> MiniPlayerBridge.foldHostCard(() -> {
+                            if (!isFinishing() && !isDestroyed() && mMorphAnimator == null) {
+                                animateMorph(0f, 250, Motion.EMPHASIZED, this::resetMorph);
+                            }
+                        }));
             });
+        } else {
+            MiniPlayerBridge.foldHostCard(null);
         }
 
         if (mPresenter != null) {
@@ -1340,7 +1412,20 @@ public class MobilePlaybackActivity extends MobileActivity
         }
 
         applySystemBarsForOrientation(getResources().getConfiguration().orientation);
+        if (mMorphStartPending) {
+            // NEWTUBE(motion): the morph's first step runs after the window's first frame(s), and
+            // the line above just painted the backdrop solid again: the page stays clear until
+            // then, or those frames were a blank black (dark) or white (light) screen over Home.
+            clearBackdropForMorphStart();
+        }
         updateOrientationHandBackListener();
+    }
+
+    private void clearBackdropForMorphStart() {
+        if (mWatchScroll != null && mWatchScroll.getBackground() != null) {
+            mWatchScroll.getBackground().mutate().setAlpha(0);
+        }
+        setWindowBackdropAlpha(0f);
     }
 
     @Override
@@ -1663,11 +1748,185 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     private void handleBack() {
+        if (mClosing) {
+            return;
+        }
+        // NEWTUBE(motion): like YouTube - Back leaves fullscreen first, then minimizes.
+        if (!mIsInPip && !mPipEnterPending
+                && getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            mBackPreview = false;
+            toggleFullscreen();
+            return;
+        }
+        if (mBackPreview || canMinimizeByBack()) {
+            minimizeByBack();
+            return;
+        }
+        if (canAnimateClose()) {
+            animateCloseThenFinish();
+            return;
+        }
         if (mPresenter != null) {
             mPresenter.onFinish();
         }
 
         finish();
+    }
+
+    // ---------------------------------------------------------------------------------
+    // NEWTUBE(motion): Back closes the player in its own window. The window animation it replaces
+    // cross-faded the whole watch page over Home, so for ~120 ms two screens of text sat on top of
+    // each other (Pixel 9, frame by frame). Now the page's text goes first, as in the minimize,
+    // and the video and the dark backdrop then sink and fade over Home, which is already drawn
+    // beneath this translucent window - in the same 200 ms. Playback is muted at the press. Only
+    // over a screen of ours in portrait: a deep-linked player (nothing beneath) or a landscape one
+    // (rotation) keeps the window animation.
+    // ---------------------------------------------------------------------------------
+
+    // NEWTUBE(motion): Back = minimize. The back gesture previews the minimize morph up to
+    // BACK_PREVIEW_FRACTION of the way (the page's text is gone by then, the video is visibly on its
+    // way to the corner); letting go finishes it, cancelling springs it back.
+    private static final float BACK_PREVIEW_FRACTION = 0.2f;
+    private static final long BACK_MINIMIZE_MS = 300;
+    private boolean mBackPreview;
+
+    private boolean canMinimizeByBack() {
+        return mPlayer != null && mContainer != null && mVideoArea != null && !mIsInPip && !mPipEnterPending
+                && !mScrubbing && mMorphAnimator == null && mMorphFraction == 0f
+                && getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
+    }
+
+    private void onBackGestureStarted() {
+        mBackPreview = false;
+        if (mClosing || !canMinimizeByBack()) {
+            return;
+        }
+        beginMinimizeMorph();
+        mBackPreview = true;
+    }
+
+    private void onBackGestureProgressed(float progress) {
+        if (mBackPreview) {
+            applyMorph(BACK_PREVIEW_FRACTION * Motion.STANDARD_DECELERATE.getInterpolation(progress));
+        }
+    }
+
+    private void onBackGestureCancelled() {
+        if (mBackPreview) {
+            mBackPreview = false;
+            animateMorph(0f, 180, Motion.STANDARD, this::resetMorph);
+        }
+    }
+
+    private void minimizeByBack() {
+        boolean moving = mBackPreview;
+        mBackPreview = false;
+        if (!moving) {
+            beginMinimizeMorph();
+        }
+        float remaining = Math.max(0f, 1f - mMorphFraction);
+        long durationMs = Math.max(120L, Math.round(BACK_MINIMIZE_MS * remaining));
+        // Already moving under the finger: continue decelerating. From rest (the button, a key):
+        // the gentle-start curve, as the open does.
+        animateMorph(1f, durationMs, moving ? Motion.EMPHASIZED_DECELERATE : Motion.EMPHASIZED,
+                this::minimizeByDrag);
+    }
+
+    private static final long CLOSE_MS = 200;
+    private boolean mClosing;
+    @Nullable
+    private ValueAnimator mCloseAnimator;
+    private float mVolumeBeforeClose = 1f;
+
+    private boolean canAnimateClose() {
+        return mContainer != null && mVideoArea != null && !mIsInPip && !mPipEnterPending
+                && mMorphAnimator == null && mMorphFraction == 0f
+                && getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT
+                && !isTaskRoot() && getViewManager().hasParentView(this)
+                && !MiniPlayerBridge.isActive();
+    }
+
+    private void animateCloseThenFinish() {
+        mClosing = true;
+        if (mPlayer != null) {
+            mVolumeBeforeClose = mPlayer.getVolume();
+            mPlayer.setVolume(0f);
+        }
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+        mVideoArea.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        final float drop = 0.08f * mContainer.getHeight();
+        ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        mCloseAnimator = animator;
+        animator.setDuration(CLOSE_MS);
+        animator.setInterpolator(Motion.EMPHASIZED_ACCELERATE);
+        animator.addUpdateListener(a -> applyCloseProgress((float) a.getAnimatedValue(), drop));
+        animator.addListener(new AnimatorListenerAdapter() {
+            private boolean mCancelled;
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+                mCancelled = true;
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (mCloseAnimator == animator) {
+                    mCloseAnimator = null;
+                }
+                if (!mCancelled && !isFinishing() && !isDestroyed()) {
+                    // The presenter learns only now: a video picked meanwhile (setVideo) cancelled this.
+                    if (mPresenter != null) {
+                        mPresenter.onFinish();
+                    }
+                    finish();
+                    overridePendingTransition(0, 0);
+                }
+            }
+        });
+        animator.start();
+    }
+
+    private void applyCloseProgress(float p, float drop) {
+        float content = Math.max(0f, 1f - p * 3f);
+        if (mWatchContent != null) {
+            mWatchContent.setAlpha(content);
+        }
+        if (mControlsRoot != null && mControlsRoot.getVisibility() == View.VISIBLE) {
+            mControlsRoot.setAlpha(content);
+        }
+        if (mCommentsPanel != null) {
+            mCommentsPanel.setMorphAlpha(content);
+        }
+        float backdrop = 1f - p;
+        if (mWatchScroll != null && mWatchScroll.getBackground() != null) {
+            mWatchScroll.getBackground().mutate().setAlpha(Math.round(255f * backdrop));
+        }
+        setWindowBackdropAlpha(backdrop);
+        mVideoArea.setTranslationY(drop * p);
+        mVideoArea.setAlpha(1f - p);
+    }
+
+    /**
+     * A new video routed into this player while it was closing (a feed tap goes through while it
+     * fades - touches pass to the screen below): stay, as it was. Reached from onNewIntent and
+     * from setVideo, since a selection with the player still the logical top view never relaunches.
+     */
+    private void cancelClose() {
+        if (!mClosing) {
+            return;
+        }
+        mClosing = false;
+        if (mCloseAnimator != null) {
+            mCloseAnimator.cancel();
+            mCloseAnimator = null;
+        }
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+        if (mPlayer != null) {
+            mPlayer.setVolume(mVolumeBeforeClose);
+        }
+        mVideoArea.setLayerType(View.LAYER_TYPE_NONE, null);
+        mVideoArea.setAlpha(1f);
+        resetMorph(); // puts back translation, backdrop, content, controls and comments alpha
     }
 
     /**
@@ -2845,6 +3104,26 @@ public class MobilePlaybackActivity extends MobileActivity
     // Custom touch controls
     // ---------------------------------------------------------------------------------
 
+    /**
+     * Where a double tap at {@code posX} seeks: left third back (not in the first half second),
+     * right third forward, null = no seek (the middle, or nothing playing).
+     */
+    @Nullable
+    private Boolean doubleTapSeekForward(Player player, float posX) {
+        int state = player.getPlaybackState();
+        if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) {
+            return null;
+        }
+        int width = mPlayerView.getPlayerWidth();
+        if (player.getCurrentPosition() > 500 && posX < width * 0.35f) {
+            return false;
+        }
+        if (posX > width * 0.65f) {
+            return true;
+        }
+        return null;
+    }
+
     private void toggleControls() {
         if (mControlsVisible) {
             hideControls();
@@ -3885,6 +4164,63 @@ public class MobilePlaybackActivity extends MobileActivity
         }
     }
 
+    /**
+     * NEWTUBE(motion): the picture of the Up-next row that was just tapped, drawn at the tap (the
+     * presenter clears the rows right after). The loading still starts from it instead of black:
+     * the box went black for ~90 ms on every related tap while the cached thumbnail decoded.
+     */
+    @Nullable
+    private Bitmap mTappedStill;
+    @Nullable
+    private String mTappedStillVideoId;
+
+    private void seedTappedStill(@Nullable Video video, @Nullable ImageView thumbnail) {
+        mTappedStill = null;
+        mTappedStillVideoId = null;
+        if (video == null || video.videoId == null || thumbnail == null || thumbnail.getDrawable() == null
+                || thumbnail.getWidth() <= 0 || thumbnail.getHeight() <= 0) {
+            return;
+        }
+        try {
+            Bitmap frame = Bitmap.createBitmap(thumbnail.getWidth(), thumbnail.getHeight(), Bitmap.Config.RGB_565);
+            thumbnail.draw(new android.graphics.Canvas(frame));
+            mTappedStill = frame;
+            mTappedStillVideoId = video.videoId;
+        } catch (RuntimeException | OutOfMemoryError ignored) {
+            // no seed: the still starts black, as before
+        }
+    }
+
+    /**
+     * NEWTUBE(motion): what the loading still shows until the cached thumbnail lands - the tapped
+     * row's picture, else a picture already covering the box (the open morph's card snapshot), else
+     * nothing (black).
+     */
+    @Nullable
+    private android.graphics.drawable.Drawable takeStillSeed(String videoId) {
+        Bitmap tapped = mTappedStill;
+        boolean match = tapped != null && videoId.equals(mTappedStillVideoId);
+        mTappedStill = null;
+        mTappedStillVideoId = null;
+        if (match) {
+            return new android.graphics.drawable.BitmapDrawable(getResources(), tapped);
+        }
+        if (mVideoStill.getVisibility() == View.VISIBLE && mVideoStill.getDrawable() != null
+                && mVideoStill.getWidth() > 0 && mVideoStill.getHeight() > 0) {
+            // A copy, never the drawable itself: when it came from Glide, replacing the request
+            // below releases its bitmap for reuse (Codex review of this change).
+            try {
+                Bitmap copy = Bitmap.createBitmap(mVideoStill.getWidth(), mVideoStill.getHeight(),
+                        Bitmap.Config.RGB_565);
+                mVideoStill.draw(new android.graphics.Canvas(copy));
+                return new android.graphics.drawable.BitmapDrawable(getResources(), copy);
+            } catch (RuntimeException | OutOfMemoryError ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     /** New video on this reused view: thumbnail over the stale frame until the new first frame. */
     private void maybeShowLoadingStill(Video item) {
         if (item == null || item.videoId == null || mVideoStill == null
@@ -3895,8 +4231,9 @@ public class MobilePlaybackActivity extends MobileActivity
         mNewVideoStill = true;
         armStillForReady(); // the OLD stream is still READY; wait for the new one
         mStillAwaitFrame = false;
+        android.graphics.drawable.Drawable seed = takeStillSeed(item.videoId);
         mVideoStill.animate().cancel();
-        mVideoStill.setImageDrawable(null); // solid black until the thumbnail lands
+        mVideoStill.setImageDrawable(seed); // the seed, or solid black, until the thumbnail lands
         mVideoStill.setAlpha(1f);
         mVideoStill.setVisibility(View.VISIBLE);
 
@@ -3928,13 +4265,16 @@ public class MobilePlaybackActivity extends MobileActivity
                     .format(DecodeFormat.PREFER_RGB_565)
                     .override(mStillW, mStillH)
                     .centerCrop()
+                    .placeholder(seed) // Glide would otherwise clear the seed while it loads
                     .error(Glide.with(getApplicationContext())
                             .load(narrow)
                             .onlyRetrieveFromCache(true)
                             .diskCacheStrategy(DiskCacheStrategy.ALL)
                             .format(DecodeFormat.PREFER_RGB_565)
                             .override(mStillW, mStillH)
-                            .centerCrop())
+                            .centerCrop()
+                            .placeholder(seed)
+                            .error(seed))
                     .into(mVideoStill);
         }
     }
@@ -4014,7 +4354,7 @@ public class MobilePlaybackActivity extends MobileActivity
     private void hideVideoStill(boolean revealNewVideo, String lift) {
         mNewVideoStill = false;
         if (revealNewVideo) {
-            boolean hidden = hideLoadingStillImmediately(mVideoStill);
+            boolean hidden = fadeOutLoadingStill(mVideoStill);
             if (hidden && mVideoArea != null && mVideoArea.isShown()) {
                 // UI visibility milestone after a texture update of this open's frames, not a
                 // compositor-present timestamp. There is no remaining still-fade interval after
@@ -4040,6 +4380,33 @@ public class MobilePlaybackActivity extends MobileActivity
             mVideoStill.setAlpha(1f);
             mVideoStill.setImageDrawable(null);
         }).start();
+    }
+
+    /**
+     * NEWTUBE(motion): how long the new video's first frame takes to come through the thumbnail. It
+     * was a cut (a different picture swapped in one frame); the frame is already decoded and on the
+     * texture behind the still, so the fade delays nothing, and the curve shows most of the picture
+     * within the first frames. Kept short on purpose: Codex's review of the plan warned that a long
+     * fade reads as a slower start.
+     */
+    private static final long STILL_REVEAL_MS = 100;
+
+    /** As {@link #hideLoadingStillImmediately}, fading the still off over {@link #STILL_REVEAL_MS}. */
+    static boolean fadeOutLoadingStill(@Nullable ImageView still) {
+        if (still == null || still.getVisibility() != View.VISIBLE) {
+            return false;
+        }
+        still.animate().cancel();
+        still.animate().alpha(0f).setDuration(STILL_REVEAL_MS).setInterpolator(Motion.STANDARD)
+                .withEndAction(() -> {
+                    still.setVisibility(View.GONE);
+                    still.setAlpha(1f);
+                    still.setImageDrawable(null);
+                    // picture-visible marks the fade's START (the picture begins to show and is
+                    // mostly through within ~40 ms); this marks the overlay fully gone.
+                    NetPath.log(NetPath.context() + " picture-revealed +" + NetPath.elapsedMs());
+                }).start();
+        return true;
     }
 
     /**
@@ -4101,9 +4468,37 @@ public class MobilePlaybackActivity extends MobileActivity
      * Launching Home at the release instead was tried and rejected: its creation runs on this main
      * thread and froze the settle half-way. Decided once per drag.
      */
+    /** NEWTUBE(motion): when a tap on the video last revealed the controls (0 = it hid them). */
+    private long mInstantRevealAt;
+    /** NEWTUBE(motion): finger travel for the whole drag (dragTravelFor); set when a drag begins. */
+    private float mDragTravelPx = 1f;
+    private static final long SETTLE_MIN_MS = 90;
+    private static final long SETTLE_MAX_MS = 280;
     private boolean mMorphOverOwnBackdrop;
+    /** NEWTUBE(motion): an open/expand morph is posted but has not placed its first frame yet. */
+    private boolean mMorphStartPending;
     private static final int MINI_CARD_WIDTH_DP = 180;
+    /** NEWTUBE(motion): see the mini expansion in onResume. */
+    private static final long HOST_CARD_FOLD_WAIT_MS = 50;
     private static final int MINI_CARD_HEIGHT_DP = 102;
+    /**
+     * NEWTUBE(motion): the corner radius and elevation the video box morphs to - the mini card's
+     * (mobile_mini_player_overlay.xml) and a feed card thumbnail's. The box used to stay square with
+     * a 12dp shadow and swap in one frame for the rounded card on landing (and start square over a
+     * rounded thumbnail on open).
+     */
+    private static final float MORPH_CORNER_DP = 12f;
+    private static final float MORPH_ELEVATION_DP = 8f;
+    /** Corner radius of the video box in its OWN coordinates: the morph scales it with the box. */
+    private float mMorphCornerLocalPx;
+    @Nullable
+    private android.view.ViewOutlineProvider mVideoAreaOutline;
+    private final android.view.ViewOutlineProvider mMorphOutline = new android.view.ViewOutlineProvider() {
+        @Override
+        public void getOutline(View view, android.graphics.Outline outline) {
+            outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), mMorphCornerLocalPx);
+        }
+    };
 
     /** Compute the video transform (pivot 0,0) that maps the video area onto the mini card. */
     private void computeMorphTarget() {
@@ -4158,14 +4553,16 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         overridePendingTransition(0, 0);
         mContainer.setVisibility(View.INVISIBLE);
+        mMorphStartPending = true;
         mContainer.post(() -> {
+            mMorphStartPending = false;
             if (isFinishing() || isDestroyed()) {
                 return;
             }
             computeMorphTarget(sourceBounds);
             applyMorph(1f);
             mContainer.setVisibility(View.VISIBLE);
-            mContainer.postOnAnimation(() -> animateMorph(0f, durationMs, () -> {
+            mContainer.postOnAnimation(() -> animateMorph(0f, durationMs, Motion.EMPHASIZED, () -> {
                 resetMorph();
                 // The launch thumbnail may now yield to the next actual frame. If a new stream is
                 // still loading, mStillAwaitReady keeps it up until STATE_READY first.
@@ -4190,7 +4587,8 @@ public class MobilePlaybackActivity extends MobileActivity
         // The content column is the next LinearLayout child and would otherwise be drawn over the
         // moving video. Any positive Z keeps the live TextureView visually on top during the morph.
         float density = getResources().getDisplayMetrics().density;
-        mVideoArea.setTranslationZ(f > 0f ? 12f * density : 0f);
+        mVideoArea.setTranslationZ(f > 0f ? MORPH_ELEVATION_DP * density : 0f);
+        applyMorphCorners(f, Math.min(sx, sy), density);
 
         // Remove labels/cards early so they do not ghost over Browse, then fade the solid watch
         // background more slowly. This reads as a black sheet becoming transparent while the live
@@ -4235,6 +4633,36 @@ public class MobilePlaybackActivity extends MobileActivity
         }
     }
 
+    /**
+     * NEWTUBE(motion): round the video box as it shrinks toward a card - 12dp ON SCREEN at the card
+     * end, square at full size. The outline lives in the box's own coordinates and the morph scales
+     * it, so the local radius is divided by the scale. The clip covers the texture, the still and the
+     * letterbox alike, and the elevation shadow follows it.
+     */
+    private void applyMorphCorners(float f, float scale, float density) {
+        if (f <= 0f) {
+            restoreVideoAreaOutline();
+            return;
+        }
+        mMorphCornerLocalPx = scale > 0f ? MORPH_CORNER_DP * density * f / scale : 0f;
+        if (mVideoArea.getOutlineProvider() != mMorphOutline) {
+            mVideoAreaOutline = mVideoArea.getOutlineProvider();
+            mVideoArea.setOutlineProvider(mMorphOutline);
+            mVideoArea.setClipToOutline(true);
+        }
+        mVideoArea.invalidateOutline();
+    }
+
+    private void restoreVideoAreaOutline() {
+        if (mVideoArea.getOutlineProvider() == mMorphOutline) {
+            mVideoArea.setClipToOutline(false);
+            mVideoArea.setOutlineProvider(mVideoAreaOutline != null
+                    ? mVideoAreaOutline : android.view.ViewOutlineProvider.BACKGROUND);
+            mVideoAreaOutline = null;
+        }
+        mMorphCornerLocalPx = 0f;
+    }
+
     private void resetMorph() {
         if (mMorphAnimator != null) {
             mMorphAnimator.cancel();
@@ -4253,6 +4681,7 @@ public class MobilePlaybackActivity extends MobileActivity
         mVideoArea.setTranslationX(0f);
         mVideoArea.setTranslationY(0f);
         mVideoArea.setTranslationZ(0f);
+        restoreVideoAreaOutline();
         if (mWatchContent != null) {
             mWatchContent.setAlpha(1f);
         }
@@ -4269,23 +4698,43 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     private void animateMorph(float to, long durationMs, @Nullable Runnable endAction) {
+        animateMorph(to, durationMs, new DecelerateInterpolator(), endAction);
+    }
+
+    /**
+     * NEWTUBE(motion): the end action runs only when the morph lands. It used to run on cancel too
+     * (onAnimationEnd follows onAnimationCancel), so interrupting a settle could still dock or
+     * finish the player.
+     */
+    private void animateMorph(float to, long durationMs, android.view.animation.Interpolator interpolator,
+            @Nullable Runnable endAction) {
         if (mMorphAnimator != null) {
             mMorphAnimator.cancel();
         }
-        mMorphAnimator = ValueAnimator.ofFloat(mMorphFraction, to);
-        mMorphAnimator.setDuration(durationMs);
-        mMorphAnimator.setInterpolator(new DecelerateInterpolator());
-        mMorphAnimator.addUpdateListener(a -> applyMorph((float) a.getAnimatedValue()));
-        mMorphAnimator.addListener(new AnimatorListenerAdapter() {
+        ValueAnimator animator = ValueAnimator.ofFloat(mMorphFraction, to);
+        mMorphAnimator = animator;
+        animator.setDuration(durationMs);
+        animator.setInterpolator(interpolator);
+        animator.addUpdateListener(a -> applyMorph((float) a.getAnimatedValue()));
+        animator.addListener(new AnimatorListenerAdapter() {
+            private boolean mCancelled;
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+                mCancelled = true;
+            }
+
             @Override
             public void onAnimationEnd(Animator animation) {
-                mMorphAnimator = null;
-                if (endAction != null) {
+                if (mMorphAnimator == animator) {
+                    mMorphAnimator = null;
+                }
+                if (!mCancelled && endAction != null) {
                     endAction.run();
                 }
             }
         });
-        mMorphAnimator.start();
+        animator.start();
     }
 
     @Override
@@ -4296,24 +4745,78 @@ public class MobilePlaybackActivity extends MobileActivity
     @Override
     public void onDismissDrag(float dy) {
         if (mMorphFraction == 0f && dy > 0f) {
-            computeMorphTarget(); // anchor the corner path once per drag
-            // NEWTUBE(no-host-minimize): nothing of ours beneath - see the field doc.
-            mMorphOverOwnBackdrop = MiniPlayerBridge.getMiniHost() == null;
-            // A downward drag means "dock it inside the app", never "PiP it". Disarm auto-enter for
-            // the whole drag so an overlapping home gesture cannot pin the task (see the field doc).
-            mDismissDragActive = true;
-            updatePipActions();
+            beginMinimizeMorph();
+            mDragTravelPx = dragTravelFor(mContainer.getDownRawY());
         }
-        int height = Math.max(1, mContainer.getHeight());
-        applyMorph(Math.min(1f, dy / (height * 0.6f)));
+        applyMorph(Math.min(1f, dy / mDragTravelPx));
+    }
+
+    /**
+     * NEWTUBE(motion): finger travel (px) from full size to the card for the point the finger
+     * grabbed to stay under it: at fraction f that point sits at videoTop + f * ty + v * h * s(f),
+     * linear in f, so one travel length does it for the whole drag. The morph used to advance a
+     * fixed 60% of the screen per unit, and the video slid away from the finger - most for a grab
+     * low on the video. Sideways the video follows its path to the card, like YouTube's.
+     */
+    private float dragTravelFor(float downRawY) {
+        float fallback = Math.max(1, mContainer.getHeight()) * 0.6f;
+        float height = mVideoArea.getHeight();
+        if (height <= 0f) {
+            return fallback;
+        }
+        int[] location = new int[2];
+        mVideoArea.getLocationOnScreen(location);
+        float grabbed = Math.max(0f, Math.min(1f, (downRawY - location[1]) / height));
+        float travel = mMorphTy + grabbed * height * (mMorphScaleY - 1f);
+        // A grab the finger cannot keep (low on a fullscreen box, whose card end sits above it)
+        // still needs a real distance to minimize: never under a third of the screen.
+        return Math.max(travel, Math.max(1, mContainer.getHeight()) * 0.33f);
+    }
+
+    @Override
+    public void onDismissDragCancelled() {
+        settleMorph(0f, 0f, this::resetMorph);
+    }
+
+    /**
+     * NEWTUBE(motion): finish a released drag at the finger's own speed - a decelerating settle
+     * whose first frames carry on at the release velocity (DecelerateInterpolator starts at twice
+     * its average speed), so a flick lands fast and a slow release eases in. Bounded, so a
+     * near-still release still moves promptly and a fast one never snaps in a frame or two.
+     */
+    private void settleMorph(float to, float yVelocity, Runnable endAction) {
+        float distance = Math.abs(to - mMorphFraction);
+        float speedToward = to > mMorphFraction ? yVelocity : -yVelocity; // px/s, >0 = the way we go
+        long durationMs;
+        if (speedToward > 300f) {
+            durationMs = Math.round(2000f * distance * mDragTravelPx / speedToward);
+        } else {
+            durationMs = Math.round(60f + 150f * distance);
+        }
+        durationMs = Math.max(SETTLE_MIN_MS, Math.min(SETTLE_MAX_MS, durationMs));
+        animateMorph(to, durationMs, new android.view.animation.DecelerateInterpolator(), endAction);
+    }
+
+    /** Start a minimize morph: the drag's first move, a back gesture or Back itself. */
+    private void beginMinimizeMorph() {
+        computeMorphTarget(); // anchor the corner path once per morph
+        // NEWTUBE(no-host-minimize): nothing of ours beneath - see the field doc.
+        mMorphOverOwnBackdrop = MiniPlayerBridge.getMiniHost() == null;
+        // A minimize means "dock it inside the app", never "PiP it". Disarm auto-enter for the whole
+        // morph so an overlapping home gesture cannot pin the task (see the field doc).
+        mDismissDragActive = true;
+        updatePipActions();
     }
 
     @Override
     public void onDismissDragReleased(float dy, float yVelocity) {
         boolean dismiss = mMorphFraction > 0.3f || (yVelocity > 2200f && mMorphFraction > 0.08f);
+        if (yVelocity < -1200f) {
+            dismiss = false; // NEWTUBE(motion): flicked back up - the finger changed its mind
+        }
 
         if (!dismiss) {
-            animateMorph(0f, 180, this::resetMorph);
+            settleMorph(0f, yVelocity, this::resetMorph);
             return;
         }
 
@@ -4339,8 +4842,7 @@ public class MobilePlaybackActivity extends MobileActivity
             applyMorph(1f);
             minimizeByDrag();
         } else {
-            long settleDurationMs = Math.max(50L, Math.round(150f * remaining));
-            animateMorph(1f, settleDurationMs, this::minimizeByDrag);
+            settleMorph(1f, yVelocity, this::minimizeByDrag);
         }
     }
 
@@ -4538,6 +5040,26 @@ public class MobilePlaybackActivity extends MobileActivity
         }
     }
 
+    /**
+     * NEWTUBE(motion): while the spinner turns, the play/pause glyph steps aside (YouTube shows one
+     * or the other). Not while a playback notice is up: then the play button is the retry.
+     */
+    private void syncPlayPauseWithSpinner() {
+        if (mPlayPauseButton == null) {
+            return;
+        }
+        boolean noticeUp = mNoticeView != null && mNoticeView.getVisibility() == View.VISIBLE;
+        boolean hide = mSpinnerShown && !noticeUp;
+        mPlayPauseButton.setClickable(!hide);
+        float target = hide ? 0f : 1f;
+        mPlayPauseButton.animate().cancel();
+        if (mPlayPauseButton.getAlpha() != target) {
+            mPlayPauseButton.animate().alpha(target)
+                    .setDuration(hide ? Motion.FADE_OUT_MS : Motion.FADE_IN_MS)
+                    .setInterpolator(Motion.STANDARD).start();
+        }
+    }
+
     @Override
     public void showPlaybackNotice(String message) {
         if (mNoticeView == null) {
@@ -4547,6 +5069,7 @@ public class MobilePlaybackActivity extends MobileActivity
         boolean show = message != null && !message.isEmpty();
         mNoticeView.setText(show ? message : null);
         mNoticeView.setVisibility(show ? View.VISIBLE : View.GONE);
+        syncPlayPauseWithSpinner(); // with a notice up, play is the retry: never hide it
         if (show) {
             // The video box is showing a frozen frame (or nothing) behind this - the play button is
             // the way out (it retries), so make sure the controls are up. They stay: the auto-hide
@@ -4555,10 +5078,27 @@ public class MobilePlaybackActivity extends MobileActivity
         }
     }
 
+    /** NEWTUBE(motion): the buffering spinner's state, see showProgressBar. */
+    private boolean mSpinnerShown;
+
     @Override
     public void showProgressBar(boolean show) {
-        if (mProgressBar != null) {
-            mProgressBar.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (mProgressBar != null && show != mSpinnerShown) {
+            // NEWTUBE(motion): fade in and out instead of popping, and take the play/pause glyph's
+            // place rather than drawing over it (it spun around the pause bars on every open).
+            mSpinnerShown = show;
+            mProgressBar.animate().cancel();
+            if (show) {
+                mProgressBar.setAlpha(0f);
+                mProgressBar.setVisibility(View.VISIBLE);
+                mProgressBar.animate().alpha(1f).setDuration(Motion.FADE_IN_MS)
+                        .setInterpolator(Motion.STANDARD).start();
+            } else {
+                mProgressBar.animate().alpha(0f).setDuration(Motion.FADE_OUT_MS)
+                        .setInterpolator(Motion.STANDARD)
+                        .withEndAction(() -> mProgressBar.setVisibility(View.GONE)).start();
+            }
+            syncPlayPauseWithSpinner();
         }
         // Fresh installs: while the one-time session setup is still running, tell the user why
         // this first load is longer than usual. Never shows again once any fetch succeeded.
@@ -4797,33 +5337,15 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mRelatedSkeleton == null) {
             return;
         }
-        mRelatedSkeleton.setVisibility(View.VISIBLE);
-        if (mSkeletonPulse == null) {
-            mSkeletonPulse = android.animation.ValueAnimator.ofFloat(1f, 0.45f);
-            mSkeletonPulse.setDuration(700);
-            mSkeletonPulse.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-            mSkeletonPulse.setRepeatMode(android.animation.ValueAnimator.REVERSE);
-            mSkeletonPulse.addUpdateListener(a -> {
-                if (mRelatedSkeleton != null) {
-                    mRelatedSkeleton.setAlpha((float) a.getAnimatedValue());
-                }
-            });
-        }
-        if (!mSkeletonPulse.isStarted()) {
-            mSkeletonPulse.start();
-        }
+        mRelatedSkeleton.setVisibility(View.VISIBLE); // it shimmers itself (ShimmerLinearLayout)
         Utils.removeCallbacks(mHideSkeletonTimeout);
         Utils.postDelayed(mHideSkeletonTimeout, SKELETON_TIMEOUT_MS);
     }
 
     private void hideRelatedSkeleton() {
         Utils.removeCallbacks(mHideSkeletonTimeout);
-        if (mSkeletonPulse != null && mSkeletonPulse.isStarted()) {
-            mSkeletonPulse.cancel();
-        }
         if (mRelatedSkeleton != null) {
             mRelatedSkeleton.setVisibility(View.GONE);
-            mRelatedSkeleton.setAlpha(1f);
         }
     }
 
@@ -4884,6 +5406,9 @@ public class MobilePlaybackActivity extends MobileActivity
                         .circleCrop()
                         .placeholder(R.drawable.ic_watch_channel_placeholder)
                         .error(R.drawable.ic_watch_channel_placeholder)
+                        // NEWTUBE(motion): cross-fade from the placeholder (network loads only).
+                        .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+                                .withCrossFade((int) Motion.FADE_IN_MS))
                         .into(mWatchAvatar);
             }
         });
@@ -5751,8 +6276,22 @@ public class MobilePlaybackActivity extends MobileActivity
     private void releaseWatchMetadata() {
         Utils.removeCallbacks(mReleaseWatchMetadata);
         bindWatchMetadata(mWatchMetadataGate.release());
-        mRelatedRenderGate.release();
+        // NEWTUBE(motion): the Up-next rows wait until the new video's first frame has come through
+        // (STILL_REVEAL_MS). Laying out a dozen fresh rows is a ~15 ms frame on a Pixel 9, and landing
+        // in the same frames as the still's fade it stuttered the very first frames of the video.
+        // They sit under the video; a tenth of a second later is not something anyone sees.
+        final String videoId = mWatchVideoId;
+        Utils.removeCallbacks(mReleaseRelatedRender);
+        mReleaseRelatedRender = () -> {
+            if (Helpers.equals(videoId, mWatchVideoId)) {
+                mRelatedRenderGate.release();
+            }
+        };
+        Utils.postDelayed(mReleaseRelatedRender, STILL_REVEAL_MS + 20);
     }
+
+    @Nullable
+    private Runnable mReleaseRelatedRender;
 
     private void bindWatchMetadata(MediaItemMetadata metadata) {
         if (metadata == null) {
@@ -5766,7 +6305,7 @@ public class MobilePlaybackActivity extends MobileActivity
             // bare error-reload Videos. Metadata carries the real title: use it to (re)populate,
             // and fill the controls title too if nothing is showing there.
             if (!TextUtils.isEmpty(metadata.getTitle())) {
-                mWatchTitle.setText(metadata.getTitle());
+                setWatchTextFaded(mWatchTitle, metadata.getTitle());
                 if (mTitleView != null && TextUtils.isEmpty(mTitleView.getText())) {
                     mTitleView.setText(metadata.getTitle());
                 }
@@ -5802,7 +6341,7 @@ public class MobilePlaybackActivity extends MobileActivity
             // "Sep 20, 2026" a second after opening was the jump UX-14 removed.
             if (!TextUtils.isEmpty(meta)
                     && (!TextUtils.isEmpty(relativeDate) || mWatchMeta.length() == 0)) {
-                mWatchMeta.setText(meta);
+                setWatchTextFaded(mWatchMeta, meta);
             }
 
             String description = metadata.getDescription();
@@ -5811,12 +6350,12 @@ public class MobilePlaybackActivity extends MobileActivity
             }
 
             if (!TextUtils.isEmpty(metadata.getAuthor())) {
-                mWatchChannelName.setText(metadata.getAuthor());
+                setWatchTextFaded(mWatchChannelName, metadata.getAuthor());
             }
 
             if (!TextUtils.isEmpty(metadata.getSubscriberCount())) {
-                mWatchSubs.setText(metadata.getSubscriberCount());
-                mWatchSubs.setVisibility(View.VISIBLE);
+                mWatchSubs.setVisibility(View.VISIBLE); // held INVISIBLE until now (watch-jump)
+                setWatchTextFaded(mWatchSubs, metadata.getSubscriberCount());
             } else if (TextUtils.isEmpty(mWatchSubs.getText())) {
                 mWatchSubs.setVisibility(View.GONE); // hidden count: release the held line
             }
@@ -5825,7 +6364,7 @@ public class MobilePlaybackActivity extends MobileActivity
 
             // Counts: prefer the real values already synced onto the Video; fall back to metadata.
             if (isCountUnset(mWatchLikeCount) && !TextUtils.isEmpty(metadata.getLikeCount())) {
-                mWatchLikeCount.setText(metadata.getLikeCount());
+                setWatchTextFaded(mWatchLikeCount, metadata.getLikeCount());
             }
             // NEWTUBE(ryd-opt-in): metadata's dislike count is only an estimate from the likes.
             if (showsDislikeCount() && isCountUnset(mWatchDislikeCount)
@@ -5852,7 +6391,7 @@ public class MobilePlaybackActivity extends MobileActivity
             // frame already, see mWatchMetadataGate).
             String commentsCount = mCommentsKey != null ? metadata.getCommentsCount() : null;
             if (mWatchCommentsCount != null && !TextUtils.isEmpty(commentsCount)) {
-                mWatchCommentsCount.setText(commentsCount);
+                setWatchTextFaded(mWatchCommentsCount, commentsCount);
             }
             if (mCommentsPanel != null) {
                 mCommentsPanel.setSource(mWatchVideoId, mCommentsKey, metadata.getNewestCommentsKey(), commentsCount);
@@ -5865,6 +6404,25 @@ public class MobilePlaybackActivity extends MobileActivity
                 mWatchChatEntry.setVisibility(View.VISIBLE);
             }
         }
+    }
+
+    /**
+     * NEWTUBE(motion): the page's lines settle as the video's details arrive (right after its first
+     * frame): the card's short title becomes the full one, "-" becomes "5.4K", the channel line gets
+     * its subscriber count. Swapped in one frame, that was a flurry of pops; a line whose text really
+     * changes now fades in (150 ms), all of them in the same frame, so it reads as one settle.
+     */
+    private void setWatchTextFaded(@Nullable TextView view, CharSequence text) {
+        if (view == null || TextUtils.equals(view.getText(), text)) {
+            return;
+        }
+        view.setText(text);
+        if (!view.isShown()) {
+            return;
+        }
+        view.animate().cancel();
+        view.setAlpha(0f);
+        view.animate().alpha(1f).setDuration(Motion.FADE_IN_MS).setInterpolator(Motion.STANDARD).start();
     }
 
     private boolean showsDislikeCount() {
@@ -6143,6 +6701,11 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     private void onRelatedClicked(Video video) {
+        onRelatedClicked(video, null);
+    }
+
+    private void onRelatedClicked(Video video, @Nullable ImageView thumbnail) {
+        seedTappedStill(video, thumbnail);
         if (video != null && video.videoId != null && video.hasVideo() && !video.isLocal()) {
             // NEWTUBE(open-phases): an in-player switch is a tap like a Home card's: start its
             // NetPath window here (the open line then keeps this t0), so a related hop shows up as
@@ -6770,6 +7333,11 @@ public class MobilePlaybackActivity extends MobileActivity
     public void setVideo(Video item) {
         if (item != null && item.videoId != null) {
             SessionWarmup.onPlaybackRequested();
+            if (!Helpers.equals(item.videoId, mWatchVideoId)) {
+                cancelClose(); // NEWTUBE(motion): a video picked while Back was closing this player
+                // NEWTUBE(motion): or while a host's X was closing its card - this session goes on.
+                MiniPlayerBridge.cancelClosing();
+            }
         }
         if (mExoPlayerController != null) {
             mExoPlayerController.setVideo(item);

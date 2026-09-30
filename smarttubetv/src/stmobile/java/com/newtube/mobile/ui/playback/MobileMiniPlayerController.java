@@ -18,6 +18,8 @@ import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.smartyoutubetv2.tv.R;
+import com.newtube.mobile.ui.common.FrameGate;
+import com.newtube.mobile.ui.common.Motion;
 
 /**
  * Renders an active {@link MiniPlayerBridge} session inside a screen's floating mini card.
@@ -30,6 +32,8 @@ import com.liskovsoft.smartyoutubetv2.tv.R;
 public final class MobileMiniPlayerController {
     private static final long TICK_MS = 500;
     private static final long ENTRY_DURATION_MS = 280;
+    /** NEWTUBE(motion): the longest the expanding player waits for this card to fold. */
+    private static final long FOLD_WAIT_MS = 50;
 
     private final Activity mActivity;
     private final View mBar;
@@ -43,6 +47,9 @@ public final class MobileMiniPlayerController {
     private TextureView mTexture;
     private boolean mEntryAnimating;
     private boolean mTextureHasFrame;
+    /** NEWTUBE(motion): pre-drawn for a minimize; the buttons fade in once the host is in front. */
+    private boolean mButtonsFadePending;
+    private final MiniPlayerBridge.CardFold mCardFold = this::foldForPlayer;
 
     public MobileMiniPlayerController(Activity activity) {
         mActivity = activity;
@@ -54,6 +61,9 @@ public final class MobileMiniPlayerController {
         mProgress = activity.findViewById(R.id.mobile_mini_progress);
 
         View.OnClickListener expand = v -> {
+            if (mClosing || !MiniPlayerBridge.isActive()) {
+                return; // a closed card leaving
+            }
             publishBounds();
             MiniPlayerBridge.expand(mActivity);
         };
@@ -68,19 +78,123 @@ public final class MobileMiniPlayerController {
             }
         });
 
-        mClose.setOnClickListener(v -> {
+        mClose.setOnClickListener(v -> close());
+        // NEWTUBE(motion): or swipe the card away sideways.
+        MiniCardSwipe.attach(mBar, new MiniCardSwipe.Callback() {
+            @Override
+            public boolean canSwipe() {
+                return !mClosing && !mEntryAnimating && MiniPlayerBridge.isActive();
+            }
+
+            @Override
+            public void onSwipedAway(float toTranslationX, long durationMs) {
+                close(toTranslationX, durationMs);
+            }
+        }, mFrame, mBar);
+    }
+
+    /**
+     * NEWTUBE(motion): X - the sound stops at once and the card, frozen on its last frame, shrinks
+     * and fades away instead of vanishing in one frame. The session closes once the card is gone
+     * (see MobileBrowseActivity#closeMiniPlayer for why not first).
+     */
+    private boolean mClosing;
+    private float mVolumeBeforeClose = 1f;
+
+    private void close() {
+        close(null, 0);
+    }
+
+    /** {@code flyToX}: swiped away - the card keeps going off that side instead of shrinking. */
+    private void close(@androidx.annotation.Nullable Float flyToX, long flyMs) {
+        if (mClosing) {
+            return;
+        }
+        mClosing = true;
+        ExoPlayer player = MiniPlayerBridge.getPlayer();
+        if (player != null) {
+            mVolumeBeforeClose = player.getVolume();
+            player.setVolume(0f); // released with the session right after
+        }
+        MiniPlayerBridge.setClosing(this::abortClose);
+        MiniPlayerBridge.clearPendingCardFold(mCardFold);
+        detachTexture();
+        mBar.animate().cancel();
+        android.view.ViewPropertyAnimator exit;
+        if (flyToX != null) {
+            exit = mBar.animate().translationX(flyToX).alpha(0f).setDuration(flyMs)
+                    .setInterpolator(new android.view.animation.LinearInterpolator());
+        } else {
+            resetTransform();
+            exit = mBar.animate().alpha(0f).scaleX(0.9f).scaleY(0.9f)
+                    .setDuration(Motion.EXIT_MS).setInterpolator(Motion.EMPHASIZED_ACCELERATE);
+        }
+        exit.withLayer().withEndAction(() -> {
+                    if (mClosing) {
+                        finishClose();
+                    } else {
+                        fold(); // aborted: the player took the session back; only the card goes
+                    }
+                }).start();
+    }
+
+    /** The end of close(); also run at once by anything that would re-show the card. */
+    private void finishClose() {
+        if (!mClosing) {
+            return;
+        }
+        mClosing = false;
+        MiniPlayerBridge.setClosing(null);
+        fold();
+        MiniPlayerBridge.close();
+    }
+
+    /** The session was handed a new video while the card left: it lives on; the card still goes. */
+    private void abortClose() {
+        if (!mClosing) {
+            return;
+        }
+        mClosing = false;
+        ExoPlayer player = MiniPlayerBridge.getPlayer();
+        if (player != null) {
+            player.setVolume(mVolumeBeforeClose);
+        }
+    }
+
+    /**
+     * NEWTUBE(motion): the host is pausing. Give the texture back (the player may be taking it) but
+     * keep a docked card up, frozen on its last frame, until the player covers it - see
+     * MiniPlayerBridge.setPendingCardFold. Hiding it here was a blink before every expand.
+     */
+    public void onHostPause() {
+        finishClose();
+        detachTexture();
+        if (mBar.getVisibility() == View.VISIBLE && MiniPlayerBridge.isActive()) {
+            MiniPlayerBridge.setPendingCardFold(mCardFold);
+        } else {
             hide();
-            MiniPlayerBridge.close();
-        });
+        }
+    }
+
+    /** The host is covered: a card still waiting to be folded can go now. */
+    public void onHostStop() {
+        hide();
     }
 
     /** Show the live mini session. Optionally animate it down from the watch-page video box. */
     public void sync(boolean animateFromPlayer) {
+        finishClose(); // a card closing when this runs is closed, not brought back
+        MiniPlayerBridge.clearPendingCardFold(mCardFold);
         ExoPlayer player = MiniPlayerBridge.getPlayer();
         if (player == null) {
             hide();
             return;
         }
+        mBar.animate().cancel();
+        mBar.setAlpha(1f);
+        mBar.setScaleX(1f);
+        mBar.setScaleY(1f);
+        mBar.setTranslationX(0f); // a card swiped away (MiniCardSwipe)
 
         mEntryAnimating = animateFromPlayer;
         mTextureHasFrame = false;
@@ -98,6 +212,11 @@ public final class MobileMiniPlayerController {
 
         Utils.removeCallbacks(mTick);
         Utils.postDelayed(mTick, TICK_MS);
+
+        if (mButtonsFadePending && !animateFromPlayer) {
+            mButtonsFadePending = false;
+            fadeInControls();
+        }
 
         mBar.post(() -> {
             publishBounds();
@@ -120,6 +239,10 @@ public final class MobileMiniPlayerController {
         if (mBar.getVisibility() != View.VISIBLE) {
             return false;
         }
+        // NEWTUBE(motion): the landing video is a bare picture; the buttons fade in once this host
+        // is in front (its onResume sync) rather than appearing with the card in one frame.
+        setControlsAlpha(0f);
+        mButtonsFadePending = true;
 
         // A pair of frame callbacks only proves that time passed; it does not prove this paused
         // window submitted a buffer. Gate the reorder on an actual draw containing the card, then
@@ -158,11 +281,16 @@ public final class MobileMiniPlayerController {
      * Activity can then reclaim the same session texture during Back/expand without a black beat.
      */
     public void hide() {
+        finishClose();
+        MiniPlayerBridge.clearPendingCardFold(mCardFold);
+        detachTexture();
+        fold();
+    }
+
+    /** Freeze the last frame and give the session texture back; the card itself stays as it is. */
+    private void detachTexture() {
         Utils.removeCallbacks(mTick);
-        mBar.animate().cancel();
-        mEntryAnimating = false;
         mTextureHasFrame = false;
-        resetTransform();
         publishBounds();
 
         if (mTexture != null && mTexture.getParent() != null) {
@@ -180,8 +308,28 @@ public final class MobileMiniPlayerController {
             mFrame.removeView(mTexture);
             mTexture = null;
         }
+    }
 
+    private void foldForPlayer(@androidx.annotation.Nullable Runnable onFolded) {
+        fold();
+        if (onFolded != null) {
+            FrameGate.afterNextFrame(mBar.getRootView(), FOLD_WAIT_MS, onFolded);
+        }
+    }
+
+    private void fold() {
+        mBar.animate().cancel();
+        mEntryAnimating = false;
+        mButtonsFadePending = false;
+        resetTransform();
+        mBar.setAlpha(1f);
         mBar.setVisibility(View.GONE);
+    }
+
+    private void fadeInControls() {
+        for (View view : new View[] {mPlayPause, mClose, mProgress}) {
+            view.animate().alpha(1f).setDuration(Motion.FADE_IN_MS).setInterpolator(Motion.STANDARD).start();
+        }
     }
 
     private void attachTexture() {

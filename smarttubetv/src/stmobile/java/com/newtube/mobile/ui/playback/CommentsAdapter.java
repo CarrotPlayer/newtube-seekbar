@@ -327,20 +327,6 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     @Override
-    public void onViewAttachedToWindow(@NonNull RecyclerView.ViewHolder holder) {
-        if (holder instanceof SkeletonVH) {
-            ((SkeletonVH) holder).startPulse();
-        }
-    }
-
-    @Override
-    public void onViewDetachedFromWindow(@NonNull RecyclerView.ViewHolder holder) {
-        if (holder instanceof SkeletonVH) {
-            ((SkeletonVH) holder).stopPulse();
-        }
-    }
-
-    @Override
     public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
         if (holder instanceof CommentVH) {
             ((CommentVH) holder).recycle();
@@ -357,33 +343,10 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
     }
 
-    /** The feed's skeleton breathing (0.55 - 1 alpha over 1.4s), per row while it's on screen. */
+    /** A comment-shaped loading row; its root shimmers itself (ShimmerLinearLayout). */
     private static final class SkeletonVH extends RecyclerView.ViewHolder {
-        @Nullable
-        private ObjectAnimator mPulse;
-
         SkeletonVH(@NonNull View itemView) {
             super(itemView);
-        }
-
-        void startPulse() {
-            if (mPulse == null) {
-                mPulse = ObjectAnimator.ofFloat(itemView, View.ALPHA, 0.55f, 1f);
-                mPulse.setDuration(700);
-                mPulse.setRepeatMode(ObjectAnimator.REVERSE);
-                mPulse.setRepeatCount(ObjectAnimator.INFINITE);
-                mPulse.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
-            }
-            if (!mPulse.isStarted()) {
-                mPulse.start();
-            }
-        }
-
-        void stopPulse() {
-            if (mPulse != null) {
-                mPulse.cancel();
-            }
-            itemView.setAlpha(1f);
         }
     }
 

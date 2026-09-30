@@ -9,6 +9,8 @@
     <color name="mobile_color_on_surface">#FFFFFF</color>
     <color name="mobile_color_on_surface_secondary">#B3FFFFFF</color>
     <color name="mobile_color_placeholder">#2A2A2A</color>
+    <!-- NEWTUBE(motion): the light that sweeps over skeleton blocks (ShimmerLinearLayout). -->
+    <color name="mobile_color_skeleton_highlight">#3D3D3D</color>
     <color name="mobile_color_link">#4FC3F7</color>
     <color name="mobile_color_divider">#22FFFFFF</color>
     <color name="mobile_color_pill">#26FFFFFF</color>

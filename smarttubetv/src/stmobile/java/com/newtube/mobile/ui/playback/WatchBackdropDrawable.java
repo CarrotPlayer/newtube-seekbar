@@ -89,8 +89,14 @@ final class WatchBackdropDrawable extends Drawable {
         invalidateSelf();
     }
 
+    /**
+     * NEWTUBE(motion): always translucent. DecorView takes the window's pixel format from its
+     * background's opacity when the background is set, so OPAQUE here made the player's window
+     * opaque: the open and minimize morphs then drew over a white page instead of Home (no screen
+     * below composited), and the shrinking video left trails on the uncleared surface.
+     */
     @Override
     public int getOpacity() {
-        return mAlpha == 255 ? PixelFormat.OPAQUE : PixelFormat.TRANSLUCENT;
+        return PixelFormat.TRANSLUCENT;
     }
 }

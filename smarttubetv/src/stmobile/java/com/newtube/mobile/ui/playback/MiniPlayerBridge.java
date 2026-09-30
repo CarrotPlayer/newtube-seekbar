@@ -57,7 +57,18 @@ public final class MiniPlayerBridge {
         int getMiniCardBottomOffsetPx();
     }
 
+    /**
+     * NEWTUBE(motion): a host card left on screen, frozen on its last frame, while the player comes
+     * back over it (see {@link #setPendingCardFold}).
+     */
+    public interface CardFold {
+        /** Hide the card now; run {@code onFolded} once a frame without it is on screen. */
+        void fold(@Nullable Runnable onFolded);
+    }
+
     private static final long NAVIGATION_PENDING_MS = 30_000;
+    @Nullable
+    private static CardFold sPendingFold;
 
     private static WeakReference<MobilePlaybackActivity> sActivity = new WeakReference<>(null);
     private static WeakReference<MobilePlaybackActivity> sPendingNavigation = new WeakReference<>(null);
@@ -102,6 +113,57 @@ public final class MiniPlayerBridge {
     static boolean prepareMiniHostForHandoff(Runnable onDrawn) {
         MiniHost host = sMiniHost.get();
         return host != null && host.prepareMiniPlayerForHandoff(onDrawn);
+    }
+
+    /**
+     * NEWTUBE(motion): a host pausing with a mini session docked detaches its texture (the player
+     * may be about to take it back) but keeps the card showing that last frame instead of hiding
+     * it. The expanding player's window draws ~50 ms after the host pauses (Pixel 9), and a card
+     * hidden at pause read as a blink: 4 frames of no video before the morph. The player folds the
+     * card once its own frame over the card is on screen ({@link #foldHostCard}); a host that
+     * resumes or stops first clears or folds it itself. Deliberately not part of the session state
+     * that {@link #deactivate()} clears: the player deactivates before it folds.
+     */
+    public static void setPendingCardFold(@Nullable CardFold fold) {
+        sPendingFold = fold;
+    }
+
+    public static void clearPendingCardFold(CardFold fold) {
+        if (sPendingFold == fold) {
+            sPendingFold = null;
+        }
+    }
+
+    /**
+     * NEWTUBE(motion): a host's X is closing the session once its card has animated away; the
+     * runnable aborts that (and puts the sound back). A new video delivered to this same live player
+     * meanwhile (PlaybackPresenter re-uses it) must not be closed with it: the player calls
+     * {@link #cancelClosing()} when it is handed a different video.
+     */
+    @Nullable
+    private static Runnable sClosingAbort;
+
+    public static void setClosing(@Nullable Runnable abort) {
+        sClosingAbort = abort;
+    }
+
+    static void cancelClosing() {
+        Runnable abort = sClosingAbort;
+        sClosingAbort = null;
+        if (abort != null) {
+            abort.run();
+        }
+    }
+
+    /** The player now covers the card: fold it, then run {@code onFolded} (at once if none waits). */
+    static void foldHostCard(@Nullable Runnable onFolded) {
+        CardFold fold = sPendingFold;
+        sPendingFold = null;
+        if (fold != null) {
+            fold.fold(onFolded);
+        } else if (onFolded != null) {
+            onFolded.run();
+        }
     }
 
     /** Called by the playback activity right before it backgrounds itself into mini mode. */
