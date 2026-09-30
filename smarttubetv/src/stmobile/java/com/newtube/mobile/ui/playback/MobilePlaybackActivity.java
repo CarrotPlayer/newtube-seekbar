@@ -1944,6 +1944,9 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mControlsRoot != null && mControlsRoot.getVisibility() == View.VISIBLE) {
             mControlsRoot.setAlpha(content);
         }
+        if (mTimeBar != null) {
+            mTimeBar.setAlpha(content);
+        }
         if (mCommentsPanel != null) {
             mCommentsPanel.setMorphAlpha(content);
         }
@@ -4804,6 +4807,9 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mControlsRoot != null && mControlsRoot.getVisibility() == View.VISIBLE) {
             mControlsRoot.setAlpha(contentAlpha);
         }
+        if (mTimeBar != null) {
+            mTimeBar.setAlpha(contentAlpha); // outside the controls since NEWTUBE(seek bar): fade it too
+        }
         if (mCommentsPanel != null) {
             mCommentsPanel.setMorphAlpha(contentAlpha);
         }
@@ -4889,6 +4895,9 @@ public class MobilePlaybackActivity extends MobileActivity
         setWindowBackdropAlpha(1f);
         if (mControlsRoot != null) {
             mControlsRoot.setAlpha(mControlsVisible ? 1f : 0f);
+        }
+        if (mTimeBar != null) {
+            mTimeBar.setAlpha(1f);
         }
         if (mCommentsPanel != null) {
             mCommentsPanel.setMorphAlpha(1f);
