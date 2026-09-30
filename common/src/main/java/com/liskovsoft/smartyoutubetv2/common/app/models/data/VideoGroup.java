@@ -475,8 +475,9 @@ public class VideoGroup {
         mVideos.add(idx, video);
     }
 
-    private boolean isChannelBlocked(Video video) {
-        if (video.isChapter) {
+    /** Whether the user blocked {@code video}'s channel. NEWTUBE(shorts): also autoplay's rule. */
+    static boolean isChannelBlocked(Video video) {
+        if (video == null || video.isChapter || GlobalPreferences.context() == null) {
             return false;
         }
 

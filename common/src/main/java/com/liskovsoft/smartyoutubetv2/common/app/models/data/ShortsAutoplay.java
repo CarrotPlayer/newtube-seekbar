@@ -5,6 +5,7 @@ import com.liskovsoft.mediaserviceinterfaces.data.MediaItem;
 import com.liskovsoft.sharedutils.helpers.Helpers;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * NEWTUBE(shorts): the phone has no Shorts, so autoplay must not land on one. When YouTube's own
@@ -19,7 +20,11 @@ final class ShortsAutoplay {
     private ShortsAutoplay() {
     }
 
-    static MediaItem pick(MediaItem next, List<MediaGroup> upNext, String currentVideoId) {
+    /**
+     * @param hidden what Up next leaves out besides Shorts (a blocked channel's videos - see
+     *               {@code VideoGroup.add}): never the replacement
+     */
+    static MediaItem pick(MediaItem next, List<MediaGroup> upNext, String currentVideoId, Predicate<MediaItem> hidden) {
         if (next == null || !isShort(next, upNext)) {
             return next;
         }
@@ -32,10 +37,12 @@ final class ShortsAutoplay {
                 }
                 for (MediaItem item : items) {
                     // An ordinary video: not a Short, not a playlist or mix (that would switch
-                    // what is playing into a queue), not upcoming, not the one playing now.
+                    // what is playing into a queue), not upcoming, not the one playing now, and one
+                    // Up next actually shows.
                     if (item != null && item.getVideoId() != null && !isShort(item, upNext)
                             && item.getPlaylistId() == null && !item.isUpcoming()
-                            && !Helpers.equals(item.getVideoId(), currentVideoId)) {
+                            && !Helpers.equals(item.getVideoId(), currentVideoId)
+                            && (hidden == null || !hidden.test(item))) {
                         return item;
                     }
                 }

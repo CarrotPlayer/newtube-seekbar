@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import android.app.Application;
 
@@ -53,6 +54,24 @@ public class ShortsFilterTest {
         assertEquals(Arrays.asList(null, a),
                 ShortsFilter.withoutShorts(Arrays.asList(null, video("s", true), a)));
         assertFalse(ShortsFilter.isShort(null));
+    }
+
+    @Test
+    public void theChannelsShortsSectionIsNamedShortsAndHoldsOnlyShorts() {
+        List<Video> shorts = Arrays.asList(video("s1", true), video("s2", true));
+        assertTrue(ShortsFilter.isShortsSection("Shorts", "Shorts", shorts));
+        assertTrue(ShortsFilter.isShortsSection(" SHORTS ", null, shorts));
+        assertTrue("localized label", ShortsFilter.isShortsSection("Cortos", "Cortos", shorts));
+        assertTrue("already emptied by the service", ShortsFilter.isShortsSection("Shorts", null, new ArrayList<>()));
+    }
+
+    @Test
+    public void aNormalSectionWhoseFirstPageIsAllShortsIsNotTheShortsSection() {
+        List<Video> shorts = Arrays.asList(video("s1", true), video("s2", true));
+        assertFalse(ShortsFilter.isShortsSection("Videos", "Shorts", shorts));
+        assertFalse(ShortsFilter.isShortsSection(null, "Shorts", shorts));
+        assertFalse("a Shorts-named row with real videos is kept",
+                ShortsFilter.isShortsSection("Shorts", "Shorts", Arrays.asList(video("s1", true), video("a", false))));
     }
 
     private static Video video(String id, boolean isShorts) {
