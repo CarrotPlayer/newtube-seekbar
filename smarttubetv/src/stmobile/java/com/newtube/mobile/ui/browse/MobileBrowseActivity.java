@@ -1072,6 +1072,10 @@ public class MobileBrowseActivity extends MobileActivity
 
     private static final long UPDATED_NOTICE_DELAY_MS = 1_000;
     private final AppUpdates.Listener mUpdatesListener = this::onUpdatesChanged;
+    /** Home back in front for a few seconds: the quiet update check, if the last one is old. */
+    private final Runnable mUpdateCheckIfDue = () -> AppUpdates.instance(this).checkIfDue("resume");
+    /** After the first paint of a return, and not for a screen the user only passes through. */
+    private static final long UPDATE_CHECK_DELAY_MS = 3_000;
     private final Runnable mAnnounceUpdateInstalled = this::announceUpdateInstalled;
     /** The You list's update row while it is built, so progress updates it in place. */
     @Nullable private View mYouUpdateRow;
@@ -1740,6 +1744,7 @@ public class MobileBrowseActivity extends MobileActivity
         }
 
         updateAccountRow();
+        getWindow().getDecorView().postDelayed(mUpdateCheckIfDue, UPDATE_CHECK_DELAY_MS);
         // Cheap re-sync; listener callbacks already cover changes while resumed.
         updateCastIconTint();
         // Last-resumed host wins: while this screen is (or is about to be) the one under the
@@ -1823,6 +1828,8 @@ public class MobileBrowseActivity extends MobileActivity
         if (mPresenter != null) {
             mPresenter.onViewPaused();
         }
+
+        getWindow().getDecorView().removeCallbacks(mUpdateCheckIfDue);
 
         // Free the mini bar's video surface whenever this screen leaves the foreground - the
         // playback activity may be about to re-claim it (expand / new video), and a paused

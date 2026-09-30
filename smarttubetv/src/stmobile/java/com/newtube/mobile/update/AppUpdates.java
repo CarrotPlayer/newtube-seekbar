@@ -10,6 +10,8 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ResolveInfo;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.SystemClock;
 import android.util.Log;
@@ -65,6 +67,19 @@ public final class AppUpdates implements AppUpdateCheckerListener {
     private static final String KEY_READY_NOTES = "ready_notes";
     /** A result younger than this is shown as is when the update sheet opens; older ones re-check. */
     private static final long FRESH_MS = 10 * 60 * 1_000L;
+    /** When the last check that reached the manifest (automatic or asked for) got its answer. */
+    private static final String KEY_CHECKED_AT = "checked_at_ms";
+    /**
+     * How old that answer may be before the app checks again by itself, at launch and whenever Home
+     * comes back to the front. The manifest is ~2 KB. The shared checker's own interval (12 h) and a
+     * launch-only check meant a release could go unnoticed for a day, or for as long as Android
+     * kept the app in memory: only Check for updates found it.
+     */
+    private static final long AUTO_CHECK_MS = 60 * 60 * 1_000L;
+    /** An automatic check that got no answer is not retried sooner than this in one run. */
+    private static final long AUTO_RETRY_MS = 5 * 60 * 1_000L;
+    /** A user check joins an automatic one still waiting for its answer if it is younger than this. */
+    private static final long AUTO_JOIN_MS = 30 * 1_000L;
 
     public enum Phase {
         IDLE, CHECKING, UP_TO_DATE, CHECK_FAILED, AVAILABLE, DOWNLOADING, DOWNLOAD_FAILED, READY
@@ -94,6 +109,10 @@ public final class AppUpdates implements AppUpdateCheckerListener {
     private long mTotal = -1;
     private boolean mCancelling;
     private boolean mJustUpdated;
+    /** elapsedRealtime of the last automatic check this run; 0 = none. */
+    private long mAutoCheckAtMs;
+    /** That check hasn't answered yet (the shared checker takes its answer as the current one). */
+    private boolean mAutoCheckInFlight;
 
     public static AppUpdates instance(Context context) {
         if (sInstance == null) {
@@ -154,14 +173,54 @@ public final class AppUpdates implements AppUpdateCheckerListener {
     /** The launch check: quiet, and only when automatic checks are on and the last one is old. */
     public void checkOnLaunch() {
         mChecker.discardInstalledUpdate();
+        checkIfDue("launch");
+    }
 
-        if (mPhase != Phase.IDLE) {
-            return; // the user is already somewhere in the flow
+    /**
+     * Quiet automatic check (launch, Home back in front): only when automatic checks are on, the
+     * user isn't in the flow, and the last answer is older than {@link #AUTO_CHECK_MS}. A newer
+     * version shows up as the You tab's row and dot; nothing else is said.
+     */
+    public void checkIfDue(String reason) {
+        // Only while nothing is on offer: with an update found (the You row already shows it) a
+        // re-check could answer with another version while the user downloads the first, and the
+        // shared checker would then validate the download against the wrong version.
+        if ((mPhase != Phase.IDLE && mPhase != Phase.UP_TO_DATE) || !mChecker.isUpdateCheckEnabled()
+                || !isOnline()) {
+            return; // offline: the shared checker would toast "Internet connection not available!"
         }
 
-        // Answers through the listener - UPDATE_CHECK_DISABLED (switch off, or checked recently)
-        // synchronously, anything else when the manifest arrives.
-        mChecker.checkForUpdates(mManifestUrls);
+        long lastAnswerAt = mPrefs.getLong(KEY_CHECKED_AT, 0);
+        long now = SystemClock.elapsedRealtime();
+
+        if (!isAutoCheckDue(System.currentTimeMillis(), lastAnswerAt, now, mAutoCheckAtMs)) {
+            return;
+        }
+
+        mAutoCheckAtMs = now;
+        mAutoCheckInFlight = true;
+        Log.d(TAG, "auto check reason=" + reason + " last-answer-min="
+                + (lastAnswerAt > 0 ? (System.currentTimeMillis() - lastAnswerAt) / 60_000 : -1));
+        // "force" skips the shared checker's own 12 h interval; the time rule above replaces it. Its
+        // user-asked mark only matters to a check that downloads the APK, which the phone's never
+        // do (setDownloadOnCheck(false)). Answers through the listener; a failure stays quiet
+        // (onUpdateError ignores it outside CHECKING).
+        mChecker.forceCheckForUpdates(mManifestUrls);
+    }
+
+    /**
+     * The automatic check's time rule: the last answer (wall clock, 0 = never) is older than
+     * {@link #AUTO_CHECK_MS} - or lies in the future, after a clock change - and no automatic check
+     * went out in this run (elapsedRealtime, 0 = none) in the last {@link #AUTO_RETRY_MS}.
+     */
+    static boolean isAutoCheckDue(long nowMs, long lastAnswerAtMs, long nowElapsedMs, long lastAutoCheckElapsedMs) {
+        long sinceAnswer = nowMs - lastAnswerAtMs;
+
+        if (lastAnswerAtMs > 0 && sinceAnswer >= 0 && sinceAnswer < AUTO_CHECK_MS) {
+            return false;
+        }
+
+        return lastAutoCheckElapsedMs == 0 || nowElapsedMs - lastAutoCheckElapsedMs >= AUTO_RETRY_MS;
     }
 
     /** The update sheet opened: check, unless what it would show is already current. */
@@ -195,7 +254,20 @@ public final class AppUpdates implements AppUpdateCheckerListener {
 
         mUserCheck = true;
         setPhase(Phase.CHECKING);
+
+        if (mAutoCheckInFlight && SystemClock.elapsedRealtime() - mAutoCheckAtMs < AUTO_JOIN_MS) {
+            return; // the automatic check's answer is this one's: one request, one answer
+        }
+
         mChecker.forceCheckForUpdates(mManifestUrls);
+    }
+
+    /** The same test as the shared checker's offline toast (DownloadManager.isNetworkAvailable). */
+    @SuppressWarnings("deprecation")
+    private boolean isOnline() {
+        ConnectivityManager cm = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo info = cm != null ? cm.getActiveNetworkInfo() : null;
+        return info != null && info.isConnected();
     }
 
     public void download() {
@@ -451,6 +523,7 @@ public final class AppUpdates implements AppUpdateCheckerListener {
     @Override
     public void onUpdateAvailable(UpdateInfo info) {
         mUserCheck = false;
+        mAutoCheckInFlight = false;
 
         if (mPhase == Phase.DOWNLOADING) {
             return; // a check that overlapped the download; the download's answer decides
@@ -461,6 +534,7 @@ public final class AppUpdates implements AppUpdateCheckerListener {
         mPrefs.edit()
                 .putInt(KEY_KNOWN_CODE, info.versionCode)
                 .putString(KEY_KNOWN_NAME, info.versionName)
+                .putLong(KEY_CHECKED_AT, System.currentTimeMillis())
                 .apply();
         Log.d(TAG, "update available: " + info.versionName + (info.apkPath != null ? " (downloaded)" : ""));
         setPhase(info.apkPath != null ? Phase.READY : Phase.AVAILABLE);
@@ -469,9 +543,11 @@ public final class AppUpdates implements AppUpdateCheckerListener {
     @Override
     public void onUpToDate(UpdateInfo info) {
         mUserCheck = false;
+        mAutoCheckInFlight = false;
         mInfo = info;
         mInfoAtMs = SystemClock.elapsedRealtime();
-        mPrefs.edit().remove(KEY_KNOWN_CODE).remove(KEY_KNOWN_NAME).apply();
+        mPrefs.edit().remove(KEY_KNOWN_CODE).remove(KEY_KNOWN_NAME)
+                .putLong(KEY_CHECKED_AT, System.currentTimeMillis()).apply();
         setPhase(Phase.UP_TO_DATE);
     }
 
@@ -479,6 +555,7 @@ public final class AppUpdates implements AppUpdateCheckerListener {
     public void onUpdateError(Exception error) {
         boolean userCheck = mUserCheck;
         mUserCheck = false;
+        mAutoCheckInFlight = false;
 
         if (mPhase != Phase.CHECKING) {
             return; // the launch check: disabled, not due yet, or offline - nothing to say
