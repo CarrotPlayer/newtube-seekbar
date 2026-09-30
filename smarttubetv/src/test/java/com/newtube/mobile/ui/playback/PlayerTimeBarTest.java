@@ -138,6 +138,56 @@ public class PlayerTimeBarTest {
     }
 
     @Test
+    public void letGoIsWhereTheFingerLifts() {
+        touch(MotionEvent.ACTION_DOWN, 800);
+        touch(MotionEvent.ACTION_MOVE, 850);
+        touch(MotionEvent.ACTION_UP, 900);
+        assertEquals("stop 90000", last());
+    }
+
+    @Test
+    public void theTouchBandReachesPastTheThinView() {
+        // The 2 px track lies on the 18 px view's bottom edge, its middle at y = 17: the band runs
+        // 20 above it, 16 below it (over the page, in portrait) and 12 past its ends.
+        assertTrue(mBar.isInTouchBand(500, 17 - 20));
+        assertFalse(mBar.isInTouchBand(500, 17 - 21));
+        assertTrue(mBar.isInTouchBand(500, 17 + 16));
+        assertFalse(mBar.isInTouchBand(500, 17 + 17));
+        assertTrue(mBar.isInTouchBand(-12, 17));
+        assertFalse(mBar.isInTouchBand(-13, 17));
+        assertTrue(mBar.isInTouchBand(1012, 17));
+        assertFalse(mBar.isInTouchBand(1013, 17));
+    }
+
+    @Test
+    public void theBandFollowsACenteredTrack() {
+        mBar.setTrackAtBottom(false); // fullscreen: the track in the middle, y = 9
+        assertTrue(mBar.isInTouchBand(500, 9 - 20));
+        assertFalse(mBar.isInTouchBand(500, 9 - 21));
+        assertTrue(mBar.isInTouchBand(500, 9 + 16));
+        assertFalse(mBar.isInTouchBand(500, 9 + 17));
+    }
+
+    @Test
+    public void theHiddenBarHasNoBand() {
+        mBar.setShown(false, false);
+        assertFalse(mBar.isInTouchBand(500, 17));
+    }
+
+    @Test
+    public void aRoutedBarTakesTouchesOnlyFromItsRouter() {
+        mBar.setTouchRouted(true);
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 800)); // on the view itself: left to the views under it
+        assertTrue(mEvents.isEmpty());
+
+        assertTrue(routed(MotionEvent.ACTION_DOWN, 800, 30)); // under the view, in the band
+        routed(MotionEvent.ACTION_MOVE, 900, 30);
+        routed(MotionEvent.ACTION_UP, 900, 30);
+        assertEquals("start 80000", mEvents.get(0));
+        assertEquals("stop 90000", last());
+    }
+
+    @Test
     public void chapterIndexCountsTheStartsPassed() {
         long[] starts = {10_000, 20_000, 35_000};
         assertEquals(0, PlayerTimeBar.chapterAt(starts, 0));
@@ -169,16 +219,29 @@ public class PlayerTimeBarTest {
     }
 
     private boolean touch(int action, float x) {
-        long now = SystemClock.uptimeMillis();
-        if (action == MotionEvent.ACTION_DOWN) {
-            mDownTime = now;
-        }
-        MotionEvent event = MotionEvent.obtain(mDownTime, now, action, x, 9, 0);
+        MotionEvent event = event(action, x, 9);
         try {
             return mBar.onTouchEvent(event);
         } finally {
             event.recycle();
         }
+    }
+
+    private boolean routed(int action, float x, float y) {
+        MotionEvent event = event(action, x, y);
+        try {
+            return mBar.onRoutedTouchEvent(event);
+        } finally {
+            event.recycle();
+        }
+    }
+
+    private MotionEvent event(int action, float x, float y) {
+        long now = SystemClock.uptimeMillis();
+        if (action == MotionEvent.ACTION_DOWN) {
+            mDownTime = now;
+        }
+        return MotionEvent.obtain(mDownTime, now, action, x, y, 0);
     }
 
     private String last() {

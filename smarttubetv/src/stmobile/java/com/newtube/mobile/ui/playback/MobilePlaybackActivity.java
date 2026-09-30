@@ -826,9 +826,7 @@ public class MobilePlaybackActivity extends MobileActivity
         mVideoArea.setTapRouter(new PinchZoomLayout.TapRouter() {
             @Override
             public boolean claimDown(android.view.MotionEvent down) {
-                return mInstantRevealAt != 0L && mControlsVisible
-                        && down.getEventTime() - mInstantRevealAt
-                                <= android.view.ViewConfiguration.getDoubleTapTimeout();
+                return isSecondTapOfReveal(down);
             }
 
             @Override
@@ -836,6 +834,13 @@ public class MobilePlaybackActivity extends MobileActivity
                 mPlayerView.onTouchEvent(event);
             }
         });
+        // NEWTUBE(seek bar): the seek bar's touch band - YouTube's, ~20 dp above the track to 16 dp
+        // below it, over the page in portrait - is hit-tested on the watch column, which holds both
+        // the video box and the page; the bar's own 18 dp view takes no touches directly.
+        mTimeBar.setTouchRouted(true);
+        if (mWatchRoot instanceof WatchRootLayout) {
+            ((WatchRootLayout) mWatchRoot).setTouchRouter(new SeekBandRouter());
+        }
 
         mBackButton.setOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
         mPlayPauseButton.setOnClickListener(v -> togglePlayPause());
@@ -2102,6 +2107,70 @@ public class MobilePlaybackActivity extends MobileActivity
             if (!mControlsVisible) {
                 startProgressUpdates();
             }
+        }
+    }
+
+    /**
+     * NEWTUBE(motion): a touch right after the tap that revealed the controls may be the second tap
+     * of a double tap: the video box hands it to the player's tap detector whole (setTapRouter), and
+     * the seek bar's band leaves it alone too - else a double tap near the bottom edge would seek to
+     * wherever its second tap landed.
+     */
+    private boolean isSecondTapOfReveal(android.view.MotionEvent down) {
+        return mInstantRevealAt != 0L && mControlsVisible
+                && down.getEventTime() - mInstantRevealAt
+                        <= android.view.ViewConfiguration.getDoubleTapTimeout();
+    }
+
+    /**
+     * NEWTUBE(seek bar): claims the touches in the seek bar's band for the bar
+     * ({@link PlayerTimeBar#isInTouchBand}), on the watch column. The row's buttons inside the band
+     * (fullscreen, the chapter, LIVE) keep their taps, and nothing is routed while the video box is
+     * transformed (the minimize and Back animations).
+     */
+    private final class SeekBandRouter implements WatchRootLayout.TouchRouter {
+        private final int[] mRootAt = new int[2];
+        private final int[] mBarAt = new int[2];
+        private final int[] mViewAt = new int[2];
+        /** Column to bar coordinates, fixed for the whole touch. */
+        private float mDx;
+        private float mDy;
+
+        @Override
+        public boolean claimDown(android.view.MotionEvent down) {
+            if (mTimeBar == null || mVideoArea == null || !mVideoArea.getMatrix().isIdentity()
+                    || isSecondTapOfReveal(down)) {
+                return false;
+            }
+            mWatchRoot.getLocationInWindow(mRootAt);
+            mTimeBar.getLocationInWindow(mBarAt);
+            mDx = mRootAt[0] - mBarAt[0];
+            mDy = mRootAt[1] - mBarAt[1];
+            if (!mTimeBar.isInTouchBand(down.getX() + mDx, down.getY() + mDy)) {
+                return false;
+            }
+            float windowX = down.getX() + mRootAt[0];
+            float windowY = down.getY() + mRootAt[1];
+            return !isOn(mFullscreenButton, windowX, windowY) && !isOn(mChapterButton, windowX, windowY)
+                    && !isOn(mLiveChip, windowX, windowY);
+        }
+
+        @Override
+        public void route(android.view.MotionEvent event) {
+            android.view.MotionEvent local = android.view.MotionEvent.obtain(event);
+            local.offsetLocation(mDx, mDy);
+            mTimeBar.onRoutedTouchEvent(local);
+            local.recycle();
+        }
+
+        /** Whether a window point is on this view while it shows (a button in the band keeps its tap). */
+        private boolean isOn(@Nullable View view, float windowX, float windowY) {
+            if (view == null || !view.isShown() || view.getAlpha() <= 0f) {
+                return false;
+            }
+            view.getLocationInWindow(mViewAt);
+            return windowX >= mViewAt[0] && windowX < mViewAt[0] + view.getWidth()
+                    && windowY >= mViewAt[1] && windowY < mViewAt[1] + view.getHeight();
         }
     }
 

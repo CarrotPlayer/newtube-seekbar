@@ -47,7 +47,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
  *
  * <p>Two resting states, animated between: shown (the controls are up: the whole track and the
  * dot) and hidden (portrait keeps only the played part as a line on the video's bottom edge, like
- * YouTube's inline player; fullscreen hides the bar). Only the shown bar takes touches.</p>
+ * YouTube's inline player; fullscreen hides the bar). Only the shown bar takes touches, in a band
+ * as tall as a fingertip around the track ({@link #isInTouchBand}; WatchRootLayout routes it).</p>
  *
  * <p>Dragging ticks a haptic at every chapter boundary, and dragging back onto where playback was
  * snaps there with a click: letting go then cancels the seek ({@link CancelListener} shows
@@ -80,6 +81,16 @@ public class PlayerTimeBar extends View implements TimeBar {
     private static final float UNSNAP_DP = 14f;
     /** A SponsorBlock range narrower than this still shows. */
     private static final float MIN_SEGMENT_DP = 2f;
+    /**
+     * The touch band around the track, most of it outside this thin view: YouTube 21.18 takes a
+     * drag that starts 18 dp above its bar (not 22 dp) and 16 dp below it, over the page (measured
+     * on the reference emulator). The first cut took only this view's 18 dp above the video's edge,
+     * and a finger a little off the bar landed on the video, the page or the system's Back swipe.
+     */
+    private static final float TOUCH_ABOVE_DP = 20f;
+    private static final float TOUCH_BELOW_DP = 16f;
+    /** ...and past the track's ends (fullscreen insets the bar from the screen's edges). */
+    private static final float TOUCH_SIDE_DP = 12f;
     /** A fast drag across many short chapters: no more than one tick per this. */
     private static final long TICK_MIN_INTERVAL_MS = 30;
     private static final long SHOW_MS = Motion.FADE_IN_MS;
@@ -123,6 +134,8 @@ public class PlayerTimeBar extends View implements TimeBar {
     private boolean mLineWhenHidden = true;
     /** Portrait: the track lies on the view's bottom edge (the video's); else it is centered. */
     private boolean mTrackAtBottom = true;
+    /** Touches come through {@link #onRoutedTouchEvent} (WatchRootLayout's band), not this view's bounds. */
+    private boolean mTouchRouted;
 
     private boolean mScrubbing;
     private long mScrubPosition;
@@ -164,8 +177,18 @@ public class PlayerTimeBar extends View implements TimeBar {
     public void setTrackAtBottom(boolean atBottom) {
         if (mTrackAtBottom != atBottom) {
             mTrackAtBottom = atBottom;
+            updateGestureExclusion(); // the band moves with the track
             invalidate();
         }
+    }
+
+    /**
+     * The bar's touches are hit-tested by a parent over its whole band ({@link #isInTouchBand}) and
+     * arrive through {@link #onRoutedTouchEvent}; touches that reach this view directly are left to
+     * the views under it - where the band's router gave a touch to the row's buttons, say.
+     */
+    public void setTouchRouted(boolean routed) {
+        mTouchRouted = routed;
     }
 
     /** Whether the played part stays on screen as a line while the controls are hidden. */
@@ -470,24 +493,63 @@ public class PlayerTimeBar extends View implements TimeBar {
     }
 
     /**
-     * The shown bar keeps the system's edge swipes off it (API 29+): with gesture navigation, a
-     * drag from the dot at the start of a video - or anywhere near the screen edges - opened Back
-     * instead of seeking. Android's own SeekBar excludes its thumb; this bar takes a touch
-     * anywhere along it, so the whole (18 dp tall) strip is excluded - only while it is shown.
+     * The shown bar keeps the system's edge swipes off its touch band (API 29+): with gesture
+     * navigation, a drag from the dot at the start of a video - or anywhere near the screen edges -
+     * opened Back instead of seeking. Android's own SeekBar excludes its thumb; this bar takes a
+     * touch anywhere in the band, so the whole band is excluded - only while it is shown. The rect
+     * reaches past this view (below the video's edge in portrait): the video box and the watch
+     * column leave their children unclipped, and that is what lets the system keep all of it.
      */
     private void updateGestureExclusion() {
         if (Build.VERSION.SDK_INT < 29) {
             return;
         }
         if (mShownTarget && getWidth() > 0) {
-            setSystemGestureExclusionRects(Collections.singletonList(new Rect(0, 0, getWidth(), getHeight())));
+            float center = trackCenterY();
+            int side = Math.round(dp(TOUCH_SIDE_DP));
+            setSystemGestureExclusionRects(Collections.singletonList(new Rect(-side,
+                    Math.round(center - dp(TOUCH_ABOVE_DP)), getWidth() + side,
+                    Math.round(center + dp(TOUCH_BELOW_DP)))));
         } else {
             setSystemGestureExclusionRects(Collections.emptyList());
         }
     }
 
+    /**
+     * Whether a touch at ({@code x}, {@code y}), in this view's coordinates, is the bar's: the bar is
+     * shown and the point is in the band around the track - up to {@link #TOUCH_ABOVE_DP} above it,
+     * {@link #TOUCH_BELOW_DP} below it and {@link #TOUCH_SIDE_DP} past its ends, mostly outside
+     * this view. Hidden, the bar takes nothing: a touch on the line is the video's.
+     */
+    public boolean isInTouchBand(float x, float y) {
+        if (!isEnabled() || getVisibility() != VISIBLE || !mShownTarget || mShown < 0.5f
+                || mDuration <= 0 || mDuration == C.TIME_UNSET || getWidth() <= 0) {
+            return false;
+        }
+        float center = trackCenterY();
+        float side = dp(TOUCH_SIDE_DP);
+        return x >= -side && x <= getWidth() + side
+                && y >= center - dp(TOUCH_ABOVE_DP) && y <= center + dp(TOUCH_BELOW_DP);
+    }
+
+    /** The resting track's middle: the band is centered on it and does not move while dragging. */
+    private float trackCenterY() {
+        return mTrackAtBottom
+                ? getHeight() - getPaddingBottom() - dp(TRACK_DP) / 2f
+                : getPaddingTop() + (getHeight() - getPaddingTop() - getPaddingBottom()) / 2f;
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        return !mTouchRouted && handleTouch(event);
+    }
+
+    /** A touch the band's router claimed ({@link #setTouchRouted}), in this view's coordinates. */
+    public boolean onRoutedTouchEvent(MotionEvent event) {
+        return handleTouch(event);
+    }
+
+    private boolean handleTouch(MotionEvent event) {
         if (!isEnabled() || mDuration <= 0 || mDuration == C.TIME_UNSET) {
             return false;
         }
@@ -507,6 +569,7 @@ public class PlayerTimeBar extends View implements TimeBar {
                 break;
             case MotionEvent.ACTION_UP:
                 if (mScrubbing) {
+                    moveScrubbing(x); // the finger's last spot rides on the UP itself
                     // Back on the start (or never off it): nothing to seek to.
                     stopScrubbing(mSnapped || !mLeftOrigin);
                     return true;
