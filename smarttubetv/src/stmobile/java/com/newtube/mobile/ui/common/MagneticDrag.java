@@ -1,6 +1,5 @@
 package com.newtube.mobile.ui.common;
 
-import android.os.SystemClock;
 import android.view.View;
 
 import androidx.dynamicanimation.animation.FloatValueHolder;
@@ -41,13 +40,18 @@ public final class MagneticDrag {
     private final float mPull;
     private final float mDetachPx;
     private final float mAttachPx;
-    private final SpringAnimation mSpring;
+    /**
+     * Closes {@link #mGap}. Only the gap springs, never the object itself: an object that chases a
+     * moving finger on a spring trails it for as long as it moves (~65 ms behind at this stiffness -
+     * the owner felt it as lag moving up and down), while goal + a closing gap moves with the finger
+     * from the first frame.
+     */
+    private final SpringAnimation mGapSpring;
     private boolean mDetached;
     private float mFinger;
     private float mPosition;
-    /** The finger's speed (px/s), lightly smoothed: the catch-up springs start with it. */
-    private float mVelocity;
-    private long mLastMoveAt;
+    /** How far the object sits from where it belongs ({@link #goal}); springs to 0 after a click. */
+    private float mGap;
 
     public MagneticDrag(View hapticView, Target target) {
         this(hapticView, PIXEL_PULL, target);
@@ -61,50 +65,45 @@ public final class MagneticDrag {
         float density = hapticView.getResources().getDisplayMetrics().density;
         mDetachPx = DETACH_DP * density;
         mAttachPx = ATTACH_DP * density;
-        mSpring = new SpringAnimation(new FloatValueHolder());
-        mSpring.setSpring(new SpringForce());
-        mSpring.addUpdateListener((animation, value, velocity) -> place(value));
+        mGapSpring = new SpringAnimation(new FloatValueHolder());
+        mGapSpring.setSpring(new SpringForce(0f));
+        mGapSpring.addUpdateListener((animation, value, velocity) -> {
+            mGap = value;
+            place(goal() + mGap);
+        });
+        mGapSpring.addEndListener((animation, canceled, value, velocity) -> {
+            if (!canceled) {
+                mGap = 0f;
+                place(goal());
+            }
+        });
     }
 
     /** A new drag: stuck, at rest. */
     public void start() {
-        mSpring.cancel();
+        mGapSpring.cancel();
         mDetached = false;
         mFinger = 0f;
         mPosition = 0f;
-        mVelocity = 0f;
-        mLastMoveAt = 0L;
+        mGap = 0f;
     }
 
     /** The finger moved to {@code finger} px from where the drag began. */
     public void move(float finger) {
-        long now = SystemClock.uptimeMillis();
-        if (mLastMoveAt != 0L && now > mLastMoveAt) {
-            float velocity = (finger - mFinger) * 1000f / (now - mLastMoveAt);
-            mVelocity = 0.6f * velocity + 0.4f * mVelocity;
-        }
-        mLastMoveAt = now;
         mFinger = finger;
-
         float distance = Math.abs(finger);
         if (!mDetached && distance >= mDetachPx) {
             mDetached = true;
-            springTo(finger, DETACH_STIFFNESS, DETACH_DAMPING);
+            closeGap(DETACH_STIFFNESS, DETACH_DAMPING);
             Haptics.threshold(mView, true);
         } else if (mDetached && distance <= mAttachPx) {
             mDetached = false;
-            springTo(finger * mPull, ATTACH_STIFFNESS, ATTACH_DAMPING);
+            closeGap(ATTACH_STIFFNESS, ATTACH_DAMPING);
             Haptics.threshold(mView, false);
-        } else {
-            float goal = mDetached ? finger : finger * mPull;
-            if (mSpring.isRunning()) {
-                mSpring.animateToFinalPosition(goal);
-            } else {
-                place(goal);
-            }
-            if (!mDetached) {
-                Haptics.tension(mView, distance / mDetachPx);
-            }
+        }
+        place(goal() + mGap);
+        if (!mDetached) {
+            Haptics.tension(mView, distance / mDetachPx);
         }
     }
 
@@ -120,15 +119,22 @@ public final class MagneticDrag {
 
     /** The drag ended: stop any catch-up where it is, so the caller can animate on from there. */
     public void finish() {
-        mSpring.cancel();
+        mGapSpring.cancel();
     }
 
-    private void springTo(float goal, float stiffness, float damping) {
-        mSpring.cancel();
-        mSpring.getSpring().setStiffness(stiffness).setDampingRatio(damping);
-        mSpring.setStartValue(mPosition);
-        mSpring.setStartVelocity(mVelocity);
-        mSpring.animateToFinalPosition(goal);
+    /** Where the object belongs for the finger's travel: on it once let go, a share of it before. */
+    private float goal() {
+        return mDetached ? mFinger : mFinger * mPull;
+    }
+
+    /** The object's place just changed (a click): keep it where it is and spring the gap shut. */
+    private void closeGap(float stiffness, float damping) {
+        mGapSpring.cancel();
+        mGap = mPosition - goal();
+        mGapSpring.getSpring().setStiffness(stiffness).setDampingRatio(damping).setFinalPosition(0f);
+        mGapSpring.setStartValue(mGap);
+        mGapSpring.setStartVelocity(0f);
+        mGapSpring.start();
     }
 
     private void place(float position) {
