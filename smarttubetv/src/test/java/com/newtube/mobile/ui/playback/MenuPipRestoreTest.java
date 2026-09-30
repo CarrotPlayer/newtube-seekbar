@@ -86,6 +86,53 @@ public class MenuPipRestoreTest {
         home.pause().stop().destroy();
     }
 
+    /** A screen whose stop belongs to a recreation (configuration change). */
+    public static class RecreatingActivity extends Activity {
+        boolean changing;
+
+        @Override
+        public boolean isChangingConfigurations() {
+            return changing;
+        }
+    }
+
+    @Test
+    public void recreatingTheScreenUnderAMenuPipKeepsItInApp() {
+        // Dark mode, locale, font size or a fold while the player floats: the screen under it
+        // stops for a moment (count 0) and its replacement starts and gains focus.
+        ActivityController<RecreatingActivity> home =
+                Robolectric.buildActivity(RecreatingActivity.class).create().start().resume();
+        SystemPipBridge.onMenuPipEntered(true);
+
+        home.get().changing = true;
+        home.pause().stop();
+        assertTrue("a recreation is not the user leaving", SystemPipBridge.isInAppPip());
+
+        ActivityController<Activity> replacement = startScreen();
+        assertFalse("the replacement's focus is no launcher return",
+                SystemPipBridge.shouldRestore(true, SystemPipBridge.isInAppPip()));
+
+        replacement.pause().stop(); // then the Home button
+        assertFalse(SystemPipBridge.isInAppPip());
+        replacement.destroy();
+        home.destroy();
+    }
+
+    @Test
+    public void onlyAStopThatEmptiesTheAppWithoutARecreationIsLeaving() {
+        assertTrue(SystemPipBridge.leftApp(0, /* changingConfigurations= */ false));
+        assertFalse(SystemPipBridge.leftApp(0, true));
+        assertFalse(SystemPipBridge.leftApp(1, false));
+    }
+
+    @Test
+    public void aStalePinnedWordAfterAnAbortedEntryIsNotTrusted() {
+        assertTrue(MobilePlaybackActivity.pinnedForRestore(/* platformSaysPinned= */ true, /* stateStale= */ false));
+        assertFalse("undone entry, no callbacks: the fullscreen player still reads as pinned",
+                MobilePlaybackActivity.pinnedForRestore(true, true));
+        assertFalse(MobilePlaybackActivity.pinnedForRestore(false, false));
+    }
+
     @Test
     public void aPlayerAloneInItsTaskLeavesNothingInAppBehind() {
         // A cold share link: the whole task goes into PiP, the launcher is what shows.
