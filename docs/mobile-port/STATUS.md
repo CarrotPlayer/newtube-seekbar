@@ -11,6 +11,24 @@ Phone-only: the TV flavors, vendored ExoPlayer fork and Leanback modules were
 deleted. Playback uses Media3 1.10.1 with embedded Cronet and an OkHttp fallback.
 Toolchain: AGP 9.2.1 / Gradle 9.6.1 / compileSdk 37 / targetSdk 37 / minSdk 24.
 
+## Feeds that keep loading (2026-09-30, branch fix/feed-continuation, emulator)
+
+A Reddit report (signed in): Home stops after a while and only a refresh brings more; the
+related list under a video ends too; Notifications is empty. Details: HANDOFF §35.
+
+- **Home and the other row sections** continue every shelf in turn once their section list is
+  done (`ShelfTail`), instead of only the last card's shelf, then fetch the section again and
+  append what is new; a re-fetch that adds fewer than 12 cards ends the feed. Signed out on the
+  emulator: 124 cards -> 261.
+- **Subscriptions, History and the other grid sections** fetch the next page when a page added
+  no visible card (all Shorts), instead of stalling; 10 such pages in a row end it (unit-tested,
+  not device-checked: no signed-in device).
+- **Back to a tab within its 5-minute cache** repaints the whole grid, not its first 120 cards.
+- **Up next** loads the second page the TV answer offers: 30 -> 60 related videos.
+- **Notifications** is diagnosed, not fixed: the inbox request uses the TV client, which the
+  endpoint refuses (anonymous probe: HTTP 400), and the fallback RSS feed of bell-"All" channels is
+  empty for phone users (the phone has no bell). Needs a signed-in check (HANDOFF §35).
+
 ## Player routes and time to first frame (2026-09-28/29, 1.11.0)
 
 The way NewTube picks a YouTube source for a video was redesigned from

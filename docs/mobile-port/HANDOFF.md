@@ -2207,3 +2207,70 @@ past-60 s 403 before the buffer drains and join the recovery source at the buffe
 
 Reports: `~/projects/newtube-launch/netbench/r11-{pixel,mi8,emu-home}.md`, the TTFF analysis
 `r11-ttff-analysis.md`; design and evidence `docs/player-sources/LANES.md` §2.3, §7-9.
+
+## 35. Feeds that keep loading: ShelfTail, Up next's second page, Notifications (2026-09-30)
+
+Reddit report (signed in, 1.11.0): Home stops after a while (only back-to-top + refresh brings
+more), the related list under a video ends, Notifications is empty. Emulator `newtube_nogms_api35`,
+signed out; NetPath `feed-grid section= action= in= size=` (grid size per update) and
+`related-list rows= size=` count the cards.
+
+### Home and the browse sections (`common` `ShelfTail`, `BrowsePresenter`; view `MobileBrowseActivity`)
+- **Cause.** The phone flattens a row section's shelves into one grid. Once the section list was
+  done (signed out: `AnonymousHome.mergeTopicFeeds` returns ONE merged page of 16 topic shelves with
+  no key; signed in: ~7 pages), scroll-end continued only the LAST card's shelf. It ran out after a
+  few pages and the feed stopped at 124 cards while the other shelves had pages left (anonymous
+  probe: ~400 cards over all shelves; one News shelf runs past 80). A page the grid filtered away
+  entirely also stalled: no new card, no scroll, no scroll-end. Grid sections had the same stall on
+  an all-Shorts page (Subscriptions).
+- **Fix (gate `BrowsePresenter.setShelfTailEnabled`, MobileMainApplication; debug A/B
+  `setprop debug.arc.shelf_tail 0`).** Per section, a `ShelfTail`: every shelf with a key joins a
+  rotation; each time the grid runs short (`onScrollNearEnd(gridSize)`: scroll listener at 16 cards
+  from the end, and the runway check posted after every `updateSection`) the head shelf fetches ONE
+  page and goes to the back. Scroll-end is ignored for tail sections. The grid size tells a page that
+  added no card: a row shelf leaves the rotation; a grid section's one group is fetched again; 10
+  empty pages in a row stop the tail. A fetch that returns nothing (`fromNullable result is null` =
+  stale key, HTTP error without body, refused connection) chains the next shelf at most twice.
+  Scrolling up re-arms the near-end report (a stalled end gets one retry per gesture). Row sections
+  only: when every shelf is spent the section is fetched again and APPENDED (a "round",
+  `walkRows(..., append=true)`: no clear, errors leave the grid alone); a round adding < 12 cards
+  ends the feed; max 20 rounds; a shrunk grid (removals, repaint) is judged from zero. The grid
+  sections' size-based top-up (`continueGroupIfNeeded`, counted raw items incl. Shorts) is replaced
+  by the tail. Tails survive section switches (TTL repaint) and are reset by the section's next load
+  and account changes. The paced Home walk (`HomeSectionPacer`) still owns the section-list pages:
+  tail demands during a walk are replayed when it completes (`mTailDemanded`).
+- **FeedCache** keeps the whole grid in memory (was the first 120 cards: a TTL repaint lost
+  everything past it); the disk copy stays at 40.
+- **Measured.** Signed out: 124 -> 241 cards from the shelves, 261 after two rounds (the second
+  added 6, so the feed ended with one `shelf-tail end` line and no further requests); after Home ->
+  Subscriptions -> Home within the TTL the kept tail carried on. Logs: `shelf-tail ready|page|round|
+  end`. Signed-in Home and grid sections are unit-tested only (`ShelfTailTest`).
+
+### Up next (MSC `next/v2`, `WatchNextGates.suggestionsSectionContinuation`)
+- **Cause.** The TVHTML5 `/next` pivot is a section list of 10 shelves of 3 videos; the SECTION LIST
+  has a continuation (the next 10 shelves), no shelf has one. Only shelf keys were read, so the phone
+  (which pages its last related row at the end of the list) ended at 30.
+- **Fix.** The last suggestion row carries the pivot token (not a lone playlist row); paging it goes
+  through the existing `sectionListContinuation` parse. Anonymous probes on three videos: exactly one
+  more page of 30. Emulator: 30 -> 60 in one `/next` continuation (~0.5 s, 8 KB); the next page-end
+  finds no key and sends nothing. Related paging no longer shows or hides the player's spinner
+  (it is the buffering spinner on the phone). Test: MSC `SuggestionsSectionContinuationTest`
+  (trimmed 2026-09-30 fixtures).
+
+### Notifications: diagnosed, not fixed (needs a signed-in check)
+- The section is wired (`TYPE_NOTIFICATIONS` grid -> `getNotificationItemsObserve`). The inbox request
+  `youtubei/v1/notification/get_notification_menu` is sent with the TVHTML5 context
+  (`NotificationsApiHelper`). Anonymous probe 2026-09-30: TVHTML5 -> HTTP 400 FAILED_PRECONDITION,
+  WEB -> 200 (same `multiPageMenuRenderer` shape the parser reads). On an error the wrapper
+  (`NotificationsServiceIntWrapper`) falls back to an RSS feed of the channels whose bell is "All" in
+  the app or with 6+ in-app likes (`NotificationStorage`) - none for most phone users, and the phone
+  has no bell UI (`PlayerUIController.showNotificationsDialog` is reached by a TV long-press only).
+  Upstream's own test is `@Ignore("Won't work with TV auth headers")`.
+- **Check (signed in, debug build):** open You -> Notifications, then
+  `adb -s <serial> logcat -d | grep -a -E "get_notification_menu|notifications source="`.
+  Expected: `code=400` and `notifications source=rss inbox-error=… channels=0 items=0`. If instead
+  `code=200` with `source=inbox items=0`, the response format changed: capture it.
+- **Proposed fix:** try the inbox with a WEB context and the account's token (gated, logged; keep the
+  TV query + RSS as the fallback); if YouTube refuses every client with the TV token, either hide the
+  section on the phone or make the fallback useful (long-press Subscribe -> the existing bell dialog,
+  plus an empty state that says how to fill it).
