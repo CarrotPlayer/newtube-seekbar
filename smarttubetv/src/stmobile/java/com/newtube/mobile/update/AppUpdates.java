@@ -182,6 +182,10 @@ public final class AppUpdates implements AppUpdateCheckerListener {
      * version shows up as the You tab's row and dot; nothing else is said.
      */
     public void checkIfDue(String reason) {
+        if (!BuildConfig.IN_APP_UPDATES) {
+            return; // store build (-Pfdroid): the store delivers updates, nothing is checked
+        }
+
         // Only while nothing is on offer: with an update found (the You row already shows it) a
         // re-check could answer with another version while the user downloads the first, and the
         // shared checker would then validate the download against the wrong version.
