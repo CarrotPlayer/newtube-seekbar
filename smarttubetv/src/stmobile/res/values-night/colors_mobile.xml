@@ -26,4 +26,11 @@
     <color name="mobile_color_track">#33FFFFFF</color>
     <color name="mobile_color_field">#0F0F0F</color>
     <color name="mobile_color_background_scrim">#660F0F0F</color>
+    <color name="mobile_color_navigation_bar">#0F0F0F</color>
+
+    <!-- The shared edit dialogs keep the library's AppDialog colours (sharedutils / common). -->
+    <color name="dialog_bg_color">#101010</color>
+    <color name="dialog_text_color">#a1a1a6</color>
+    <color name="dialog_hint_color">#33FFFFFF</color>
+    <color name="dialog_proxy_hint_color">#80FFFFFF</color>
 </resources>

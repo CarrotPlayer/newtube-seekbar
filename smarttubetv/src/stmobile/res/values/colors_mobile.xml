@@ -48,6 +48,17 @@
     <color name="mobile_color_field">#F2F2F2</color>
     <!-- The page colour at 40%, for the playlist header's wash into the page. -->
     <color name="mobile_color_background_scrim">#66FFFFFF</color>
+    <!-- The navigation bar. Black here: Android 7-8.0 can't draw dark navigation buttons, so a
+         white bar would hide them; values-v27 has the white one that matches the page. -->
+    <color name="mobile_color_navigation_bar">#000000</color>
+
+    <!-- NEWTUBE(theme): the shared edit dialogs (SimpleEditDialog - new/rename playlist, passwords -
+         and WebProxyDialog) use the library's fixed dark AppDialog colours; the light side
+         overrides them here, values-night keeps the library's values. -->
+    <color name="dialog_bg_color">#FFFFFF</color>
+    <color name="dialog_text_color">#0F0F0F</color>
+    <color name="dialog_hint_color">#61000000</color>
+    <color name="dialog_proxy_hint_color">#8A000000</color>
 
     <!-- NEWTUBE(theme): player chrome, the same in BOTH themes - the player stays dark like
          YouTube's: controls and chips over the video, the mini player, the cast overlays. -->

@@ -75,6 +75,12 @@ public class MobileAddDeviceActivity extends MobileActivity implements AddDevice
         super.onResume();
     }
 
+    /** NEWTUBE(theme): re-coloured in place, so the pairing code and its poll survive. */
+    @Override
+    protected boolean onThemeChanged(int night) {
+        return recolourInPlace(night) || super.onThemeChanged(night);
+    }
+
     @Override
     protected void onDestroy() {
         if (mPresenter != null && mPresenter.getView() == this) {

@@ -1614,10 +1614,23 @@ public class MobilePlaybackActivity extends MobileActivity
      * page under it - title, actions, description, cards, Up next, the comments panel - takes its
      * colours from a fresh inflation of this layout under the new theme (ThemeRefresh), its lists
      * rebuild their rows, and what code draws from state (thumbs, Save, Subscribe, Download) is
-     * drawn again. A sheet that happens to be open keeps its colours until it closes.
+     * drawn again. A sheet that happens to be open (gear and its pickers, cast, live chat) closes:
+     * it was built on the other side, and reopens on the new one.
      */
     @Override
     protected boolean onThemeChanged(int night) {
+        for (java.lang.ref.WeakReference<BottomSheetDialog> ref : mShownSheets) {
+            BottomSheetDialog sheet = ref.get();
+            if (sheet != null && sheet.isShowing()) {
+                sheet.dismiss();
+            }
+        }
+        mShownSheets.clear();
+        for (androidx.fragment.app.Fragment fragment : getSupportFragmentManager().getFragments()) {
+            if (fragment instanceof androidx.fragment.app.DialogFragment) {
+                ((androidx.fragment.app.DialogFragment) fragment).dismissAllowingStateLoss();
+            }
+        }
         ThemeMode.syncResources(this, night);
         View liveArea = findViewById(R.id.mobile_watch_area);
         if (liveArea == null) {
@@ -1780,6 +1793,10 @@ public class MobilePlaybackActivity extends MobileActivity
             applyDisplayCutoutMode(true);
             // Immersive full-bleed video (PLAYER POLISH behaviour).
             Helpers.makeActivityFullscreen2(this);
+            if (ThemeMode.isLight(this)) {
+                // NEWTUBE(theme): all video - not the light portrait backdrop's white page band.
+                getWindow().getDecorView().setBackgroundColor(Color.BLACK);
+            }
         } else {
             applyDisplayCutoutMode(false);
             // Watch page: standard phone chrome (solid status bar, video box below it -
@@ -1945,6 +1962,10 @@ public class MobilePlaybackActivity extends MobileActivity
     private void applyPipVideoOnlyLayout() {
         cancelAutoHide();
         hideControls();
+        // NEWTUBE(theme): the pinned window is all video - black behind it in both themes (the
+        // light theme's portrait backdrop is white below the status band). The exit restores it
+        // through applySystemBarsForOrientation.
+        getWindow().getDecorView().setBackgroundColor(Color.BLACK);
         // Defensive surface repair: a task/mini-player hand-off can leave the Activity-owned
         // TextureView detached for a frame. PiP must never snapshot the watch UI with no video
         // consumer. Do not steal a texture that is legitimately owned by an active mini card.
@@ -3260,7 +3281,17 @@ public class MobilePlaybackActivity extends MobileActivity
      * mirrored onto its window (focus is restored right after, per the standard immersive-dialog
      * recipe) so the bars stay hidden.
      */
+    /** NEWTUBE(theme): the sheets shown over this screen, closed by a theme change (onThemeChanged). */
+    private final List<java.lang.ref.WeakReference<BottomSheetDialog>> mShownSheets = new ArrayList<>();
+
     private void showPlayerSheet(BottomSheetDialog dialog) {
+        for (int i = mShownSheets.size() - 1; i >= 0; i--) {
+            BottomSheetDialog shown = mShownSheets.get(i).get();
+            if (shown == null || !shown.isShowing()) {
+                mShownSheets.remove(i);
+            }
+        }
+        mShownSheets.add(new java.lang.ref.WeakReference<>(dialog));
         Window window = dialog.getWindow();
         boolean immersive = isLandscape();
         if (immersive && window != null) {

@@ -157,6 +157,15 @@ public class MobileSignInActivity extends MobileActivity implements SignInView {
         super.onNewIntent(intent);
     }
 
+    /**
+     * NEWTUBE(theme): not recreated for a theme change - that would stop the keep-alive and mint a
+     * new device code while Google may still be approving the old one (the tab covers us then).
+     */
+    @Override
+    protected boolean onThemeChanged(int night) {
+        return recolourInPlace(night) || super.onThemeChanged(night);
+    }
+
     @Override
     protected void onDestroy() {
         MobileSignInKeepaliveService.stop(this);

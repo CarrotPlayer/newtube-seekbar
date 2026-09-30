@@ -221,6 +221,9 @@ public class MotherActivity extends FragmentActivity {
 
         // One override for both: applyOverrideConfiguration may only be called once per activity.
         Configuration override = new Configuration();
+        // Android 7's constructor sets fontScale to 1, which as an override would pin the text to
+        // the default size whatever the system's font size (later versions leave it undefined).
+        override.fontScale = 0;
         if (scaled) {
             override.densityDpi = Math.round(base.getResources().getConfiguration().densityDpi * uiScale);
         }

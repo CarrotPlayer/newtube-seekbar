@@ -88,11 +88,15 @@
         <!-- The TV manifest makes Splash singleInstance, which puts it in a separate task and
              forces Android's non-overridable cross-task slide when it routes into mobile Home.
              Keep the launcher and Home in the same normal phone task. -->
+        <!-- NEWTUBE(theme): uiMode too - the first launch after the Theme setting's migration applies
+             the app's night mode (ThemeMode, setApplicationNightMode on Android 12+) while this
+             routing screen may still be starting; it draws nothing, so it must not be relaunched. -->
         <activity
             android:name="com.liskovsoft.smartyoutubetv2.tv.ui.main.SplashActivity"
             android:launchMode="singleTop"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|layoutDirection|uiMode"
             android:theme="@style/Theme.NewTube"
-            tools:replace="android:launchMode" />
+            tools:replace="android:launchMode,android:configChanges" />
 
         <activity
             android:name="com.newtube.mobile.ui.browse.MobileBrowseActivity"

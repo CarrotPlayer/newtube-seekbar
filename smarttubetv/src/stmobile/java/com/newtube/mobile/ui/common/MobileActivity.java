@@ -122,7 +122,41 @@ public abstract class MobileActivity extends MotherActivity {
     @Override
     public void setContentView(int layoutResID) {
         super.setContentView(layoutResID);
+        mContentLayoutId = layoutResID;
         installContentInsets();
+    }
+
+    /** NEWTUBE(theme): the layout {@link #recolourInPlace} inflates again. */
+    private int mContentLayoutId;
+
+    /**
+     * NEWTUBE(theme): changes this screen's side without recreating it, for a screen whose live
+     * state a recreation would lose (the sign-in and pairing screens restart their code and its
+     * poll): resources and theme first, then the colours of a fresh inflation of the same layout
+     * copied onto the live views (ThemeRefresh), the window background and the bars.
+     *
+     * @return false if the content isn't a plain setContentView(layout) tree (recreate instead)
+     */
+    protected final boolean recolourInPlace(int night) {
+        android.view.ViewGroup content = findViewById(android.R.id.content);
+        if (mContentLayoutId == 0 || content == null || content.getChildCount() != 1) {
+            return false;
+        }
+        ThemeMode.syncResources(this, night);
+        View fresh = getLayoutInflater().inflate(mContentLayoutId, content, false);
+        java.util.List<androidx.recyclerview.widget.RecyclerView> lists = new java.util.ArrayList<>();
+        int skipped = ThemeRefresh.copyColors(content.getChildAt(0), fresh, lists);
+        for (androidx.recyclerview.widget.RecyclerView list : lists) {
+            ThemeRefresh.rebuildRows(list);
+        }
+        android.content.res.TypedArray window = getTheme().obtainStyledAttributes(
+                new int[] {android.R.attr.windowBackground});
+        getWindow().setBackgroundDrawable(window.getDrawable(0));
+        window.recycle();
+        applyFullscreenModeIfNeeded();
+        com.liskovsoft.smartyoutubetv2.common.misc.NetPath.log("theme screen=" + getClass().getSimpleName()
+                + " in-place skipped=" + skipped);
+        return true;
     }
 
     /**
@@ -354,14 +388,16 @@ public abstract class MobileActivity extends MotherActivity {
         window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
 
-        int barColor = ContextCompat.getColor(this, R.color.mobile_color_background);
-        window.setStatusBarColor(barColor);
-        window.setNavigationBarColor(barColor);
+        window.setStatusBarColor(ContextCompat.getColor(this, R.color.mobile_color_background));
+        // NEWTUBE(theme): the page colour, except black below Android 8.1 in the light theme -
+        // those can't draw dark navigation buttons (mobile_color_navigation_bar).
+        window.setNavigationBarColor(ContextCompat.getColor(this, R.color.mobile_color_navigation_bar));
 
         // NEWTUBE(theme): dark icons over the light theme's white bars, light ones over the dark
         // theme's (and over the player's black status band in both - isStatusBarOverDarkContent).
         boolean lightTheme = ThemeMode.isLight(this);
         boolean darkStatusIcons = lightTheme && !isStatusBarOverDarkContent();
+        boolean darkNavigationIcons = lightTheme && Build.VERSION.SDK_INT >= 27;
         if (Build.VERSION.SDK_INT >= 30) {
             window.setDecorFitsSystemWindows(true);
             WindowInsetsController controller = window.getInsetsController();
@@ -370,7 +406,7 @@ public abstract class MobileActivity extends MotherActivity {
                 controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_DEFAULT);
                 controller.setSystemBarsAppearance(
                         (darkStatusIcons ? WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS : 0)
-                                | (lightTheme ? WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0),
+                                | (darkNavigationIcons ? WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0),
                         WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                                 | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
             }
@@ -379,7 +415,7 @@ public abstract class MobileActivity extends MotherActivity {
             if (darkStatusIcons) {
                 flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
             }
-            if (lightTheme && Build.VERSION.SDK_INT >= 26) {
+            if (darkNavigationIcons) {
                 flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             }
             getWindow().getDecorView().setSystemUiVisibility(flags);
