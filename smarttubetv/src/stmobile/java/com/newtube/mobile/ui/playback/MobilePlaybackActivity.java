@@ -4783,14 +4783,15 @@ public class MobilePlaybackActivity extends MobileActivity
     private boolean mMagnetDragging;
     /** NEWTUBE(haptics): a flick this fast (dp/s) minimizes even before the drag lets go. */
     private static final float MINIMIZE_FLICK_DP = 800f;
+    private static final long SETTLE_MIN_MS = 90;
+    private static final long SETTLE_MAX_MS = 280;
     /**
-     * NEWTUBE(haptics): the springs a released minimize drag settles on (Motion.Spring). Landing on
-     * the card: reaches it in ~170 ms and settles ~9 px past it before coming to rest - the small
-     * landing the Pixel's recents flick has. Going back up: critically damped and stiffer, no bounce.
+     * NEWTUBE(haptics): the spring a released minimize drag lands on the card with (Motion.Spring):
+     * it settles ~10 px past the card before coming to rest - the small landing of the Pixel's
+     * recents flick.
      */
     private static final float SETTLE_LAND_STIFFNESS = 800f;
     private static final float SETTLE_LAND_DAMPING = 0.85f;
-    private static final float SETTLE_RETURN_STIFFNESS = 1000f;
     private boolean mMorphOverOwnBackdrop;
     /** NEWTUBE(motion): an open/expand morph is posted but has not placed its first frame yet. */
     private boolean mMorphStartPending;
@@ -5131,16 +5132,34 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     /**
-     * NEWTUBE(motion): finish a released drag on a spring that starts at the finger's own speed
-     * (NEWTUBE(haptics): it used to be a decelerating curve of 90-280 ms). Onto the card it lands
-     * with a small settle; back to full size it stops dead on its place, never past it.
+     * NEWTUBE(motion): finish a released drag at the finger's own speed - a decelerating settle
+     * whose first frames carry on at the release velocity (DecelerateInterpolator starts at twice
+     * its average speed), so a flick lands fast and a slow release eases in. Bounded, so a
+     * near-still release still moves promptly and a fast one never snaps in a frame or two.
+     *
+     * <p>NEWTUBE(haptics): onto the card, a spring instead, so it lands with a small settle. It is
+     * launched at the speed that curve would have started with: a spring started at the finger's
+     * own speed began from rest after a slow release and hung back behind the finger for its first
+     * frames (owner, on the Pixel). Back to full size stays the curve - nothing to land there.</p>
      */
     private void settleMorph(float to, float yVelocity, Runnable endAction) {
+        float distance = Math.abs(to - mMorphFraction);
+        float speedToward = to > mMorphFraction ? yVelocity : -yVelocity; // px/s, >0 = the way we go
+        long durationMs;
+        if (speedToward > 300f) {
+            durationMs = Math.round(2000f * distance * mDragTravelPx / speedToward);
+        } else {
+            durationMs = Math.round(60f + 150f * distance);
+        }
+        durationMs = Math.max(SETTLE_MIN_MS, Math.min(SETTLE_MAX_MS, durationMs));
+        if (to <= mMorphFraction) {
+            animateMorph(to, durationMs, new android.view.animation.DecelerateInterpolator(), endAction);
+            return;
+        }
         float travel = Math.max(1f, mDragTravelPx);
-        boolean landing = to > mMorphFraction;
-        Motion.Spring spring = new Motion.Spring(mMorphFraction, to, yVelocity / travel,
-                landing ? SETTLE_LAND_STIFFNESS : SETTLE_RETURN_STIFFNESS,
-                landing ? SETTLE_LAND_DAMPING : 1f, 1f / travel, !landing);
+        float launch = Math.max(yVelocity / travel, 2f * distance * 1000f / durationMs); // fraction/s
+        Motion.Spring spring = new Motion.Spring(mMorphFraction, to, launch,
+                SETTLE_LAND_STIFFNESS, SETTLE_LAND_DAMPING, 1f / travel);
         animateMorph(to, spring.durationMs, spring, endAction);
     }
 

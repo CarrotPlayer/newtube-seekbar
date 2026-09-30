@@ -63,9 +63,7 @@ public final class Motion {
      * flick and SystemUI's notification rows are springs that start at the finger's speed, and a
      * spring below critical damping lands with a small settle past its target.
      *
-     * <p>{@link #durationMs} is when the spring stays within {@code precision} of its target;
-     * {@code noOvershoot} holds it at the target instead of crossing it (for a return to rest
-     * where crossing would look wrong, however fast the finger was).</p>
+     * <p>{@link #durationMs} is when the spring stays within {@code precision} of its target.</p>
      */
     public static final class Spring implements Interpolator {
         public final long durationMs;
@@ -75,18 +73,16 @@ public final class Motion {
         private final double mV0;
         private final double mOmega;
         private final double mZeta;
-        private final boolean mNoOvershoot;
 
         /** {@code velocity}: units per second, positive in the direction of increasing value. */
         public Spring(float from, float to, float velocity, float stiffness, float dampingRatio,
-                float precision, boolean noOvershoot) {
+                float precision) {
             mFrom = from;
             mTo = to;
             mX0 = from - to;
             mV0 = velocity;
             mOmega = Math.sqrt(stiffness);
             mZeta = dampingRatio;
-            mNoOvershoot = noOvershoot;
             long settled = 0;
             if (Math.abs(to - from) > 1e-6f) {
                 for (int ms = 1; ms <= 2000; ms++) {
@@ -114,8 +110,7 @@ public final class Motion {
                 return 1f;
             }
             double value = mTo + offset(input * durationMs / 1000.0);
-            float progress = (float) ((value - mFrom) / (mTo - mFrom));
-            return mNoOvershoot ? Math.min(1f, progress) : progress;
+            return (float) ((value - mFrom) / (mTo - mFrom));
         }
     }
 
