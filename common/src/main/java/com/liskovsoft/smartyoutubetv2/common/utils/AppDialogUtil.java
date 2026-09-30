@@ -37,6 +37,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.views.ViewManager;
 import com.liskovsoft.smartyoutubetv2.common.exoplayer.other.SubtitleStyle;
 import com.liskovsoft.smartyoutubetv2.common.exoplayer.selector.FormatItem;
 import com.liskovsoft.smartyoutubetv2.common.exoplayer.selector.FormatItem.VideoPreset;
+import com.liskovsoft.smartyoutubetv2.common.misc.PhoneBackgroundMode;
 import com.liskovsoft.smartyoutubetv2.common.misc.PhoneUi;
 import com.liskovsoft.smartyoutubetv2.common.misc.AppDataSourceManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
@@ -182,6 +183,10 @@ public class AppDialogUtil {
     }
 
     public static OptionCategory createBackgroundPlaybackCategory(Context context, PlayerData playerData, GeneralData generalData, Runnable onSetCallback) {
+        if (PhoneUi.isEnabled()) {
+            return createPhoneBackgroundPlaybackCategory(context, playerData, generalData, onSetCallback);
+        }
+
         String categoryTitle = context.getString(R.string.category_background_playback);
 
         List<OptionItem> options = new ArrayList<>();
@@ -261,6 +266,38 @@ public class AppDialogUtil {
         }
 
         return OptionCategory.from(BACKGROUND_PLAYBACK_ID, OptionCategory.TYPE_RADIO_LIST, categoryTitle, options);
+    }
+
+    /**
+     * NEWTUBE(background-mode): the phone list (player menu and Settings &gt; General) holds only the
+     * two choices that behave differently on a phone - see {@link PhoneBackgroundMode}. "Disabled"
+     * and the "by pressing BACK" rows are gone; a stored value is shown as the choice it acts as
+     * and is only rewritten when the user picks a row. Without PiP on the device only the audio row
+     * is left, which is then what Home does anyway.
+     */
+    private static OptionCategory createPhoneBackgroundPlaybackCategory(Context context, PlayerData playerData,
+                                                                        GeneralData generalData, Runnable onSetCallback) {
+        boolean pipSupported = Helpers.isPictureInPictureSupported(context);
+        boolean onlyAudio = !pipSupported || PhoneBackgroundMode.isOnlyAudio(playerData.getBackgroundMode());
+
+        List<OptionItem> options = new ArrayList<>();
+        if (pipSupported) {
+            options.add(UiOptionItem.from(context.getString(R.string.option_background_playback_pip),
+                    optionItem -> {
+                        playerData.setBackgroundMode(PlayerData.BACKGROUND_MODE_PIP);
+                        generalData.setBackgroundPlaybackShortcut(GeneralData.BACKGROUND_PLAYBACK_SHORTCUT_HOME);
+                        onSetCallback.run();
+                    }, !onlyAudio));
+        }
+        options.add(UiOptionItem.from(context.getString(R.string.option_background_playback_only_audio),
+                optionItem -> {
+                    playerData.setBackgroundMode(PlayerData.BACKGROUND_MODE_SOUND);
+                    generalData.setBackgroundPlaybackShortcut(GeneralData.BACKGROUND_PLAYBACK_SHORTCUT_HOME);
+                    onSetCallback.run();
+                }, onlyAudio));
+
+        return OptionCategory.from(BACKGROUND_PLAYBACK_ID, OptionCategory.TYPE_RADIO_LIST,
+                context.getString(R.string.category_background_playback), options);
     }
 
     public static OptionCategory createVideoPresetsCategory(Context context) {

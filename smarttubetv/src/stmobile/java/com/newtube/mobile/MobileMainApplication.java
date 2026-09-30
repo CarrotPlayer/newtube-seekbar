@@ -164,6 +164,10 @@ public class MobileMainApplication extends MainApplication {
         // Release-visible launch milestones + the "first frame drawn" hook used below.
         LaunchMilestones.install(this);
 
+        // Counts our started screens from the first one on, so a PiP the user opened from the
+        // player menu is not "restored" by Home gaining focus under it (SystemPipBridge).
+        SystemPipBridge.install(this);
+
         // NETWORK FORENSICS (mobile-only): observe default-network replacements/capability changes
         // so a Wi-Fi -> 5G transition can be correlated with URL remints, media errors and ABR
         // resets. The monitor is read-only and logs no SSID, carrier, IP, DNS or account data.
