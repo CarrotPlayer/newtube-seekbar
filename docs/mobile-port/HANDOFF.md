@@ -2257,20 +2257,27 @@ signed out; NetPath `feed-grid section= action= in= size=` (grid size per update
   (it is the buffering spinner on the phone). Test: MSC `SuggestionsSectionContinuationTest`
   (trimmed 2026-09-30 fixtures).
 
-### Notifications: diagnosed, not fixed (needs a signed-in check)
+### Notifications: the TV inbox is refused; a WEB attempt chain, pending the owner's run
 - The section is wired (`TYPE_NOTIFICATIONS` grid -> `getNotificationItemsObserve`). The inbox request
   `youtubei/v1/notification/get_notification_menu` is sent with the TVHTML5 context
-  (`NotificationsApiHelper`). Anonymous probe 2026-09-30: TVHTML5 -> HTTP 400 FAILED_PRECONDITION,
-  WEB -> 200 (same `multiPageMenuRenderer` shape the parser reads). On an error the wrapper
-  (`NotificationsServiceIntWrapper`) falls back to an RSS feed of the channels whose bell is "All" in
-  the app or with 6+ in-app likes (`NotificationStorage`) - none for most phone users, and the phone
-  has no bell UI (`PlayerUIController.showNotificationsDialog` is reached by a TV long-press only).
-  Upstream's own test is `@Ignore("Won't work with TV auth headers")`.
-- **Check (signed in, debug build):** open You -> Notifications, then
-  `adb -s <serial> logcat -d | grep -a -E "get_notification_menu|notifications source="`.
-  Expected: `code=400` and `notifications source=rss inbox-error=… channels=0 items=0`. If instead
-  `code=200` with `source=inbox items=0`, the response format changed: capture it.
-- **Proposed fix:** try the inbox with a WEB context and the account's token (gated, logged; keep the
-  TV query + RSS as the fallback); if YouTube refuses every client with the TV token, either hide the
-  section on the phone or make the fallback useful (long-press Subscribe -> the existing bell dialog,
-  plus an empty state that says how to fill it).
+  (`NotificationsApiHelper`), and the endpoint refuses it: HTTP 400 "Precondition check failed"
+  anonymously and signed in (Mi 8, test account, 2026-09-30: `code=400`, then
+  `notifications source=rss … channels=0 items=0`, "Nothing to show here yet"). On an error the
+  wrapper (`NotificationsServiceIntWrapper`) fell back to an RSS feed of the channels whose bell is
+  "All" in the app or with 6+ in-app likes (`NotificationStorage`) - none for most phone users, and
+  the phone has no bell UI. Upstream's own test is `@Ignore("Won't work with TV auth headers")`.
+- Anonymous probe of every client the same day: only WEB is accepted (200, the
+  `backgroundPromoRenderer` "Your notifications live here" card); MWEB, ANDROID, IOS,
+  TVHTML5_SIMPLY and TVHTML5 5.x/7.x (newer version, no request type) all 400.
+- **Attempt chain (MSC 73886e0f):** TV (upstream's request) -> WEB (WEB context + WEB User-Agent /
+  client headers, same Authorization) -> WEB_NOTYPE (no `notificationsMenuRequestType`, yt-dlp's
+  body) -> RSS. The first attempt that lists items wins. Log per attempt:
+  `notifications attempt client=TV|WEB|WEB_NOTYPE code= items= shape=items|promo|none [error=]`,
+  then `notifications source=inbox client=…` or `notifications source=rss`. `shape=promo` with a
+  200 means the account was ignored or the inbox is empty. The WEB list reuses the TV models (same
+  paths as yt-dlp's `:ytnotif`); its trailing continuation item is skipped. Owner check: the
+  `.check` benchmark APK built from `0bf23c31`, signed in, You -> Notifications, grep those lines.
+- **If no attempt lists items:** the removal commit on top hides the section on the phone
+  (`SidebarService.setNotificationsSectionHidden`, MobileMainApplication): not in the You panel,
+  Set-up sections or Boot to section, a stored boot to it opens Home; prefs and shared code stay.
+  Keep one of the two.
