@@ -23,4 +23,11 @@
          translucent background tint onto its white base, which made white "Subscribed" text
          disappear into a white button on-device. -->
     <color name="mobile_color_subscribed_button">#333333</color>
+    <!-- NEWTUBE(comments-panel): the comment a replies page is about, set apart from its replies. -->
+    <color name="mobile_color_comment_parent">#1A1A1A</color>
+    <!-- The creator's handle on their own comments, and the panel's Top / Newest menu. -->
+    <color name="mobile_color_comment_creator_pill">#24FFFFFF</color>
+    <color name="mobile_color_menu_surface">#2A2A2A</color>
+    <!-- A commenter's handle: brighter than the time beside it, quieter than the comment. -->
+    <color name="mobile_color_comment_handle">#D1FFFFFF</color>
 </resources>

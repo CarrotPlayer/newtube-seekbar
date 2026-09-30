@@ -564,12 +564,19 @@
 
         </com.newtube.mobile.ui.playback.PinchZoomLayout>
 
+        <!-- Everything under the video: the watch content, and the comments panel that slides
+             up over it (mobile_comments_panel, NEWTUBE(comments-panel)). -->
+        <FrameLayout
+            android:id="@+id/mobile_watch_area"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
         <!-- Scrollable watch content (portrait only). -->
         <androidx.core.widget.NestedScrollView
             android:id="@+id/mobile_watch_scroll"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+            android:layout_height="match_parent"
             android:background="@color/mobile_color_background"
             android:fillViewport="true"
             android:scrollbars="vertical">
@@ -915,7 +922,7 @@
 
                 </LinearLayout>
 
-                <!-- Comments entry: opens the comments bottom sheet. Hidden until the loaded
+                <!-- Comments entry: opens the comments panel over this page. Hidden until the loaded
                      metadata reports that comments are enabled (a non-null comments key).
                      Rendered as a rounded surface card, like YouTube's comments teaser. -->
                 <LinearLayout
@@ -941,14 +948,26 @@
                         android:src="@drawable/ic_watch_comment" />
 
                     <TextView
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
-                        android:layout_weight="1"
+                        android:fontFamily="sans-serif-medium"
                         android:text="@string/mobile_comments_entry"
                         android:textColor="@color/mobile_color_on_surface"
+                        android:textSize="14sp" />
+
+                    <!-- NEWTUBE(comments-panel): the total from the same /next ("1.8K"). -->
+                    <TextView
+                        android:id="@+id/mobile_watch_comments_count"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:fontFeatureSettings="tnum"
+                        android:maxLines="1"
+                        android:textColor="@color/mobile_color_on_surface_secondary"
                         android:textSize="14sp"
-                        android:textStyle="bold" />
+                        tools:text="1.8K" />
 
                     <ImageView
                         android:layout_width="24dp"
@@ -988,10 +1007,10 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
                         android:layout_weight="1"
+                        android:fontFamily="sans-serif-medium"
                         android:text="@string/mobile_live_chat_entry"
                         android:textColor="@color/mobile_color_on_surface"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:textSize="14sp" />
 
                     <ImageView
                         android:layout_width="24dp"
@@ -1113,6 +1132,10 @@
             </LinearLayout>
 
         </androidx.core.widget.NestedScrollView>
+
+        <include layout="@layout/mobile_comments_panel" />
+
+        </FrameLayout>
 
     </LinearLayout>
 

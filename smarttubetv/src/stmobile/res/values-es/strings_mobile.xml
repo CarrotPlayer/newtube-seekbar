@@ -156,14 +156,26 @@
     <!-- Comments -->
     <string name="mobile_comments_entry">Comentarios</string>
     <string name="mobile_comments_title">Comentarios</string>
-    <string name="mobile_comments_empty">No hay comentarios</string>
-    <string name="mobile_comments_disabled">Los comentarios están desactivados</string>
-    <string name="mobile_comments_loading">Cargando…</string>
-    <string name="mobile_comments_view_replies">Ver respuestas</string>
-    <string name="mobile_comments_view_replies_count">Ver %1$s</string>
-    <string name="mobile_comments_hide_replies">Ocultar respuestas</string>
-    <string name="mobile_comments_loading_replies">Cargando respuestas…</string>
-    <string name="mobile_comments_more_replies">Mostrar más respuestas</string>
+    <string name="mobile_comments_replies_title">Respuestas</string>
+    <string name="mobile_comments_none">Aún no hay comentarios</string>
+    <string name="mobile_comments_load_error">No se han podido cargar los comentarios.</string>
+    <string name="mobile_comments_replies_load_error">No se han podido cargar las respuestas.</string>
+    <string name="mobile_comments_sort_top">Destacados</string>
+    <string name="mobile_comments_sort_top_hint">Los que más gustan primero</string>
+    <string name="mobile_comments_sort_newest">Más recientes</string>
+    <string name="mobile_comments_sort_newest_hint">Puede incluir spam</string>
+    <string name="mobile_comments_sort_description">Ordenar comentarios: %1$s</string>
+    <string name="mobile_comments_close">Cerrar comentarios</string>
+    <string name="mobile_comments_back">Volver a los comentarios</string>
+    <string name="mobile_comments_read_more">Leer más</string>
+    <string name="mobile_comments_show_less">Mostrar menos</string>
+    <string name="mobile_comments_open_replies">Abrir respuestas</string>
+    <string name="mobile_comments_copy">Copiar comentario</string>
+    <string name="mobile_comments_copied">Comentario copiado</string>
+    <string name="mobile_comments_like">Me gusta el comentario</string>
+    <string name="mobile_comments_unlike">Quitar me gusta</string>
+    <string name="mobile_comments_liked">Te gusta</string>
+    <string name="mobile_comments_sign_in_to_like">Inicia sesión para dar me gusta a los comentarios</string>
 
     <!-- Live chat -->
     <string name="mobile_live_chat_entry">Chat en directo</string>
