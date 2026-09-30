@@ -643,6 +643,11 @@ public class MobileMainApplication extends MainApplication {
         // sheets instead of the TV "open with" chooser. TV never calls this (PhoneUi).
         com.liskovsoft.smartyoutubetv2.common.misc.PhoneUi.setEnabled(true);
 
+        // NO NOTIFICATIONS (mobile-only): YouTube refuses the notification inbox to the TV sign-in
+        // (HTTP 400 signed in and out, 2026-09-30), so the phone shows no Notifications section: not
+        // in the You panel, Set-up sections or Boot to section (SidebarService). Prefs untouched.
+        com.liskovsoft.smartyoutubetv2.common.app.presenters.service.SidebarService.setNotificationsSectionHidden(true);
+
         // UPDATES (mobile-only): the launch check and Settings > About > Check for updates go to the
         // phone's update sheet - notes first, download on Update with progress, then the installer -
         // instead of the TV flow that downloaded the APK in silence and pinned an "Update" section.
@@ -681,6 +686,18 @@ public class MobileMainApplication extends MainApplication {
         com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter.setPacedHomeWalkEnabled(!eagerHomeWalk);
         if (eagerHomeWalk) {
             android.util.Log.w("NetPath", "lazy home walk disabled (debug)");
+        }
+
+        // FEED DEPTH (mobile-only): once a row section's section list is done (signed-in Home after
+        // ~7 pages, signed-out Home after its one merged page), the end of the grid continues its
+        // shelves in turn. It used to continue only the LAST card's shelf, so the feed stopped after
+        // a few of its pages (124 cards signed out) - reported as "Home isn't infinite". See
+        // ShelfTail. Debug A/B: setprop debug.arc.shelf_tail 0.
+        boolean noShelfTail = com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG
+                && "0".equals(getDebugSystemProperty("debug.arc.shelf_tail"));
+        com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter.setShelfTailEnabled(!noShelfTail);
+        if (noShelfTail) {
+            android.util.Log.w("NetPath", "shelf tail disabled (debug)");
         }
 
         // FEED LAUNCH (mobile-only, round 3): Splash starts Home's first /browse the moment it
@@ -851,6 +868,10 @@ public class MobileMainApplication extends MainApplication {
         // that competed with the stream fetch right at open. TV never calls these -> TV unchanged.
         SuggestionsController.setEagerSuggestionsEnabled(true);
         SuggestionsController.setRowContinuationsDisabled(true);
+        // RELATED DEPTH (mobile-only): the TV /next answer holds 30 related videos plus a
+        // continuation for the next 30 that nothing read, so Up next ended at 30. The last row now
+        // carries it, and scrolling to the end of the list loads it (MSC WatchNextGates).
+        com.liskovsoft.youtubeapi.next.v2.WatchNextGates.setSuggestionsSectionContinuation(true);
 
         // FIRST-RUN FIX (mobile-only): run the one-time YouTube session setup (visitor identity,
         // app info, player-JS de-scrambler parse, client probing - ~15-20s on a fresh install) in

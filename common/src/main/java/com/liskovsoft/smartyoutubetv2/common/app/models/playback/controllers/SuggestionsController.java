@@ -444,7 +444,10 @@ public class SuggestionsController extends BasePlayerController {
 
         VideoGroup group = item.getGroup();
 
-        continueGroup(group);
+        // NEWTUBE(related-more): on the touch watch page this is the related list's next page. The
+        // player's progress bar is the buffering spinner over the video there - a video that plays
+        // fine would look stalled while more related videos load - so page it quietly.
+        continueGroup(group, !sRowContinuationsDisabled);
     }
 
     @Override
@@ -568,10 +571,16 @@ public class SuggestionsController extends BasePlayerController {
 
         MediaGroup mediaGroup = group.getMediaGroup();
 
+        // NEWTUBE(related-more): on the touch watch page the player's progress bar is the video's
+        // buffering spinner; a quiet page must not hide it when the video happens to be buffering.
+        boolean hideWhenDone = showLoading || !sRowContinuationsDisabled;
+
         Disposable continueAction = contentService().continueGroupObserve(mediaGroup)
                 .subscribe(
                         continueMediaGroup -> {
-                            getPlayer().showProgressBar(false);
+                            if (hideWhenDone) {
+                                getPlayer().showProgressBar(false);
+                            }
 
                             VideoGroup videoGroup = VideoGroup.from(group, continueMediaGroup);
                             getPlayer().updateSuggestions(videoGroup);
@@ -587,12 +596,12 @@ public class SuggestionsController extends BasePlayerController {
                         },
                         error -> {
                             Log.e(TAG, "continueGroup error: %s", error.getMessage());
-                            if (getPlayer() != null) {
+                            if (hideWhenDone && getPlayer() != null) {
                                 getPlayer().showProgressBar(false);
                             }
                         },
                         () -> {
-                            if (getPlayer() != null) {
+                            if (hideWhenDone && getPlayer() != null) {
                                 getPlayer().showProgressBar(false);
                             }
                         }

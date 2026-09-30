@@ -12,6 +12,7 @@ import com.liskovsoft.smartyoutubetv2.common.prefs.AppPrefs;
 import com.liskovsoft.smartyoutubetv2.common.prefs.AppPrefs.ProfileChangeListener;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -28,6 +29,19 @@ public class SidebarService implements ProfileChangeListener {
     private boolean mIsSettingsSectionEnabled;
     private int mBootSectionId;
     private final static int RESERVED_ID = 100;
+    /**
+     * NEWTUBE(notifications): phone gate. YouTube refuses the notification inbox to the TV sign-in the
+     * app uses (HTTP 400 "Precondition check failed", signed in and out), so the phone has no
+     * Notifications section: it is left out of the pinned sections (the You panel), of "Set-up
+     * sections" and of "Boot to section", and a stored boot to it opens Home. The stored sidebar prefs
+     * are read and written as before - only what is shown changes. Set from MobileMainApplication; TV
+     * never sets it.
+     */
+    private static volatile boolean sNotificationsHidden;
+
+    public static void setNotificationsSectionHidden(boolean hidden) {
+        sNotificationsHidden = hidden;
+    }
 
     private SidebarService(Context context) {
         mContext = context.getApplicationContext();
@@ -46,6 +60,12 @@ public class SidebarService implements ProfileChangeListener {
     }
 
     public Collection<Video> getPinnedItems() {
+        if (sNotificationsHidden) {
+            List<Video> shown = new ArrayList<>(mPinnedItems);
+            Helpers.removeIf(shown, item -> item != null && getSectionId(item) == MediaGroup.TYPE_NOTIFICATIONS);
+            return Collections.unmodifiableList(shown);
+        }
+
         return Collections.unmodifiableList(mPinnedItems);
     }
 
@@ -108,6 +128,12 @@ public class SidebarService implements ProfileChangeListener {
     }
 
     public Map<Integer, Integer> getDefaultSections() {
+        if (sNotificationsHidden) {
+            Map<Integer, Integer> shown = new LinkedHashMap<>(mDefaultSections);
+            shown.values().remove(MediaGroup.TYPE_NOTIFICATIONS);
+            return shown;
+        }
+
         return mDefaultSections;
     }
 
@@ -130,6 +156,10 @@ public class SidebarService implements ProfileChangeListener {
      * Contains sections and pinned items!
      */
     public boolean isSectionPinned(int sectionId) {
+        if (sNotificationsHidden && sectionId == MediaGroup.TYPE_NOTIFICATIONS) {
+            return false;
+        }
+
         Video section = Helpers.findFirst(mPinnedItems, item -> getSectionId(item) == sectionId);
         return section != null; // by default enable all pinned items
     }
@@ -215,6 +245,10 @@ public class SidebarService implements ProfileChangeListener {
     }
 
     public int getBootSectionId() {
+        if (sNotificationsHidden && mBootSectionId == MediaGroup.TYPE_NOTIFICATIONS) {
+            return MediaGroup.TYPE_HOME;
+        }
+
         return mBootSectionId;
     }
 
