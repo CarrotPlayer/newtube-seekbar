@@ -81,6 +81,12 @@ public interface PlayerEngine extends PlayerConstants {
     boolean containsMedia();
     void setSpeed(float speed);
     float getSpeed();
+    /**
+     * NEWTUBE(hold-speed): the speed playback runs at right now - {@link #getSpeed()} (the chosen
+     * speed, what is saved and shown) except during a temporary boost such as the phone's
+     * press-and-hold 2x. For whatever times itself against the playback.
+     */
+    default float getEffectiveSpeed() { return getSpeed(); }
     void setPitch(float pitch);
     float getPitch();
     void setVolume(float volume);

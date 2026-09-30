@@ -2415,6 +2415,8 @@ public class MobilePlaybackActivity extends MobileActivity
     private void applyPipVideoOnlyLayout() {
         cancelAutoHide();
         hideControls();
+        // NEWTUBE(hold-speed): a hold does not follow the video into PiP (no touch ends it there).
+        cancelHoldSpeed();
         // NEWTUBE(seek bar): the pills beside the controls go at once, not on a fade that the
         // pinned window would show.
         for (View pill : new View[] {mTopPill, mScrubChapterView}) {
@@ -3008,6 +3010,7 @@ public class MobilePlaybackActivity extends MobileActivity
                     target != null ? target.getName() : ""));
         }
         mCastOverlay.setVisibility(View.VISIBLE);
+        cancelHoldSpeed();
         updateSeekBarLine(); // the TV plays it now: no local progress line under the overlay
         hideControls();
         updateCastOverlay();
@@ -6090,6 +6093,17 @@ public class MobilePlaybackActivity extends MobileActivity
         showTopPill(null);
     }
 
+    /**
+     * Ends a press-and-hold boost that outlived its video or its window: a new video (autoplay
+     * while the finger stayed down would have played it at 2x, over its own restored speed), PiP,
+     * casting. The finger lifting later finds nothing to end.
+     */
+    private void cancelHoldSpeed() {
+        if (mExoPlayerController != null && mExoPlayerController.isHoldSpeedOn()) {
+            endHoldSpeed();
+        }
+    }
+
     /** A pill appears with a short fade and scale-up from 90%, and leaves with a shorter fade. */
     private static void fadePill(@Nullable View pill, boolean show) {
         if (pill == null) {
@@ -7856,6 +7870,11 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     @Override
+    public float getEffectiveSpeed() {
+        return mExoPlayerController != null ? mExoPlayerController.getEffectiveSpeed() : getSpeed();
+    }
+
+    @Override
     public void setPitch(float pitch) {
         mExoPlayerController.setPitch(pitch);
     }
@@ -7941,6 +7960,7 @@ public class MobilePlaybackActivity extends MobileActivity
         boolean sameVideo = item != null && Helpers.equals(item.videoId, mWatchVideoId);
         if (!sameVideo) {
             showPlaybackNotice(null);
+            cancelHoldSpeed();
         }
         if (!sameVideo || (item != null && !TextUtils.isEmpty(item.getTitleFull()))) {
             setTitle(item != null ? item.getTitleFull() : null);

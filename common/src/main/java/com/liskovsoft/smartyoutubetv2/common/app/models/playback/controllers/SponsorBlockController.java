@@ -253,7 +253,9 @@ public class SponsorBlockController extends BasePlayerController {
         if (fullMatch) {
             return positionMs >= segment.getStartMs() && positionMs <= segment.getEndMs();
         } else {
-            long windowSizeMs = (long) (2_000 * getPlayer().getSpeed());
+            // NEWTUBE(hold-speed): the speed it is really playing at (a press-and-hold 2x moves the
+            // position twice as far between checks; the chosen 0.5x would size a window it skips).
+            long windowSizeMs = (long) (2_000 * getPlayer().getEffectiveSpeed());
             return positionMs >= segment.getStartMs() && positionMs <= Math.min(segment.getStartMs() + windowSizeMs, segment.getEndMs());
         }
     }
@@ -302,7 +304,7 @@ public class SponsorBlockController extends BasePlayerController {
         );
 
         dialogPresenter.appendSingleButton(acceptOption);
-        dialogPresenter.setCloseTimeoutMs((long) ((skipPosMs - getPlayer().getPositionMs()) * getPlayer().getSpeed()));
+        dialogPresenter.setCloseTimeoutMs((long) ((skipPosMs - getPlayer().getPositionMs()) * getPlayer().getEffectiveSpeed()));
 
         dialogPresenter.enableTransparent(true);
         dialogPresenter.enableOverlay(true);

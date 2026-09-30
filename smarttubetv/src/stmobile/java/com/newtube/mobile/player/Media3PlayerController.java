@@ -822,7 +822,7 @@ public class Media3PlayerController implements Player.Listener {
             mPlayer.release();
             mPlayer = null;
         }
-        mHoldBaseSpeed = -1;
+        mHoldBase = null;
     }
 
     /**
@@ -1011,25 +1011,36 @@ public class Media3PlayerController implements Player.Listener {
     // ---------------------------------------------------------------------------------
 
     /**
-     * NEWTUBE(hold-speed): while press-and-hold plays the video at 2x, the speed the person chose;
-     * -1 when no hold is on.
+     * NEWTUBE(hold-speed): while press-and-hold plays the video at 2x, the speed AND pitch the
+     * person chose (a hold without audio time-stretching moves the pitch too, and letting go must
+     * give back a pitch set on its own); null when no hold is on.
      */
-    private float mHoldBaseSpeed = -1;
+    @Nullable
+    private PlaybackParameters mHoldBase;
 
     /** The chosen speed - during a press-and-hold boost, the speed it returns to. */
     public float getSpeed() {
-        if (mHoldBaseSpeed > 0) {
-            return mHoldBaseSpeed;
+        if (mHoldBase != null) {
+            return mHoldBase.speed;
         }
+        return mPlayer != null ? mPlayer.getPlaybackParameters().speed : -1;
+    }
+
+    /**
+     * The speed playback runs at right now - {@link #getSpeed()} except during a press-and-hold
+     * boost. For what times itself against the playback (SponsorBlock's skip window), never for
+     * what is saved or shown as the speed.
+     */
+    public float getEffectiveSpeed() {
         return mPlayer != null ? mPlayer.getPlaybackParameters().speed : -1;
     }
 
     public void setSpeed(float speed) {
         if (mPlayer != null && speed > 0) {
-            if (mHoldBaseSpeed > 0) {
-                mHoldBaseSpeed = speed; // chosen mid-hold: the hold ends on it
+            if (mHoldBase != null) {
+                mHoldBase = withSpeed(mHoldBase, speed); // chosen mid-hold: the hold ends on it
             } else {
-                applySpeed(speed);
+                mPlayer.setPlaybackParameters(withSpeed(mPlayer.getPlaybackParameters(), speed));
             }
 
             mEventListener.onSpeedChanged(speed);
@@ -1046,43 +1057,48 @@ public class Media3PlayerController implements Player.Listener {
         if (mPlayer == null || speed <= 0) {
             return;
         }
-        if (mHoldBaseSpeed <= 0) {
-            mHoldBaseSpeed = mPlayer.getPlaybackParameters().speed;
+        if (mHoldBase == null) {
+            mHoldBase = mPlayer.getPlaybackParameters();
         }
-        applySpeed(speed);
+        mPlayer.setPlaybackParameters(withSpeed(mHoldBase, speed));
     }
 
-    /** Back to the chosen speed after {@link #beginHoldSpeed}. */
+    /** Back to the chosen speed and pitch after {@link #beginHoldSpeed}. */
     public void endHoldSpeed() {
-        if (mHoldBaseSpeed <= 0) {
+        if (mHoldBase == null) {
             return;
         }
-        float base = mHoldBaseSpeed;
-        mHoldBaseSpeed = -1;
+        PlaybackParameters base = mHoldBase;
+        mHoldBase = null;
         if (mPlayer != null) {
-            applySpeed(base);
+            mPlayer.setPlaybackParameters(base);
         }
     }
 
     public boolean isHoldSpeedOn() {
-        return mHoldBaseSpeed > 0;
+        return mHoldBase != null;
     }
 
-    private void applySpeed(float speed) {
-        if (PlayerTweaksData.instance(mContext).isAudioTimeStretchingEnabled()) {
-            mPlayer.setPlaybackParameters(new PlaybackParameters(speed, mPlayer.getPlaybackParameters().pitch));
-        } else {
-            mPlayer.setPlaybackParameters(new PlaybackParameters(speed, speed));
-        }
+    /** {@code from} at {@code speed}: the pitch stays with audio time-stretching, else follows the speed. */
+    private PlaybackParameters withSpeed(PlaybackParameters from, float speed) {
+        return PlayerTweaksData.instance(mContext).isAudioTimeStretchingEnabled()
+                ? new PlaybackParameters(speed, from.pitch) : new PlaybackParameters(speed, speed);
     }
 
     public float getPitch() {
+        if (mHoldBase != null) {
+            return mHoldBase.pitch;
+        }
         return mPlayer != null ? mPlayer.getPlaybackParameters().pitch : -1;
     }
 
     public void setPitch(float pitch) {
         if (mPlayer != null && pitch > 0) {
-            mPlayer.setPlaybackParameters(new PlaybackParameters(mPlayer.getPlaybackParameters().speed, pitch));
+            if (mHoldBase != null) {
+                mHoldBase = new PlaybackParameters(mHoldBase.speed, pitch); // the hold ends on it
+            } else {
+                mPlayer.setPlaybackParameters(new PlaybackParameters(mPlayer.getPlaybackParameters().speed, pitch));
+            }
         }
     }
 

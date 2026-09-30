@@ -63,6 +63,9 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
 
     private var isHolding = false
 
+    /** The finger that holds: its lift ends the hold even while another finger stays down. */
+    private var holdPointerId = MotionEvent.INVALID_POINTER_ID
+
     private val contentFrame: AspectRatioFrameLayout = AspectRatioFrameLayout(context)
     private val subtitleView: SubtitleView = SubtitleView(context)
 
@@ -170,6 +173,7 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
         }
         if (listener.onHoldStart(e.x, e.y)) {
             isHolding = true
+            holdPointerId = e.getPointerId(0)
             // The hold owns this finger now: no swipe-to-minimize, no pinch taking it over.
             parent?.requestDisallowInterceptTouchEvent(true)
         }
@@ -178,13 +182,16 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
     private fun endHold() {
         if (isHolding) {
             isHolding = false
+            holdPointerId = MotionEvent.INVALID_POINTER_ID
             holdListener?.onHoldEnd()
         }
     }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(ev: MotionEvent): Boolean {
-        if (isHolding && (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL)) {
+        if (isHolding && (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL
+                    || (ev.actionMasked == MotionEvent.ACTION_POINTER_UP
+                        && ev.getPointerId(ev.actionIndex) == holdPointerId))) {
             gestureDetector.onTouchEvent(ev)
             endHold()
             return true
