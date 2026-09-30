@@ -105,9 +105,12 @@
           Touch player (Wave 2). configChanges covers orientation/screenSize/keyboardHidden so
           the Activity (and the live ExoPlayer instance it holds) survives device rotation
           instead of being torn down and recreated - rotating to landscape is exactly how the
-          user reaches fullscreen. screenOrientation="unspecified" lets the system/sensor decide
-          (same as every other touch screen in this flavor), so portrait playback still works on
-          devices/users with auto-rotate off.
+          user reaches fullscreen. screenOrientation="user" lets the sensor decide within the
+          system auto-rotate setting, so portrait playback still works on devices/users with
+          auto-rotate off. Not "unspecified" like the other screens: this window is translucent,
+          and a translucent activity with an unspecified orientation has no say - the display
+          followed whatever was behind it, so a video opened from another app over the launcher
+          (portrait-only on Pixel) never rotated. MobilePlaybackActivity.FREE_ORIENTATION.
         -->
         <activity
             android:name="com.newtube.mobile.ui.playback.MobilePlaybackActivity"
@@ -115,7 +118,7 @@
             android:launchMode="singleTop"
             android:supportsPictureInPicture="true"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|layoutDirection|keyboardHidden|uiMode"
-            android:screenOrientation="unspecified"
+            android:screenOrientation="user"
             android:theme="@style/Theme.NewTube.Player" />
 
         <!--

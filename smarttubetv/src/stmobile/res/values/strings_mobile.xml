@@ -10,6 +10,8 @@
     <string name="mobile_player_time_default">0:00</string>
     <string name="mobile_player_live" translatable="false">LIVE</string>
     <string name="mobile_player_quality">Quality</string>
+    <!-- Gear-sheet row and sheet title for choosing the audio language (dubbed videos only). -->
+    <string name="mobile_player_audio_track">Audio track</string>
     <string name="mobile_player_subtitles">Subtitles</string>
     <string name="mobile_player_speed">Playback speed</string>
     <string name="mobile_player_pip">Picture-in-picture</string>
@@ -33,7 +35,6 @@
     <string name="mobile_menu_zoom">Zoom / aspect ratio</string>
     <string name="mobile_menu_background">Play in background</string>
     <string name="mobile_menu_stats">Stats for nerds</string>
-    <string name="mobile_menu_rotate_lock">Rotate lock</string>
     <string name="mobile_menu_playlist_add">Save to playlist</string>
     <string name="mobile_menu_queue">Playback queue</string>
     <string name="mobile_menu_on">On</string>
@@ -114,13 +115,16 @@
 
     <!-- Device-code sign-in screen (com.newtube.mobile.ui.signin.MobileSignInActivity) -->
     <string name="mobile_quality_title">Quality</string>
-    <string name="mobile_audio_title">Audio</string>
     <string name="mobile_quality_auto">Auto (recommended)</string>
     <string name="mobile_audio_default">Default</string>
     <!-- Audio track roles after the language name (AudioTrackLabel): "English (original)". -->
     <string name="mobile_audio_role_original">original</string>
     <string name="mobile_audio_role_dubbed">dubbed</string>
+    <!-- YouTube's own AI dub (acont=dubbed-auto): "Spanish (auto-dubbed)". -->
+    <string name="mobile_audio_role_auto_dubbed">auto-dubbed</string>
     <string name="mobile_audio_role_descriptive">audio description</string>
+    <!-- Snackbar after picking an audio track: "Audio track: Spanish (dubbed)". -->
+    <string name="mobile_audio_track_toast">Audio track: %1$s</string>
 
     <!-- Captions sheet (sheet_mobile_captions / showCaptionsSheet) + CC toggle snackbar -->
     <string name="mobile_captions_off">Turn off subtitles</string>
