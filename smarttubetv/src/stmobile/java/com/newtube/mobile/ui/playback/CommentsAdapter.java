@@ -55,6 +55,10 @@ import java.util.regex.Pattern;
  * <p>Rows have stable ids, and a like updates only its own row's like views (a payload), so no
  * avatar reloads and nothing else moves. "Read more" is the text view's own business
  * ({@link CommentTextView}); the entry just remembers it.</p>
+ *
+ * <p>NEWTUBE(write-comments): an "Add a comment…" / "Add a reply…" row heads each page (after the
+ * replies page's comment and label), every comment but the replies page's own has a Reply
+ * button, and the person's own comments a ⋮ with Delete.</p>
  */
 final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -64,6 +68,15 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         void onLinkClicked(CommentItem.Span span);
         void onCopy(Entry entry);
         void onRetry();
+
+        // NEWTUBE(write-comments)
+        /** The "Add a comment…" row ({@code reply} = the replies page's "Add a reply…"). */
+        void onComposeClicked(boolean reply);
+        void onReplyClicked(Entry entry);
+        void onMoreClicked(Entry entry, View anchor);
+        void onDeleteClicked(Entry entry);
+        /** The signed-in person wrote it: it gets the ⋮ with Delete. */
+        boolean isOwnComment(Entry entry);
     }
 
     /** One comment and what the person did to it here (their like, whether it is unfolded). */
@@ -77,6 +90,11 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         @Nullable
         String likeCount;
         boolean expanded;
+        /**
+         * NEWTUBE(write-comments): replies the person posted to it here, newest first. The panel
+         * shares one list among every entry of the same comment (Top and Newest each have theirs).
+         */
+        List<Entry> postedReplies = new ArrayList<>();
         @Nullable
         private CharSequence mText;
 
@@ -88,9 +106,24 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
 
         boolean hasReplies() {
-            String count = item.getReplyCount();
             return !isReply && item.getNestedCommentsKey() != null
-                    && !TextUtils.isEmpty(count) && !"0".equals(count.trim());
+                    && (hasCountedReplies() || !postedReplies.isEmpty());
+        }
+
+        /** "12 replies" as YouTube counts them, or the ones posted here on a comment that had none. */
+        @Nullable
+        CharSequence replyLabel(Context context) {
+            if (hasCountedReplies()) {
+                return item.getReplyCount();
+            }
+            int posted = postedReplies.size();
+            return posted == 0 ? null : posted == 1 ? context.getString(R.string.mobile_comments_one_reply)
+                    : context.getString(R.string.mobile_comments_n_replies, posted);
+        }
+
+        private boolean hasCountedReplies() {
+            String count = item.getReplyCount();
+            return !TextUtils.isEmpty(count) && !"0".equals(count.trim());
         }
 
         /** NEWTUBE(theme): the styled text carries the link colour; build it again on next bind. */
@@ -108,11 +141,13 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private static final int TYPE_LABEL = 2;
     private static final int TYPE_SKELETON = 3;
     private static final int TYPE_RETRY = 4;
+    private static final int TYPE_COMPOSE = 5;
 
     static final Object PAYLOAD_LIKE = new Object();
     private static final int FOOTER_SKELETONS = 2;
     private static final long ID_LABEL = -2;
     private static final long ID_RETRY = -3;
+    private static final long ID_COMPOSE = -4;
     private static final long ID_SKELETON_BASE = -100;
 
     private final Listener mListener;
@@ -125,6 +160,10 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private int mFooter = FOOTER_NONE;
     @Nullable
     private String mCreatorHandle;
+    /** The "Add a comment…" row's text; 0 = no such row. */
+    private int mComposeHint;
+    @Nullable
+    private String mComposePhoto;
 
     CommentsAdapter(Listener listener) {
         mListener = listener;
@@ -199,6 +238,64 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         return mFooter;
     }
 
+    /** NEWTUBE(write-comments): the page starts with an "Add a comment…" row reading {@code hint}. */
+    void setCompose(int hint) {
+        mComposeHint = hint;
+        notifyDataSetChanged();
+    }
+
+    /** The signed-in person's avatar on the "Add a comment…" row (null = the placeholder). */
+    void setComposePhoto(@Nullable String photo) {
+        if (!Objects.equals(mComposePhoto, photo)) {
+            mComposePhoto = photo;
+            if (mComposeHint != 0) {
+                notifyItemChanged(headerCount() - 1);
+            }
+        }
+    }
+
+    /** The replies page's "N replies" line (a reply posted to a comment that had none). */
+    void setParentLabel(@Nullable CharSequence label) {
+        mParentLabel = label;
+        if (mParent != null) {
+            notifyItemChanged(1);
+        }
+    }
+
+    /** Every row showing this comment (the replies page's own included) binds again. */
+    void notifyComment(@Nullable String commentId) {
+        if (commentId == null) {
+            return;
+        }
+        if (mParent != null && commentId.equals(mParent.item.getId())) {
+            notifyItemChanged(0);
+        }
+        for (int i = 0; i < mItems.size(); i++) {
+            if (commentId.equals(mItems.get(i).item.getId())) {
+                notifyItemChanged(headerCount() + mSkeletons + i);
+            }
+        }
+    }
+
+    /** A comment the person just posted: first, under the header rows. */
+    void insertAtTop(Entry entry) {
+        mItems.add(0, entry);
+        notifyItemInserted(headerCount() + mSkeletons);
+    }
+
+    /** A deleted comment leaves (every row showing it: the same comment may be two entries). */
+    void removeComment(@Nullable String commentId) {
+        if (commentId == null) {
+            return;
+        }
+        for (int i = mItems.size() - 1; i >= 0; i--) {
+            if (commentId.equals(mItems.get(i).item.getId())) {
+                mItems.remove(i);
+                notifyItemRemoved(headerCount() + mSkeletons + i);
+            }
+        }
+    }
+
     void setCreatorHandle(@Nullable String handle) {
         if (!Objects.equals(mCreatorHandle, handle)) {
             mCreatorHandle = handle;
@@ -223,7 +320,7 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     private int headerCount() {
-        return mParent != null ? 2 : 0;
+        return (mParent != null ? 2 : 0) + (mComposeHint != 0 ? 1 : 0);
     }
 
     private int footerCount() {
@@ -250,7 +347,10 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     public int getItemViewType(int position) {
         int header = headerCount();
         if (position < header) {
-            return position == 0 ? TYPE_PARENT : TYPE_LABEL;
+            if (mParent != null && position < 2) {
+                return position == 0 ? TYPE_PARENT : TYPE_LABEL;
+            }
+            return TYPE_COMPOSE;
         }
         position -= header;
         if (position < mSkeletons) {
@@ -267,7 +367,10 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     public long getItemId(int position) {
         int header = headerCount();
         if (position < header) {
-            return position == 0 ? mParent.id : ID_LABEL;
+            if (mParent != null && position < 2) {
+                return position == 0 ? mParent.id : ID_LABEL;
+            }
+            return ID_COMPOSE;
         }
         position -= header;
         if (position < mSkeletons) {
@@ -295,6 +398,11 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 holder.itemView.findViewById(R.id.comment_retry).setOnClickListener(v -> mListener.onRetry());
                 return holder;
             }
+            case TYPE_COMPOSE: {
+                ComposeVH holder = new ComposeVH(inflater.inflate(R.layout.item_mobile_comment_compose, parent, false));
+                holder.itemView.setOnClickListener(v -> mListener.onComposeClicked(mParent != null));
+                return holder;
+            }
             default:
                 return new CommentVH(inflater.inflate(R.layout.item_mobile_comment, parent, false),
                         viewType == TYPE_PARENT, mListener);
@@ -316,6 +424,8 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             } else {
                 comment.bind(entry, mCreatorHandle);
             }
+        } else if (holder instanceof ComposeVH) {
+            ((ComposeVH) holder).bind(mComposeHint, mComposePhoto);
         } else if (getItemViewType(position) == TYPE_LABEL) {
             ((TextView) holder.itemView).setText(mParentLabel);
         } else if (getItemViewType(position) == TYPE_RETRY) {
@@ -330,6 +440,8 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
         if (holder instanceof CommentVH) {
             ((CommentVH) holder).recycle();
+        } else if (holder instanceof ComposeVH) {
+            Glide.with(holder.itemView.getContext()).clear(((ComposeVH) holder).mAvatar);
         }
     }
 
@@ -341,6 +453,44 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         SimpleVH(@NonNull View itemView) {
             super(itemView);
         }
+    }
+
+    /** NEWTUBE(write-comments): "Add a comment…" with the signed-in person's avatar. */
+    private static final class ComposeVH extends RecyclerView.ViewHolder {
+        final ImageView mAvatar;
+        private final TextView mField;
+        private final int mAvatarPx;
+
+        ComposeVH(@NonNull View itemView) {
+            super(itemView);
+            mAvatar = itemView.findViewById(R.id.comment_compose_avatar);
+            mField = itemView.findViewById(R.id.comment_compose_field);
+            mAvatarPx = itemView.getResources().getDimensionPixelSize(R.dimen.mobile_comment_avatar);
+        }
+
+        void bind(int hint, @Nullable String photo) {
+            if (hint != 0) {
+                mField.setText(hint);
+            }
+            loadAvatar(mAvatar, photo, mAvatarPx);
+        }
+    }
+
+    /** A round avatar near its drawn size, or the placeholder. */
+    static void loadAvatar(ImageView view, @Nullable String url, int sizePx) {
+        Context context = view.getContext();
+        if (TextUtils.isEmpty(url)) {
+            Glide.with(context).clear(view);
+            view.setImageResource(R.drawable.ic_watch_channel_placeholder);
+            return;
+        }
+        Glide.with(context)
+                .load(url)
+                .override(sizePx)
+                .circleCrop()
+                .placeholder(R.drawable.ic_watch_channel_placeholder)
+                .error(R.drawable.ic_watch_channel_placeholder)
+                .into(view);
     }
 
     /** A comment-shaped loading row; its root shimmers itself (ShimmerLinearLayout). */
@@ -369,6 +519,8 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         private final TextView mLikeCountNext;
         private final View mReplies;
         private final TextView mRepliesLabel;
+        private final View mReply;
+        private final View mMore;
         private final int mAvatarPx;
         private final int mHandleColor;
         private final int mCreatorPill;
@@ -395,6 +547,8 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             mLikeCountNext = itemView.findViewById(R.id.comment_like_count_next);
             mReplies = itemView.findViewById(R.id.comment_replies);
             mRepliesLabel = itemView.findViewById(R.id.comment_replies_label);
+            mReply = itemView.findViewById(R.id.comment_reply);
+            mMore = itemView.findViewById(R.id.comment_more);
             mAvatarPx = context.getResources().getDimensionPixelSize(R.dimen.mobile_comment_avatar);
             mHandleColor = ContextCompat.getColor(context, R.color.mobile_color_comment_handle);
             mCreatorPill = ContextCompat.getColor(context, R.color.mobile_color_comment_creator_pill);
@@ -417,6 +571,18 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             mReplies.setOnClickListener(v -> {
                 if (mEntry != null) {
                     mListener.onRepliesClicked(mEntry);
+                }
+            });
+            // The replies page's own comment is answered from its "Add a reply…" row.
+            mReply.setVisibility(isParent ? View.GONE : View.VISIBLE);
+            mReply.setOnClickListener(v -> {
+                if (mEntry != null) {
+                    mListener.onReplyClicked(mEntry);
+                }
+            });
+            mMore.setOnClickListener(v -> {
+                if (mEntry != null) {
+                    mListener.onMoreClicked(mEntry, v);
                 }
             });
             itemView.setOnLongClickListener(v -> {
@@ -458,22 +624,11 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             boolean replies = !mIsParent && entry.hasReplies();
             mReplies.setVisibility(replies ? View.VISIBLE : View.GONE);
             if (replies) {
-                mRepliesLabel.setText(item.getReplyCount());
+                mRepliesLabel.setText(entry.replyLabel(context));
             }
+            mMore.setVisibility(mListener.isOwnComment(entry) ? View.VISIBLE : View.GONE);
 
-            String photo = avatarUrl(item.getAuthorPhoto());
-            if (photo == null) {
-                Glide.with(context).clear(mAvatar);
-                mAvatar.setImageResource(R.drawable.ic_watch_channel_placeholder);
-            } else {
-                Glide.with(context)
-                        .load(photo)
-                        .override(mAvatarPx)
-                        .circleCrop()
-                        .placeholder(R.drawable.ic_watch_channel_placeholder)
-                        .error(R.drawable.ic_watch_channel_placeholder)
-                        .into(mAvatar);
-            }
+            loadAvatar(mAvatar, avatarUrl(item.getAuthorPhoto()), mAvatarPx);
         }
 
         /** Like state; {@code animate} = the person just tapped it (pop the thumb, roll the count). */
@@ -646,9 +801,17 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 Context context = host.getContext();
                 info.addAction(new AccessibilityNodeInfoCompat.AccessibilityActionCompat(R.id.comment_like,
                         context.getString(entry.liked ? R.string.mobile_comments_unlike : R.string.mobile_comments_like)));
+                if (!mIsParent) {
+                    info.addAction(new AccessibilityNodeInfoCompat.AccessibilityActionCompat(R.id.comment_reply,
+                            context.getString(R.string.mobile_comments_reply)));
+                }
                 if (!mIsParent && entry.hasReplies()) {
                     info.addAction(new AccessibilityNodeInfoCompat.AccessibilityActionCompat(R.id.comment_replies,
                             context.getString(R.string.mobile_comments_open_replies)));
+                }
+                if (mListener.isOwnComment(entry)) {
+                    info.addAction(new AccessibilityNodeInfoCompat.AccessibilityActionCompat(R.id.comment_more,
+                            context.getString(R.string.mobile_comments_delete)));
                 }
                 if (mMessage.canFold()) {
                     info.addAction(new AccessibilityNodeInfoCompat.AccessibilityActionCompat(R.id.comment_message,
@@ -668,6 +831,12 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                         return true;
                     } else if (action == R.id.comment_replies) {
                         mListener.onRepliesClicked(entry);
+                        return true;
+                    } else if (action == R.id.comment_reply) {
+                        mListener.onReplyClicked(entry);
+                        return true;
+                    } else if (action == R.id.comment_more) {
+                        mListener.onDeleteClicked(entry);
                         return true;
                     } else if (action == R.id.comment_message) {
                         boolean expanded = !mMessage.isExpanded();

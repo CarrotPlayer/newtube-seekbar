@@ -28,20 +28,32 @@ import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
+import com.liskovsoft.googlecommon.service.oauth.YouTubeAccount;
 import com.liskovsoft.mediaserviceinterfaces.CommentsService;
 import com.liskovsoft.mediaserviceinterfaces.data.CommentGroup;
 import com.liskovsoft.mediaserviceinterfaces.data.CommentItem;
+import com.liskovsoft.mediaserviceinterfaces.oauth.Account;
 import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.rx.RxHelper;
 import com.liskovsoft.smartyoutubetv2.common.utils.LoadFailure;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
+import com.liskovsoft.youtubeapi.service.YouTubeSignInService;
 import com.newtube.mobile.ui.common.MobileSnackbar;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
+import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.disposables.Disposable;
 
 /**
@@ -58,8 +70,15 @@ import io.reactivex.rxjava3.disposables.Disposable;
  * {@link #prefetch()}), then page by page as the list nears its end. A failed first page offers
  * Try again; a failed next page keeps the rows and ends the list with a retry row. Back closes the
  * sort menu, then a replies page, then the panel.</p>
+ *
+ * <p>NEWTUBE(write-comments): signed in, the person can comment ("Add a comment…" at the top of the
+ * list), reply (a comment's Reply button, or "Add a reply…" on its replies page; always to the
+ * thread's top comment, "@handle " first when answering a reply) and delete their own. What they
+ * post shows at once - on top of the list or the thread, and on top of any order or replies page
+ * loaded later - and what they closed without posting stays as a draft until the video changes.</p>
  */
-final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayout.Callback {
+final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayout.Callback,
+        CommentComposer.Callback {
 
     interface Host {
         /** A timestamp in a comment on the video that is playing. */
@@ -84,6 +103,12 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
     private static final float SORT_DIM_ALPHA = 0.4f;
     private static final long MENU_GROW_MS = 200;
     private static final long MENU_FADE_MS = 120;
+
+    /**
+     * NEWTUBE(write-comments): the comments posted from this app since it started, on any video,
+     * and the account that posted each: that account's own even when its handle is unknown.
+     */
+    private static final Map<String, String> sPostedBy = Collections.synchronizedMap(new HashMap<>());
 
     /** One page sequence: the comments in one sort order, or the replies of one comment. */
     private static final class Feed {
@@ -189,6 +214,51 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
     private android.animation.ValueAnimator mPageAnimator;
     private boolean mHairlineShown;
 
+    // --- NEWTUBE(write-comments)
+    @Nullable
+    private CommentComposer mComposer;
+    /** The thread the open composer replies to; null = a new comment on the video. */
+    @Nullable
+    private CommentsAdapter.Entry mComposeParent;
+    @Nullable
+    private String mComposePrefill;
+    /** Who the open composer writes as, and whether it is the DEBUG UI check (never sent). */
+    @Nullable
+    private String mComposeAccountKey;
+    private boolean mComposeUiTest;
+    /** Texts closed without posting, one per account and target (see {@link #draftKey}). */
+    private final Map<String, String> mDrafts = new HashMap<>();
+    @Nullable
+    private Disposable mPostRequest;
+    @Nullable
+    private Disposable mDeleteRequest;
+    /** Top-level comments posted on this video, newest first: on top of every order's first page. */
+    private final List<CommentsAdapter.Entry> mPostedTop = new ArrayList<>();
+    /** Replies posted on this video by their top comment's id, shared by that comment's entries. */
+    private final Map<String, List<CommentsAdapter.Entry>> mPostedReplies = new HashMap<>();
+    /** Comments deleted on this video: a page that arrives later must not bring them back. */
+    private final Set<String> mDeletedIds = new HashSet<>();
+    @Nullable
+    private androidx.appcompat.app.AlertDialog mDeleteDialog;
+    /** The signed-in account's handle without the "@", lower case; null = unknown or signed out. */
+    @Nullable
+    private String mMyHandle;
+    @Nullable
+    private String mMyPhoto;
+    private boolean mSignedIn;
+    /** Who is signed in, to tell their posts from another account's (see {@link #sPostedBy}). */
+    @Nullable
+    private String mAccountKey;
+    /**
+     * DEBUG builds, signed out, with {@code adb shell setprop debug.arc.comments_ui_test 1}: the
+     * composer opens and every comment has the ⋮, so the writing UI can be checked on an emulator
+     * with no account. Nothing can reach YouTube that way: a signed-out post or delete is refused
+     * before it is sent (YouTubeCommentsService.checkSignedIn).
+     */
+    private boolean mUiTest;
+    @Nullable
+    private PopupWindow mCommentMenu;
+
     CommentsPanel(FragmentActivity activity, CommentsPanelLayout layout, Host host) {
         mActivity = activity;
         mHost = host;
@@ -225,6 +295,8 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
 
         mListAdapter = new CommentsAdapter(this);
         mRepliesAdapter = new CommentsAdapter(this);
+        mListAdapter.setCompose(R.string.mobile_comments_add_hint);
+        mRepliesAdapter.setCompose(R.string.mobile_comments_reply_hint);
         setUpList(mList, mListAdapter);
         setUpList(mReplies, mRepliesAdapter);
 
@@ -391,7 +463,14 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
             return;
         }
         dismissSortMenu(false);
+        dismissCommentMenu();
         cancelRequests();
+        closeComposer();
+        dismissDeleteDialog();
+        mDrafts.clear();
+        mPostedTop.clear();
+        mPostedReplies.clear();
+        mDeletedIds.clear();
         mGeneration++;
         mVideoId = videoId;
         mCount = null;
@@ -487,6 +566,7 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
         if (mViewResetPending) {
             resetViews();
         }
+        refreshAccount();
         if (!feed.loaded && !feed.loading) {
             // Opening is a fresh ask: a first page that failed before (the background fetch, or
             // an earlier open) is tried again rather than greeting the person with an error.
@@ -516,6 +596,9 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
     /** Minimize: the panel went with the watch page; it is closed when the player comes back. */
     void closeImmediately() {
         dismissSortMenu(false);
+        dismissCommentMenu();
+        closeComposer();
+        dismissDeleteDialog();
         mLayout.closeImmediately();
     }
 
@@ -530,6 +613,9 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
         }
         if (suspended) {
             dismissSortMenu(false);
+            dismissCommentMenu();
+            closeComposer();
+            dismissDeleteDialog();
             // In fullscreen the pages get no height, and a list laid out in no height forgets
             // where it was: keep both places for the way back.
             mSuspendedList = saveState(mList);
@@ -571,6 +657,9 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
     void release() {
         mReleased = true;
         dismissSortMenu(false);
+        dismissCommentMenu();
+        closeComposer();
+        dismissDeleteDialog();
         cancelRequests();
         mList.animate().cancel();
         showListPage();
@@ -587,6 +676,9 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
         mBackCallback.setEnabled(false);
         mHost.onCommentsPanelShown(false);
         dismissSortMenu(false);
+        dismissCommentMenu();
+        closeComposer();
+        dismissDeleteDialog();
         if (mViewResetPending) {
             resetViews();
         } else {
@@ -642,6 +734,14 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
         feed.loaded = true;
         feed.entries.clear();
         feed.entries.addAll(toEntries(group, feed.replies));
+        forgetDeleted(feed.entries);
+        attachPostedReplies(feed.entries);
+        // What the person posted here goes first (and only once, if YouTube already lists it).
+        List<CommentsAdapter.Entry> posted = postedFor(feed);
+        if (!posted.isEmpty()) {
+            removeIds(feed.entries, posted);
+            feed.entries.addAll(0, posted);
+        }
         feed.nextKey = nextKey(group, feed.firstKey);
         if (!feed.replies) {
             learnCreator(feed.entries);
@@ -737,6 +837,9 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
                     feed.request = null;
                     List<CommentsAdapter.Entry> more = toEntries(group, feed.replies);
                     feed.emptyPages = more.isEmpty() ? feed.emptyPages + 1 : 0;
+                    removeIds(more, postedFor(feed));
+                    forgetDeleted(more);
+                    attachPostedReplies(more);
                     // A page of nothing may still carry a token; a few in a row means the end.
                     feed.nextKey = feed.emptyPages >= 3 ? null : nextKey(group, key);
                     feed.entries.addAll(more);
@@ -822,6 +925,10 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
     }
 
     private void cancelRequests() {
+        // A post or delete already sent may still land on YouTube; its answer is simply not shown.
+        RxHelper.disposeActions(mPostRequest, mDeleteRequest);
+        mPostRequest = null;
+        mDeleteRequest = null;
         if (mTop != null) {
             mTop.cancel();
         }
@@ -967,6 +1074,9 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
      */
     void onThemeChanged() {
         dismissSortMenu(false);
+        dismissCommentMenu();
+        closeComposer();
+        dismissDeleteDialog();
         for (Feed feed : new Feed[] {mTop, mNewest, mThread}) {
             if (feed != null) {
                 for (CommentsAdapter.Entry entry : feed.entries) {
@@ -1090,6 +1200,7 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
             return;
         }
         dismissSortMenu(false);
+        dismissCommentMenu();
         saveScroll();
         mThreadParent = entry;
         mThread = new Feed(entry.item.getNestedCommentsKey(), true);
@@ -1115,8 +1226,8 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
     }
 
     @Nullable
-    private static CharSequence labelFor(@Nullable CommentsAdapter.Entry entry) {
-        return entry != null ? entry.item.getReplyCount() : null;
+    private CharSequence labelFor(@Nullable CommentsAdapter.Entry entry) {
+        return entry != null ? entry.replyLabel(mActivity) : null;
     }
 
     /**
@@ -1386,6 +1497,558 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
         // Android 13+ confirms a copy itself; earlier versions get ours.
         if (Build.VERSION.SDK_INT < 33) {
             MobileSnackbar.show(mActivity, R.string.mobile_comments_copied);
+        }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // NEWTUBE(write-comments): commenting, replying, deleting
+    // ---------------------------------------------------------------------------------
+
+    /** Who is signed in: their avatar on the "Add a comment…" rows, their handle for the ⋮. */
+    private void refreshAccount() {
+        Account account = null;
+        try {
+            account = YouTubeSignInService.instance().getSelectedAccount();
+        } catch (RuntimeException e) {
+            // No sign-in service: treated as signed out.
+        }
+        boolean signedIn = account != null;
+        String handle = account instanceof YouTubeAccount
+                ? normalizeHandle(((YouTubeAccount) account).getChannelName()) : null;
+        String photo = account != null ? account.getAvatarImageUrl() : null;
+        String accountKey = accountKey(account);
+        boolean uiTest = !signedIn && com.liskovsoft.smartyoutubetv2.tv.BuildConfig.DEBUG
+                && "1".equals(com.newtube.mobile.MobileMainApplication.getDebugSystemProperty("debug.arc.comments_ui_test"));
+        boolean ownerChanged = signedIn != mSignedIn || uiTest != mUiTest || !Helpers.equals(handle, mMyHandle)
+                || !Helpers.equals(accountKey, mAccountKey);
+        mSignedIn = signedIn;
+        mUiTest = uiTest;
+        mMyHandle = handle;
+        mAccountKey = accountKey;
+        if (!Helpers.equals(photo, mMyPhoto)) {
+            mMyPhoto = photo;
+            mListAdapter.setComposePhoto(photo);
+            mRepliesAdapter.setComposePhoto(photo);
+        }
+        if (ownerChanged) {
+            // Another account (or none): the ⋮ follows whose comments these are.
+            mListAdapter.notifyItemRangeChanged(0, mListAdapter.getItemCount());
+            mRepliesAdapter.notifyItemRangeChanged(0, mRepliesAdapter.getItemCount());
+        }
+    }
+
+    /** One channel: a Google account's brand channels share its name and address, not its page id. */
+    @Nullable
+    private static String accountKey(@Nullable Account account) {
+        if (account == null) {
+            return null;
+        }
+        String page = account instanceof YouTubeAccount ? ((YouTubeAccount) account).getPageIdToken() : null;
+        return account.getName() + "\n" + account.getEmail() + "\n" + (page != null ? page : "");
+    }
+
+    /** "@Some_Handle" and "some_handle" are the same person. */
+    @Nullable
+    private static String normalizeHandle(@Nullable String handle) {
+        if (handle == null) {
+            return null;
+        }
+        String name = handle.trim();
+        if (name.startsWith("@")) {
+            name = name.substring(1);
+        }
+        return name.isEmpty() ? null : name.toLowerCase(Locale.ROOT);
+    }
+
+    @Override
+    public boolean isOwnComment(CommentsAdapter.Entry entry) {
+        if (!mSignedIn) {
+            return mUiTest;
+        }
+        String id = entry.item.getId();
+        if (id != null && mAccountKey != null && mAccountKey.equals(sPostedBy.get(id))) {
+            return true;
+        }
+        return mMyHandle != null && mMyHandle.equals(normalizeHandle(entry.item.getAuthorName()));
+    }
+
+    @Override
+    public void onComposeClicked(boolean reply) {
+        if (mPageTransition) {
+            return;
+        }
+        if (reply) {
+            if (mThreadParent != null) {
+                compose(mThreadParent, null);
+            }
+        } else {
+            compose(null, null);
+        }
+    }
+
+    /** Replies go to the thread's top comment; answering a reply names its author first. */
+    @Override
+    public void onReplyClicked(CommentsAdapter.Entry entry) {
+        CommentsAdapter.Entry parent = entry.isReply ? mThreadParent : entry;
+        if (parent == null || mPageTransition) {
+            return;
+        }
+        compose(parent, mention(entry));
+    }
+
+    @Nullable
+    private static String mention(CommentsAdapter.Entry entry) {
+        String author = entry.item.getAuthorName();
+        if (TextUtils.isEmpty(author) || TextUtils.isEmpty(author.trim())) {
+            return null;
+        }
+        String handle = author.trim();
+        return (handle.startsWith("@") ? handle : "@" + handle) + " ";
+    }
+
+    private void compose(@Nullable CommentsAdapter.Entry parent, @Nullable String prefill) {
+        if (mReleased || mService == null || mVideoId == null || mComposer != null || mPostRequest != null
+                || !mLayout.isOpen() || parent != null && parent.item.getId() == null) {
+            return;
+        }
+        refreshAccount();
+        if (!mUiTest && WatchActionFeedback.blockIfSignedOut(mActivity, R.string.mobile_comments_sign_in_to_comment)) {
+            return;
+        }
+        dismissSortMenu(false);
+        dismissCommentMenu();
+        mComposeParent = parent;
+        mComposePrefill = prefill;
+        mComposeAccountKey = mAccountKey;
+        mComposeUiTest = mUiTest;
+        String draft = mDrafts.get(draftKey());
+        mComposer = new CommentComposer(mActivity, parent == null
+                ? R.string.mobile_comments_add_hint : R.string.mobile_comments_reply_hint,
+                draft != null ? draft : prefill, prefill, mMyPhoto, this);
+        mComposer.show();
+    }
+
+    /** The open composer's target: one account, and the video or one thread answered with one mention. */
+    private String draftKey() {
+        return mComposeAccountKey + "|" + (mComposeParent != null ? mComposeParent.item.getId() : "")
+                + "|" + (mComposePrefill != null ? mComposePrefill : "");
+    }
+
+    private void closeComposer() {
+        if (mComposer != null) {
+            mComposer.dismiss();
+        }
+    }
+
+    @Override
+    public void onClosed(CommentComposer composer, @Nullable String draft) {
+        if (composer != mComposer) {
+            return;
+        }
+        mComposer = null;
+        if (draft != null && !draft.trim().isEmpty() && !draft.trim().equals(
+                mComposePrefill != null ? mComposePrefill.trim() : null)) {
+            mDrafts.put(draftKey(), draft);
+        } else {
+            mDrafts.remove(draftKey());
+        }
+    }
+
+    @Override
+    public void onSend(CommentComposer composer, String text) {
+        if (composer != mComposer || mPostRequest != null || mService == null || mVideoId == null || mReleased) {
+            return;
+        }
+        CommentsAdapter.Entry parent = mComposeParent;
+        String prefill = mComposePrefill;
+        String key = draftKey();
+        String videoId = mVideoId;
+        int generation = mGeneration;
+        refreshAccount();
+        if (mComposeUiTest || mUiTest) {
+            // The DEBUG UI check never reaches YouTube, whoever signs in meanwhile.
+            composer.dismiss();
+            onPostFailed(new IllegalStateException("UI check: not sent"), parent, prefill, generation);
+            return;
+        }
+        if (mAccountKey == null || !mAccountKey.equals(mComposeAccountKey)) {
+            // Written as one account, and another (or none) is signed in now: not sent as them.
+            composer.dismiss();
+            MobileSnackbar.show(mActivity, R.string.mobile_comments_post_failed);
+            return;
+        }
+        String accountKey = mAccountKey;
+        composer.setSending(true);
+        Observable<CommentItem> post = parent == null
+                ? mService.createCommentObserve(videoId, text)
+                : mService.createReplyObserve(videoId, parent.item.getId(), text);
+        mPostRequest = post.subscribe(
+                item -> {
+                    mPostRequest = null;
+                    if (generation != mGeneration || mReleased) {
+                        return;
+                    }
+                    composer.finish();
+                    // Also when the composer was closed mid-post (fullscreen, a theme change).
+                    mDrafts.remove(key);
+                    onPosted(parent, item, accountKey);
+                },
+                error -> {
+                    mPostRequest = null;
+                    if (generation != mGeneration || mReleased) {
+                        return;
+                    }
+                    composer.setSending(false);
+                    composer.dismiss(); // the text stays as the draft (onClosed)
+                    onPostFailed(error, parent, prefill, generation);
+                });
+    }
+
+    private void onPosted(@Nullable CommentsAdapter.Entry parent, CommentItem item, String accountKey) {
+        String id = item.getId();
+        if (id == null) {
+            // YouTube took it but did not describe it: it shows once the list is loaded again.
+            MobileSnackbar.show(mActivity, parent == null
+                    ? R.string.mobile_comments_posted : R.string.mobile_comments_reply_posted);
+            return;
+        }
+        sPostedBy.put(id, accountKey);
+        if (parent == null) {
+            CommentsAdapter.Entry entry = new CommentsAdapter.Entry(item, false);
+            mPostedTop.add(0, entry);
+            for (Feed feed : new Feed[] {mTop, mNewest}) {
+                if (feed != null && feed.loaded) {
+                    feed.entries.add(0, entry);
+                }
+            }
+            Feed shown = currentFeed();
+            if (mThreadParent == null && shown != null && shown.loaded && !mSortPending && !mListSwapping) {
+                hideState();
+                mListAdapter.insertAtTop(entry);
+                mList.scrollToPosition(0);
+            }
+            MobileSnackbar.show(mActivity, R.string.mobile_comments_posted);
+            return;
+        }
+        String parentId = parent.item.getId();
+        CommentsAdapter.Entry reply = new CommentsAdapter.Entry(item, true);
+        List<CommentsAdapter.Entry> replies = mPostedReplies.get(parentId);
+        if (replies == null) {
+            replies = new ArrayList<>();
+            mPostedReplies.put(parentId, replies);
+        }
+        replies.add(0, reply);
+        // Every entry of that comment (Top's, Newest's, the replies page's) shows it has replies now.
+        parent.postedReplies = replies;
+        attachPostedReplies(allTopEntries());
+        mListAdapter.notifyComment(parentId);
+        mRepliesAdapter.notifyComment(parentId);
+        if (isThreadOf(parentId)) {
+            mRepliesAdapter.setParentLabel(labelFor(mThreadParent));
+            if (mThread != null && mThread.loaded) {
+                mThread.entries.add(0, reply);
+                mRepliesAdapter.insertAtTop(reply);
+                mReplies.scrollToPosition(0);
+            } // still loading: the first page takes it (postedFor)
+            MobileSnackbar.show(mActivity, R.string.mobile_comments_reply_posted);
+        } else {
+            int generation = mGeneration;
+            MobileSnackbar.show(mActivity, mActivity.getString(R.string.mobile_comments_reply_posted),
+                    mActivity.getString(R.string.mobile_comments_view_reply), () -> {
+                        if (generation == mGeneration && mLayout.isOpen() && mThreadParent == null) {
+                            onRepliesClicked(parent);
+                        }
+                    });
+        }
+    }
+
+    private boolean isThreadOf(@Nullable String commentId) {
+        return mThreadParent != null && commentId != null && commentId.equals(mThreadParent.item.getId());
+    }
+
+    /** The top-level entries this panel holds (both orders, what was posted, the open thread's). */
+    private List<CommentsAdapter.Entry> allTopEntries() {
+        List<CommentsAdapter.Entry> all = new ArrayList<>(mPostedTop);
+        for (Feed feed : new Feed[] {mTop, mNewest}) {
+            if (feed != null) {
+                all.addAll(feed.entries);
+            }
+        }
+        if (mThreadParent != null) {
+            all.add(mThreadParent);
+        }
+        return all;
+    }
+
+    /** Entries of a comment the person replied to share its posted replies. */
+    private void attachPostedReplies(List<CommentsAdapter.Entry> entries) {
+        if (mPostedReplies.isEmpty()) {
+            return;
+        }
+        for (CommentsAdapter.Entry entry : entries) {
+            List<CommentsAdapter.Entry> replies = entry.isReply ? null : mPostedReplies.get(entry.item.getId());
+            if (replies != null) {
+                entry.postedReplies = replies;
+            }
+        }
+    }
+
+    private void forgetDeleted(List<CommentsAdapter.Entry> entries) {
+        if (mDeletedIds.isEmpty()) {
+            return;
+        }
+        for (Iterator<CommentsAdapter.Entry> it = entries.iterator(); it.hasNext(); ) {
+            if (mDeletedIds.contains(it.next().item.getId())) {
+                it.remove();
+            }
+        }
+    }
+
+    private void onPostFailed(Throwable error, @Nullable CommentsAdapter.Entry parent, @Nullable String prefill,
+                              int generation) {
+        String reason = youTubeReason(error);
+        CharSequence text = LoadFailure.classify(mActivity, error) == LoadFailure.NO_CONNECTION
+                ? mActivity.getString(R.string.mobile_empty_no_connection)
+                : reason != null ? mActivity.getString(R.string.mobile_comments_post_failed_reason, reason)
+                : mActivity.getString(R.string.mobile_comments_post_failed);
+        MobileSnackbar.show(mActivity, text, mActivity.getString(R.string.mobile_comments_try_again), () -> {
+            if (generation == mGeneration) {
+                compose(parent, prefill); // the draft is still there
+            }
+        });
+    }
+
+    /** YouTube's own words for a refusal ("ErrorResponse: …"), never an exception's. */
+    @Nullable
+    private static String youTubeReason(Throwable error) {
+        String message = error.getMessage();
+        String prefix = "ErrorResponse: ";
+        int at = message != null ? message.indexOf(prefix) : -1;
+        if (at < 0) {
+            return null;
+        }
+        String reason = message.substring(at + prefix.length()).trim();
+        return reason.isEmpty() || reason.length() > 160 ? null : reason;
+    }
+
+    /** What the person posted that belongs on top of {@code feed}. */
+    private List<CommentsAdapter.Entry> postedFor(Feed feed) {
+        if (!feed.replies) {
+            return mPostedTop;
+        }
+        List<CommentsAdapter.Entry> replies = feed == mThread && mThreadParent != null
+                ? mPostedReplies.get(mThreadParent.item.getId()) : null;
+        return replies != null ? replies : Collections.<CommentsAdapter.Entry>emptyList();
+    }
+
+    /** Drops from {@code entries} the comments that {@code posted} already shows. */
+    private static void removeIds(List<CommentsAdapter.Entry> entries, List<CommentsAdapter.Entry> posted) {
+        if (posted.isEmpty()) {
+            return;
+        }
+        Set<String> ids = new HashSet<>();
+        for (CommentsAdapter.Entry entry : posted) {
+            if (entry.item.getId() != null) {
+                ids.add(entry.item.getId());
+            }
+        }
+        for (Iterator<CommentsAdapter.Entry> it = entries.iterator(); it.hasNext(); ) {
+            CommentsAdapter.Entry entry = it.next();
+            if (!posted.contains(entry) && ids.contains(entry.item.getId())) {
+                it.remove();
+            }
+        }
+    }
+
+    private static boolean removeId(List<CommentsAdapter.Entry> entries, String id) {
+        boolean removed = false;
+        for (Iterator<CommentsAdapter.Entry> it = entries.iterator(); it.hasNext(); ) {
+            if (id.equals(it.next().item.getId())) {
+                it.remove();
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
+    /** The ⋮ of the person's own comment: Delete, growing from under the button. */
+    @Override
+    public void onMoreClicked(CommentsAdapter.Entry entry, View anchor) {
+        if (mCommentMenu != null || mReleased || mPageTransition || !isOwnComment(entry)) {
+            return;
+        }
+        dismissSortMenu(false);
+        View content = LayoutInflater.from(mActivity).inflate(R.layout.mobile_comment_menu,
+                (ViewGroup) mLayout, false);
+        content.findViewById(R.id.comment_menu_delete).setOnClickListener(v -> {
+            dismissCommentMenu();
+            onDeleteClicked(entry);
+        });
+        content.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        PopupWindow menu = new PopupWindow(content, ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        menu.setAnimationStyle(0);
+        menu.setOutsideTouchable(true);
+        menu.setElevation(8 * mDensity);
+        menu.setOnDismissListener(() -> {
+            if (mCommentMenu == menu) {
+                mCommentMenu = null;
+            }
+        });
+        mCommentMenu = menu;
+
+        // Its end edge on the button's; under it, or over it when the page ends first.
+        int[] at = new int[2];
+        anchor.getLocationInWindow(at);
+        int[] page = new int[2];
+        mLayout.getLocationInWindow(page);
+        boolean rtl = isRtl();
+        int width = content.getMeasuredWidth();
+        int height = content.getMeasuredHeight();
+        int x = rtl ? at[0] : at[0] + anchor.getWidth() - width;
+        int y = at[1] + anchor.getHeight() - Math.round(8 * mDensity);
+        boolean above = y + height > page[1] + mLayout.getHeight();
+        if (above) {
+            y = at[1] - height + Math.round(8 * mDensity);
+        }
+        menu.showAtLocation(mLayout, Gravity.TOP | Gravity.LEFT, Math.max(0, x), Math.max(0, y));
+
+        content.setPivotX(rtl ? width * 0.15f : width * 0.85f);
+        content.setPivotY(above ? height : 0f);
+        content.setScaleX(0.85f);
+        content.setScaleY(0.85f);
+        content.setAlpha(0f);
+        content.animate().scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(MENU_GROW_MS)
+                .setInterpolator(CommentsPanelLayout.EMPHASIZED_DECELERATE).start();
+        content.animate().alpha(1f).setStartDelay(0).setDuration(MENU_FADE_MS).setInterpolator(null).start();
+    }
+
+    private void dismissCommentMenu() {
+        PopupWindow menu = mCommentMenu;
+        mCommentMenu = null;
+        if (menu != null) {
+            if (menu.getContentView() != null) {
+                menu.getContentView().animate().cancel();
+            }
+            menu.dismiss();
+        }
+    }
+
+    /**
+     * Delete, after a confirmation (TalkBack's "Delete" action comes straight here). The
+     * confirmation belongs to this video and account: it closes with them, and a tap on Delete
+     * checks both again.
+     */
+    @Override
+    public void onDeleteClicked(CommentsAdapter.Entry entry) {
+        refreshAccount();
+        String commentId = entry.item.getId();
+        String videoId = mVideoId;
+        if (mReleased || mDeleteRequest != null || mDeleteDialog != null || videoId == null || commentId == null
+                || !isOwnComment(entry)) {
+            return;
+        }
+        int generation = mGeneration;
+        String accountKey = mAccountKey;
+        boolean uiTest = mUiTest;
+        // A reply belongs to the thread it was deleted from (its id is "parentId.replyId").
+        String parentId = !entry.isReply ? null : mThreadParent != null ? mThreadParent.item.getId()
+                : commentId.contains(".") ? commentId.substring(0, commentId.indexOf('.')) : null;
+        androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(mActivity, R.style.MobileAlertDialog)
+                .setTitle(entry.isReply ? R.string.mobile_comments_delete_reply_title
+                        : R.string.mobile_comments_delete_title)
+                .setMessage(R.string.mobile_comments_delete_message)
+                .setNegativeButton(R.string.mobile_comments_delete_cancel, null)
+                .setPositiveButton(R.string.mobile_comments_delete, (d, which) -> {
+                    if (generation != mGeneration || mReleased) {
+                        return;
+                    }
+                    refreshAccount();
+                    if (uiTest || mUiTest) {
+                        // The DEBUG UI check never reaches YouTube, whoever signs in meanwhile.
+                        MobileSnackbar.show(mActivity, R.string.mobile_comments_delete_failed);
+                        return;
+                    }
+                    if (accountKey == null || !accountKey.equals(mAccountKey)) {
+                        MobileSnackbar.show(mActivity, R.string.mobile_comments_delete_failed);
+                        return;
+                    }
+                    delete(entry, videoId, commentId, parentId, generation);
+                })
+                .create();
+        dialog.setOnDismissListener(d -> {
+            if (mDeleteDialog == d) {
+                mDeleteDialog = null;
+            }
+        });
+        mDeleteDialog = dialog;
+        dialog.show();
+    }
+
+    private void dismissDeleteDialog() {
+        androidx.appcompat.app.AlertDialog dialog = mDeleteDialog;
+        mDeleteDialog = null;
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
+        }
+    }
+
+    private void delete(CommentsAdapter.Entry entry, String videoId, String commentId, @Nullable String parentId,
+                        int generation) {
+        if (mService == null || mDeleteRequest != null) {
+            return;
+        }
+        mDeleteRequest = mService.deleteCommentObserve(videoId, commentId).subscribe(
+                ignored -> {
+                },
+                error -> {
+                    mDeleteRequest = null;
+                    if (generation == mGeneration && !mReleased) {
+                        MobileSnackbar.show(mActivity, R.string.mobile_comments_delete_failed);
+                    }
+                },
+                () -> {
+                    mDeleteRequest = null;
+                    if (generation == mGeneration && !mReleased) {
+                        removeComment(entry, commentId, parentId);
+                        MobileSnackbar.show(mActivity, R.string.mobile_comments_deleted);
+                    }
+                });
+    }
+
+    /** A deleted comment leaves every list here that shows it (a reply: its thread's). */
+    private void removeComment(CommentsAdapter.Entry entry, String id, @Nullable String parentId) {
+        sPostedBy.remove(id);
+        mDeletedIds.add(id);
+        if (entry.isReply) {
+            if (mThread != null) {
+                removeId(mThread.entries, id);
+            }
+            mRepliesAdapter.removeComment(id);
+            List<CommentsAdapter.Entry> replies = parentId != null ? mPostedReplies.get(parentId) : null;
+            if (replies != null && removeId(replies, id)) {
+                if (isThreadOf(parentId)) {
+                    mRepliesAdapter.setParentLabel(labelFor(mThreadParent));
+                }
+                mListAdapter.notifyComment(parentId);
+                mRepliesAdapter.notifyComment(parentId);
+            }
+            return;
+        }
+        if (isThreadOf(id)) {
+            leaveReplies();
+        }
+        mPostedReplies.remove(id);
+        removeId(mPostedTop, id);
+        for (Feed feed : new Feed[] {mTop, mNewest}) {
+            if (feed != null) {
+                removeId(feed.entries, id);
+            }
+        }
+        mListAdapter.removeComment(id);
+        Feed shown = currentFeed();
+        if (shown != null && shown.loaded && shown.entries.isEmpty() && !mSortPending && !mListSwapping) {
+            showState(R.string.mobile_comments_none, false);
         }
     }
 }
