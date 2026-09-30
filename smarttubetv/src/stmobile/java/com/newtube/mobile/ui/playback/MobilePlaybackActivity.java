@@ -1463,6 +1463,11 @@ public class MobilePlaybackActivity extends MobileActivity
             logPip("leave-skip reason=internal-navigation");
             return;
         }
+        // NEWTUBE(background-mode): "Only audio" leaves without PiP; onStop keeps the audio going.
+        if (BackgroundModePolicy.onLeave(getBackgroundMode()) != BackgroundModePolicy.Action.PIP) {
+            logPip("leave-skip reason=audio-mode");
+            return;
+        }
 
         logPip("leave-enter");
         enterPipMode();
@@ -1845,7 +1850,17 @@ public class MobilePlaybackActivity extends MobileActivity
                 && !isFinishing()
                 && !mIsEnded
                 && mExoPlayerController != null
-                && mExoPlayerController.getPlayWhenReady();
+                && mExoPlayerController.getPlayWhenReady()
+                // NEWTUBE(background-mode): never armed while the user's choice is "Only audio".
+                && BackgroundModePolicy.autoEnterPip(getBackgroundMode());
+    }
+
+    /**
+     * The user's "Play in background" choice, read fresh: the dialog that changes it is a separate
+     * activity, and the resume after it closes re-pushes the auto-enter flag (onResume).
+     */
+    private int getBackgroundMode() {
+        return PlayerData.instance(this).getBackgroundMode();
     }
 
     /** Video aspect ratio for the PiP window, clamped to the range Android accepts (~0.42..2.39). */
