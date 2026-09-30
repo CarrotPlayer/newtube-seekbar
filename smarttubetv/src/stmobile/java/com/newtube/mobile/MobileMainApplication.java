@@ -639,6 +639,11 @@ public class MobileMainApplication extends MainApplication {
         // sheets instead of the TV "open with" chooser. TV never calls this (PhoneUi).
         com.liskovsoft.smartyoutubetv2.common.misc.PhoneUi.setEnabled(true);
 
+        // NO NOTIFICATIONS (mobile-only): YouTube refuses the notification inbox to the TV sign-in
+        // (HTTP 400 signed in and out, 2026-09-30), so the phone shows no Notifications section: not
+        // in the You panel, Set-up sections or Boot to section (SidebarService). Prefs untouched.
+        com.liskovsoft.smartyoutubetv2.common.app.presenters.service.SidebarService.setNotificationsSectionHidden(true);
+
         // UPDATES (mobile-only): the launch check and Settings > About > Check for updates go to the
         // phone's update sheet - notes first, download on Update with progress, then the installer -
         // instead of the TV flow that downloaded the APK in silence and pinned an "Update" section.
