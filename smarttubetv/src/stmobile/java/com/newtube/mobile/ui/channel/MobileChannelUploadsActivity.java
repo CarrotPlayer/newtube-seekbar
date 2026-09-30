@@ -95,6 +95,8 @@ public class MobileChannelUploadsActivity extends MobileActivity
     private final FilteredPageTopUp mTopUp = new FilteredPageTopUp();
     /** The group the last page came in (the anchor to continue when every card was a Short). */
     private VideoGroup mLastGroup;
+    /** NEWTUBE(shorts): onDestroy has begun - the presenter's teardown must not page on. */
+    private boolean mTornDown;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -441,23 +443,28 @@ public class MobileChannelUploadsActivity extends MobileActivity
         }
 
         if (lastVisible >= itemCount - SCROLL_END_THRESHOLD_ITEMS && itemCount != mLastPaginationTriggerCount) {
-            mLastPaginationTriggerCount = itemCount;
+            Video last = mVideos.get(mVideos.size() - 1);
             if (userScroll) {
                 mTopUp.onUserAction(); // NEWTUBE(shorts): the user asked for more
+            } else if (!mTopUp.takeAutomatic(last.getGroup() != null && last.getGroup().getNextPageKey() != null)) {
+                return; // a layout pass, not the user: only within the top-up budget
             }
-            mPresenter.onScrollEnd(mVideos.get(mVideos.size() - 1));
+            mLastPaginationTriggerCount = itemCount;
+            mPresenter.onScrollEnd(last);
         }
     }
 
     /**
      * NEWTUBE(shorts): with its Shorts dropped the list may be too short to scroll, and then
      * nothing would ever ask for its next page: fetch it now, within {@link FilteredPageTopUp}'s
-     * budget. Called when a page has landed. Returns whether a page was asked for.
+     * budget - only right after a page landed (not after a cancel or a failure). Returns whether a
+     * page was asked for.
      */
     private boolean topUpIfShort() {
         VideoGroup group = mLastGroup;
         List<Video> anchor = group != null ? group.getVideos() : null;
-        if (mPresenter == null || mLoadMoreFooter.isFailed() || anchor == null || anchor.isEmpty()) {
+        if (mPresenter == null || mTornDown || isFinishing() || isDestroyed() || mLoadMoreFooter.isFailed()
+                || anchor == null || anchor.isEmpty()) {
             return false;
         }
         if (!mTopUp.take(mVideos.size(), group.getNextPageKey() != null)) {
@@ -508,6 +515,7 @@ public class MobileChannelUploadsActivity extends MobileActivity
     @Override
     protected void onDestroy() {
         MiniPlayerBridge.unregisterMiniHost(this);
+        mTornDown = true;
 
         if (mPresenter != null && mPresenter.getView() == this) {
             mPresenter.onViewDestroyed();
@@ -568,7 +576,7 @@ public class MobileChannelUploadsActivity extends MobileActivity
             List<Video> shown = ShortsFilter.withoutShorts(group.getVideos()); // NEWTUBE(shorts)
             if (group.getAction() != VideoGroup.ACTION_REMOVE && group.getAction() != VideoGroup.ACTION_SYNC) {
                 mLastGroup = group;
-                mTopUp.onDropped((group.getVideos() != null ? group.getVideos().size() : 0)
+                mTopUp.onPageLanded((group.getVideos() != null ? group.getVideos().size() : 0)
                         - (shown != null ? shown.size() : 0));
             }
             switch (group.getAction()) {

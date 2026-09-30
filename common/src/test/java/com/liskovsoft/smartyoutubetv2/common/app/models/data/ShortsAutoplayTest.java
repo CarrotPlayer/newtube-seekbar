@@ -9,12 +9,15 @@ import android.app.Application;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItem;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItemMetadata;
+import com.liskovsoft.sharedutils.prefs.GlobalPreferences;
 import com.liskovsoft.smartyoutubetv2.common.misc.PhoneUi;
+import com.liskovsoft.smartyoutubetv2.common.prefs.BlockedChannelData;
 
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.ConscryptMode;
 
@@ -31,12 +34,15 @@ public class ShortsAutoplayTest {
     @After
     public void tearDown() {
         PhoneUi.setEnabled(false);
+        if (GlobalPreferences.context() != null) {
+            BlockedChannelData.instance(GlobalPreferences.context()).clear();
+        }
     }
 
     @Test
     public void anOrdinaryNextPickIsKept() {
         MediaItem next = item("long1", false);
-        assertSame(next, ShortsAutoplay.pick(next, upNext(item("s1", true), item("long2", false)), "now"));
+        assertSame(next, ShortsAutoplay.pick(next, upNext(item("s1", true), item("long2", false)), "now", null));
     }
 
     @Test
@@ -46,13 +52,13 @@ public class ShortsAutoplayTest {
         List<MediaGroup> upNext = upNext(item("s1", true), item("s2", true), firstOrdinary, item("long3", false));
 
         // ...but Up next lists it as a Short.
-        assertSame(firstOrdinary, ShortsAutoplay.pick(next, upNext, "now"));
+        assertSame(firstOrdinary, ShortsAutoplay.pick(next, upNext, "now", null));
     }
 
     @Test
     public void aMarkedShortPickIsSkippedToo() {
         MediaItem firstOrdinary = item("long1", false);
-        assertSame(firstOrdinary, ShortsAutoplay.pick(item("s9", true), upNext(firstOrdinary), "now"));
+        assertSame(firstOrdinary, ShortsAutoplay.pick(item("s9", true), upNext(firstOrdinary), "now", null));
     }
 
     @Test
@@ -63,13 +69,37 @@ public class ShortsAutoplayTest {
         MediaItem ordinary = item("long1", false);
 
         assertSame(ordinary, ShortsAutoplay.pick(item("s1", true),
-                upNext(playing, mix, upcoming, ordinary), "now"));
+                upNext(playing, mix, upcoming, ordinary), "now", null));
+    }
+
+    @Test
+    public void whatUpNextHidesIsNeverTheReplacement() {
+        MediaItem blocked = item("fromBlocked", false);
+        MediaItem ordinary = item("long1", false);
+
+        assertSame(ordinary, ShortsAutoplay.pick(item("s1", true), upNext(blocked, ordinary), "now",
+                item -> item == blocked));
+    }
+
+    @Test
+    public void syncSkipsABlockedChannelsVideoToo() {
+        GlobalPreferences.instance(RuntimeEnvironment.getApplication()); // VideoGroup's blocked-channel rule
+        BlockedChannelData.instance(RuntimeEnvironment.getApplication()).addChannel("UCblocked", "UCblocked"); // id, name (the fakes use the id as the author)
+        MediaItem shortPick = item("s1", true);
+        MediaItem blocked = item("fromBlocked", false, null, false, "UCblocked");
+        MediaItem ordinary = item("long1", false);
+
+        PhoneUi.setEnabled(true);
+        Video phone = new Video();
+        phone.videoId = "now";
+        phone.sync(metadata(shortPick, upNext(shortPick, blocked, ordinary)));
+        assertEquals("long1", phone.nextMediaItem.getVideoId());
     }
 
     @Test
     public void anUpNextOfOnlyShortsEndsAutoplay() {
-        assertNull(ShortsAutoplay.pick(item("s1", true), upNext(item("s2", true), item("s3", true)), "now"));
-        assertNull(ShortsAutoplay.pick(item("s1", true), null, "now"));
+        assertNull(ShortsAutoplay.pick(item("s1", true), upNext(item("s2", true), item("s3", true)), "now", null));
+        assertNull(ShortsAutoplay.pick(item("s1", true), null, "now", null));
     }
 
     @Test
@@ -100,9 +130,16 @@ public class ShortsAutoplayTest {
     }
 
     private static MediaItem item(String videoId, boolean isShorts, String playlistId, boolean upcoming) {
+        return item(videoId, isShorts, playlistId, upcoming, "UC" + videoId);
+    }
+
+    private static MediaItem item(String videoId, boolean isShorts, String playlistId, boolean upcoming,
+                                  String channelId) {
         return fake(MediaItem.class, (name) -> {
             switch (name) {
                 case "getVideoId": return videoId;
+                case "getChannelId": return channelId;
+                case "getAuthor": return channelId;
                 case "isShorts": return isShorts;
                 case "getPlaylistId": return playlistId;
                 case "isUpcoming": return upcoming;

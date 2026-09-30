@@ -38,6 +38,32 @@ public final class ShortsFilter {
         return result;
     }
 
+    /**
+     * Whether a channel section is the channel's Shorts section - the one to leave out entirely:
+     * named Shorts (YouTube's label, or this app's {@code localizedLabel}) and holding nothing but
+     * Shorts (or nothing at all, when the service already emptied it). Any other section keeps its
+     * tab and its next page even when its first page filtered down to zero cards.
+     */
+    public static boolean isShortsSection(String title, String localizedLabel, List<Video> videos) {
+        if (title == null) {
+            return false;
+        }
+        String name = title.trim();
+        boolean named = "Shorts".equalsIgnoreCase(name)
+                || (localizedLabel != null && localizedLabel.trim().equalsIgnoreCase(name));
+        if (!named) {
+            return false;
+        }
+        if (videos != null) {
+            for (Video video : videos) {
+                if (video != null && !isShort(video)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     private static boolean containsShort(List<Video> videos) {
         for (Video video : videos) {
             if (isShort(video)) {

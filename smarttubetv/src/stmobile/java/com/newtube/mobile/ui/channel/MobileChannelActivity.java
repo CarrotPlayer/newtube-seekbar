@@ -63,6 +63,11 @@ public class MobileChannelActivity extends MobileActivity
         final List<Video> videos = new ArrayList<>();
         /** NEWTUBE(shorts): pages this tab fetches itself when its dropped Shorts left it short. */
         final FilteredPageTopUp topUp = new FilteredPageTopUp();
+        /**
+         * NEWTUBE(shorts): the group this tab pages - its last video (a Short, maybe) is the anchor
+         * for the next page, so a tab whose cards were all Shorts can still continue.
+         */
+        VideoGroup group;
 
         Section(int id, String title) {
             this.id = id;
@@ -100,6 +105,8 @@ public class MobileChannelActivity extends MobileActivity
     private int mLastPaginationTriggerCount = -1;
     /** Guards against the tab-selected listener reacting to programmatic tab sync. */
     private boolean mSuppressTabCallback;
+    /** NEWTUBE(shorts): onDestroy has begun - the presenter's teardown must not page on. */
+    private boolean mTornDown;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -193,6 +200,7 @@ public class MobileChannelActivity extends MobileActivity
                 Section picked = mSections.get(mActiveSectionId);
                 if (picked != null) {
                     picked.topUp.onUserAction(); // NEWTUBE(shorts)
+                    picked.topUp.onShown();
                     topUpActiveIfShort();
                 }
             }
@@ -250,13 +258,14 @@ public class MobileChannelActivity extends MobileActivity
         syncLoadMoreFooter();
 
         Section active = mSections.get(mActiveSectionId);
-        if (active == null || active.videos.isEmpty() || mPresenter == null) {
+        Video anchor = active != null ? anchorOf(active) : null;
+        if (anchor == null || mPresenter == null) {
             return;
         }
 
         mPagingSectionId = active.id;
         mLastPaginationTriggerCount = mAdapter.getItemCount();
-        mPresenter.onScrollEnd(active.videos.get(active.videos.size() - 1));
+        mPresenter.onScrollEnd(anchor);
     }
 
     /** The footer belongs to the section whose page failed; other tabs page normally. */
@@ -281,7 +290,8 @@ public class MobileChannelActivity extends MobileActivity
 
     private void maybeTriggerPagination(boolean userScroll) {
         Section active = mSections.get(mActiveSectionId);
-        if (active == null || active.videos.isEmpty() || mPresenter == null) {
+        Video anchor = active != null ? anchorOf(active) : null;
+        if (active == null || active.videos.isEmpty() || anchor == null || mPresenter == null) {
             return;
         }
 
@@ -298,38 +308,52 @@ public class MobileChannelActivity extends MobileActivity
         }
 
         if (lastVisible >= itemCount - SCROLL_END_THRESHOLD_ITEMS && itemCount != mLastPaginationTriggerCount) {
-            mLastPaginationTriggerCount = itemCount;
-            mPagingSectionId = active.id;
             if (userScroll) {
                 active.topUp.onUserAction(); // NEWTUBE(shorts): the user asked for more
+            } else if (!active.topUp.takeAutomatic(hasMore(anchor))) {
+                return; // a layout pass, not the user: only within the top-up budget
             }
+            mLastPaginationTriggerCount = itemCount;
+            mPagingSectionId = active.id;
             // Continues the ACTIVE section; the continuation arrives as an ACTION_APPEND
             // VideoGroup with the same id and merges back into it.
-            mPresenter.onScrollEnd(active.videos.get(active.videos.size() - 1));
+            mPresenter.onScrollEnd(anchor);
         }
+    }
+
+    /** The video the section's next page continues from: the last of its group, Shorts included. */
+    private static Video anchorOf(Section section) {
+        List<Video> raw = section.group != null ? section.group.getVideos() : null;
+        if (raw != null && !raw.isEmpty()) {
+            return raw.get(raw.size() - 1);
+        }
+        return section.videos.isEmpty() ? null : section.videos.get(section.videos.size() - 1);
+    }
+
+    private static boolean hasMore(Video anchor) {
+        return anchor != null && anchor.getGroup() != null && anchor.getGroup().getNextPageKey() != null;
     }
 
     /**
      * NEWTUBE(shorts): with its Shorts dropped the tab on screen may be too short to scroll, and
      * then nothing would ever ask for its next page: fetch it now, within the tab's
-     * {@link FilteredPageTopUp} budget. Called when a page has landed and when a tab is picked.
-     * Returns whether a page was asked for.
+     * {@link FilteredPageTopUp} budget - only right after one of its pages landed (not after a
+     * cancel or a failure) or when its tab is picked. Returns whether a page was asked for.
      */
     private boolean topUpActiveIfShort() {
         Section active = mSections.get(mActiveSectionId);
-        if (active == null || active.videos.isEmpty() || mPresenter == null
-                || mLoadMoreFailedSectionId == active.id) {
+        Video anchor = active != null ? anchorOf(active) : null;
+        if (active == null || anchor == null || mPresenter == null || mTornDown || isFinishing()
+                || isDestroyed() || mLoadMoreFailedSectionId == active.id) {
             return false;
         }
-        Video last = active.videos.get(active.videos.size() - 1);
-        boolean hasMore = last.getGroup() != null && last.getGroup().getNextPageKey() != null;
-        if (!active.topUp.take(active.videos.size(), hasMore)) {
+        if (!active.topUp.take(active.videos.size(), hasMore(anchor))) {
             return false;
         }
         mPagingSectionId = active.id;
         com.liskovsoft.smartyoutubetv2.common.misc.NetPath.log("channel-topup section=" + active.id
                 + " page=" + active.topUp.pages() + " items=" + active.videos.size());
-        mPresenter.onScrollEnd(last);
+        mPresenter.onScrollEnd(anchor);
         return true;
     }
 
@@ -442,6 +466,7 @@ public class MobileChannelActivity extends MobileActivity
     @Override
     protected void onDestroy() {
         MiniPlayerBridge.unregisterMiniHost(this);
+        mTornDown = true;
 
         if (mPresenter != null && mPresenter.getView() == this) {
             mPresenter.onViewDestroyed();
@@ -483,11 +508,15 @@ public class MobileChannelActivity extends MobileActivity
             Section section = mSections.get(id);
             boolean isNewSection = section == null;
             List<Video> shown = ShortsFilter.withoutShorts(group.getVideos()); // NEWTUBE(shorts)
-            // ...and no Shorts tab: a new section left with nothing to show - the channel's Shorts
-            // section, emptied here or already by the service (a stored "Hide shorts from a
-            // channel") - never becomes a tab.
-            if (isNewSection && (shown == null || shown.isEmpty())
-                    && group.getAction() != VideoGroup.ACTION_REMOVE && group.getAction() != VideoGroup.ACTION_SYNC) {
+            boolean content = group.getAction() != VideoGroup.ACTION_REMOVE && group.getAction() != VideoGroup.ACTION_SYNC;
+            // ...and no Shorts tab: the channel's Shorts section (emptied here, or already by the
+            // service under a stored "Hide shorts from a channel") never becomes a tab. Any other
+            // section keeps its tab while it has more to load, even if this page was all Shorts
+            // (its last Short is the next page's anchor); one with nothing now and nothing more to
+            // load, or nothing to continue from, is left out.
+            if (isNewSection && content && (shown == null || shown.isEmpty())
+                    && (ShortsFilter.isShortsSection(group.getTitle(), getString(R.string.header_shorts), group.getVideos())
+                        || group.getNextPageKey() == null || group.isEmpty())) {
                 return;
             }
 
@@ -498,7 +527,6 @@ public class MobileChannelActivity extends MobileActivity
                 case VideoGroup.ACTION_REPLACE:
                     section = new Section(id, group.getTitle());
                     section.videos.addAll(shown);
-                    section.topUp.onDropped(shortsDropped);
                     mSections.put(id, section);
                     break;
                 case VideoGroup.ACTION_REMOVE:
@@ -517,7 +545,6 @@ public class MobileChannelActivity extends MobileActivity
                         mSections.put(id, section);
                     }
                     section.videos.addAll(0, shown);
-                    section.topUp.onDropped(shortsDropped);
                     break;
                 case VideoGroup.ACTION_APPEND:
                 default:
@@ -528,8 +555,12 @@ public class MobileChannelActivity extends MobileActivity
                         section.title = group.getTitle();
                     }
                     appendNew(section, shown);
-                    section.topUp.onDropped(shortsDropped);
                     break;
+            }
+
+            if (content && section != null) {
+                section.group = group; // NEWTUBE(shorts): the next page's anchor
+                section.topUp.onPageLanded(shortsDropped);
             }
 
             // A SYNC/REMOVE for an unknown section (e.g. the just-watched video's position

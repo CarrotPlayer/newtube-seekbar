@@ -904,7 +904,8 @@ public final class Video {
 
         // NEWTUBE(shorts): no Shorts on the phone - autoplay never lands on one (ShortsAutoplay).
         if (PhoneUi.isEnabled()) {
-            nextVideo = ShortsAutoplay.pick(nextVideo, metadata.getSuggestions(), videoId);
+            nextVideo = ShortsAutoplay.pick(nextVideo, metadata.getSuggestions(), videoId,
+                    item -> VideoGroup.isChannelBlocked(Video.from(item)));
         }
 
         return nextVideo;

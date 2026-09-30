@@ -23,7 +23,6 @@ import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.VideoGroup;
 import com.liskovsoft.smartyoutubetv2.common.app.models.search.MediaServiceSearchTagProvider;
@@ -110,10 +109,10 @@ public class MobileSearchActivity extends MobileActivity
      */
     private final List<VideoGroup> mResultGroups = new ArrayList<>();
     private final FilteredPageTopUp mTopUp = new FilteredPageTopUp();
-    /** The group and next-page key of the last top-up: an unchanged key means that page failed. */
-    private VideoGroup mTopUpGroup;
-    private String mTopUpKey;
-    private final List<VideoGroup> mTopUpSpent = new ArrayList<>();
+    /** Which query a result group belongs to: a late page of an old query is dropped. */
+    private final FilteredPageTopUp.Generations<VideoGroup> mGenerations = new FilteredPageTopUp.Generations<>();
+    /** onDestroy has begun: the presenter's teardown must not start another page. */
+    private boolean mTornDown;
     /** Guards against the TextWatcher reacting to programmatic field changes. */
     private boolean mSuppressTextWatcher;
     /** Debounced suggest reload for the CURRENT field text (one per keystroke burst). */
@@ -424,22 +423,27 @@ public class MobileSearchActivity extends MobileActivity
         }
 
         if (lastVisible >= itemCount - SCROLL_END_THRESHOLD_ITEMS && itemCount != mLastPaginationTriggerCount) {
-            mLastPaginationTriggerCount = itemCount;
-            if (userScroll) {
-                mTopUp.onUserAction(); // NEWTUBE(shorts): the user asked for more
-            }
             // NEWTUBE(search-more): continue the main results, not the group of the last card.
             // The last cards usually belong to a trailing shelf ("Over 20 minutes", 9 videos, no
             // next page), and asking for ITS next page failed, so search never loaded more.
             VideoGroup more = firstGroupWithMore();
-            mPresenter.onScrollEnd(more != null ? lastOf(more) : mVideos.get(mVideos.size() - 1));
+            if (more == null) {
+                return; // the results have ended
+            }
+            if (userScroll) {
+                mTopUp.onUserAction(); // NEWTUBE(shorts): the user asked for more
+            } else if (!mTopUp.takeAutomatic(true)) {
+                return; // a layout pass, not the user: only within the top-up budget
+            }
+            mLastPaginationTriggerCount = itemCount;
+            mPresenter.onScrollEnd(lastOf(more));
         }
     }
 
     /** The first result group that still has a next page - the main results come first. */
     private VideoGroup firstGroupWithMore() {
         for (VideoGroup group : mResultGroups) {
-            if (group.getNextPageKey() != null && !group.isEmpty() && !containsSame(mTopUpSpent, group)) {
+            if (group.getNextPageKey() != null && !group.isEmpty()) {
                 return group;
             }
         }
@@ -452,28 +456,22 @@ public class MobileSearchActivity extends MobileActivity
     }
 
     /**
-     * NEWTUBE(shorts): called when a page has landed (the spinner goes off). With its Shorts
-     * dropped the list may be too short to scroll, and then nothing would ever ask for the next
-     * page ("shorts funny" kept 1 video of 135): fetch it now, within {@link FilteredPageTopUp}'s
-     * budget. Continues the first result group that still has a next page, skipping one whose last
-     * page failed (its key did not move). Returns whether a page was asked for.
+     * NEWTUBE(shorts): called when loading stops (the spinner goes off). With its Shorts dropped
+     * the list may be too short to scroll, and then nothing would ever ask for the next page
+     * ("shorts funny" kept 1 video of 135): fetch it now - only right after a page of this query
+     * landed (not after a cancel or a failure) and within {@link FilteredPageTopUp}'s budget.
+     * Returns whether a page was asked for.
      */
     private boolean topUpIfShort() {
-        if (mPresenter == null) {
+        if (mPresenter == null || mTornDown || isFinishing() || isDestroyed()) {
             return false;
         }
-        if (mTopUpGroup != null && Helpers.equals(mTopUpGroup.getNextPageKey(), mTopUpKey)) {
-            mTopUpSpent.add(mTopUpGroup);
-        }
-        mTopUpGroup = null;
 
         VideoGroup next = firstGroupWithMore();
         if (!mTopUp.take(mVideos.size(), next != null)) {
             return false;
         }
 
-        mTopUpGroup = next;
-        mTopUpKey = next.getNextPageKey();
         NetPath.log("search-topup sid=" + mSubmitSequence + " page=" + mTopUp.pages()
                 + " results=" + mVideos.size() + " group=" + mResultGroups.indexOf(next));
         mPresenter.onScrollEnd(lastOf(next));
@@ -547,6 +545,7 @@ public class MobileSearchActivity extends MobileActivity
     @Override
     protected void onDestroy() {
         MiniPlayerBridge.unregisterMiniHost(this);
+        mTornDown = true; // NEWTUBE(shorts): the teardown's spinner-off must not page on
 
         if (mPresenter != null && mPresenter.getView() == this) {
             mPresenter.onViewDestroyed();
@@ -625,13 +624,18 @@ public class MobileSearchActivity extends MobileActivity
             List<Video> shown = ShortsFilter.withoutShorts(group.getVideos()); // NEWTUBE(shorts)
             int shortsHidden = incoming - (shown != null ? shown.size() : 0);
             if (group.getAction() != VideoGroup.ACTION_REMOVE && group.getAction() != VideoGroup.ACTION_SYNC) {
+                if (!mGenerations.accept(group)) {
+                    // NEWTUBE(shorts): a page of an earlier query, landing after this one began.
+                    NetPath.log("search-results sid=" + mSubmitSequence + " stale page dropped");
+                    return;
+                }
                 if (group.getAction() == VideoGroup.ACTION_REPLACE) {
                     mResultGroups.clear();
                 }
                 if (!containsSame(mResultGroups, group)) {
                     mResultGroups.add(group);
                 }
-                mTopUp.onDropped(shortsHidden);
+                mTopUp.onPageLanded(shortsHidden);
             }
             switch (group.getAction()) {
                 case VideoGroup.ACTION_REPLACE:
@@ -723,8 +727,7 @@ public class MobileSearchActivity extends MobileActivity
             mLastPaginationTriggerCount = -1;
             mResultGroups.clear();
             mTopUp.clear();
-            mTopUpGroup = null;
-            mTopUpSpent.clear();
+            mGenerations.next();
             mAdapter.submitList(new ArrayList<>());
             NetPath.log("search-results sid=" + mSubmitSequence + " cleared");
         });
