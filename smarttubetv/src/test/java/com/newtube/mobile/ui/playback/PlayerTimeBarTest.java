@@ -32,10 +32,12 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * NEWTUBE(seek bar): the seek bar's touch rules - a drag seeks where it lets go; back on where
- * playback was, it snaps there and letting go cancels ("Release to cancel"); a touch that never
- * leaves the dot cancels too; the hidden bar leaves touches to the video. Density 1 here, so dp = px:
- * a 1000 px track over a 100 s video is 100 ms per px.
+ * NEWTUBE(seek bar): the seek bar's touch rules, YouTube's - a drag moves the dot as far as the
+ * finger moves, from wherever it lands (no jump, a tap seeks nothing), after a 6 dp slop; near a
+ * screen edge the dot runs just fast enough to reach that end 16 dp short of the edge; a drag that
+ * went away and comes back onto where playback was arms "Release to cancel" without sticking there;
+ * the hidden bar leaves touches to the video. Density 1 here, so dp = px: a 1000 px track over a
+ * 100 s video is 100 ms per px, and the bar is its own window from x = 0 to 1000.
  */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28, manifest = Config.NONE, application = Application.class)
@@ -75,60 +77,119 @@ public class PlayerTimeBarTest {
     }
 
     @Test
-    public void aDragSeeksWhereItLetsGo() {
+    public void aDragMovesTheDotAsFarAsTheFingerFromWhereItLands() {
+        assertTrue(touch(MotionEvent.ACTION_DOWN, 300)); // 200 px left of the dot at 500
+        assertTrue(mEvents.isEmpty()); // no jump to the finger
+        touch(MotionEvent.ACTION_MOVE, 306); // the 6 dp slop: not a drag yet
+        assertTrue(mEvents.isEmpty());
+        touch(MotionEvent.ACTION_MOVE, 406); // 100 px on from the slop
+        touch(MotionEvent.ACTION_UP, 406);
+
+        assertEquals(Arrays.asList("start 50000", "move 60000", "stop 60000"), mEvents);
+        assertTrue(mCancelArmed.isEmpty());
+    }
+
+    @Test
+    public void aTapSeeksNothing() {
         assertTrue(touch(MotionEvent.ACTION_DOWN, 800));
-        touch(MotionEvent.ACTION_MOVE, 900);
-        touch(MotionEvent.ACTION_UP, 900);
-
-        assertEquals("start 80000", mEvents.get(0));
-        assertEquals("move 90000", mEvents.get(1));
-        assertEquals("stop 90000", last());
-        assertTrue(mCancelArmed.isEmpty());
+        touch(MotionEvent.ACTION_MOVE, 805);
+        assertTrue(touch(MotionEvent.ACTION_UP, 805));
+        assertTrue(mEvents.isEmpty());
     }
 
     @Test
-    public void draggingBackOntoPlaybackSnapsAndLettingGoCancels() {
-        touch(MotionEvent.ACTION_DOWN, 800);
-        touch(MotionEvent.ACTION_MOVE, 600);
-        touch(MotionEvent.ACTION_MOVE, 506); // within 10 dp of the dot: snaps onto 50 s
+    public void aSmallDragSeeksTheLittleItMoved() {
+        touch(MotionEvent.ACTION_DOWN, 300);
+        touch(MotionEvent.ACTION_MOVE, 310);
+        touch(MotionEvent.ACTION_UP, 310);
+        assertEquals("stop 50400", last()); // 4 px past the slop; never away, so no cancel either
+    }
 
-        assertEquals("move 50000", last());
+    @Test
+    public void comingBackOntoPlaybackArmsReleaseToCancelWithoutSticking() {
+        touch(MotionEvent.ACTION_DOWN, 300);
+        touch(MotionEvent.ACTION_MOVE, 400); // away: 59.4 s
+        touch(MotionEvent.ACTION_MOVE, 320);
+        assertTrue(mCancelArmed.isEmpty()); // 1.4 s off: not back yet
+        touch(MotionEvent.ACTION_MOVE, 309);
+        assertEquals("move 50300", last()); // within 4 dp: armed, and the time still follows the finger
         assertEquals(Arrays.asList(true), mCancelArmed);
 
-        touch(MotionEvent.ACTION_UP, 506);
+        touch(MotionEvent.ACTION_UP, 309);
         assertEquals("cancel 50000", last());
         assertEquals(Arrays.asList(true, false), mCancelArmed);
     }
 
     @Test
-    public void leavingTheSnapAgainSeeksNormally() {
-        touch(MotionEvent.ACTION_DOWN, 800);
-        touch(MotionEvent.ACTION_MOVE, 505);
-        touch(MotionEvent.ACTION_MOVE, 512); // inside the 14 dp release margin: still snapped
+    public void leavingTheCancelAgainSeeksNormally() {
+        touch(MotionEvent.ACTION_DOWN, 300);
+        touch(MotionEvent.ACTION_MOVE, 400);
+        touch(MotionEvent.ACTION_MOVE, 308);
+        touch(MotionEvent.ACTION_MOVE, 312); // 6 px off: inside the 8 dp release margin, still armed
         assertEquals(Arrays.asList(true), mCancelArmed);
 
-        touch(MotionEvent.ACTION_MOVE, 300);
-        touch(MotionEvent.ACTION_UP, 300);
+        touch(MotionEvent.ACTION_MOVE, 330);
+        touch(MotionEvent.ACTION_UP, 330);
         assertEquals(Arrays.asList(true, false), mCancelArmed);
-        assertEquals("stop 30000", last());
+        assertEquals("stop 52400", last());
     }
 
     @Test
-    public void aTouchThatNeverLeavesTheDotSeeksNothing() {
-        touch(MotionEvent.ACTION_DOWN, 503);
-        touch(MotionEvent.ACTION_MOVE, 507);
-        touch(MotionEvent.ACTION_UP, 507);
+    public void fromADotNearTheStartTheFingerReachesItShortOfTheEdge() {
+        // The owner's case: a minute into a 20-minute video the dot sits 70 px from the edge, and a
+        // fingertip lets go before its middle gets to the edge.
+        mBar.setPosition(7_000); // the dot at x = 70
+        touch(MotionEvent.ACTION_DOWN, 70);
+        touch(MotionEvent.ACTION_MOVE, 60); // the drag starts at 64: 70 px of track, 48 px of room to 16
+        touch(MotionEvent.ACTION_MOVE, 40);
+        assertEquals("move 3500", last()); // the times in between stay reachable
+        touch(MotionEvent.ACTION_MOVE, 16);
+        assertEquals("move 0", last());
+        touch(MotionEvent.ACTION_UP, 12);
+        assertEquals("stop 0", last());
+    }
 
-        assertEquals("start 50000", mEvents.get(0));
-        assertEquals("cancel 50000", last());
-        assertTrue(mCancelArmed.isEmpty());
+    @Test
+    public void nearTheStartASmallDragStillMovesALittle() {
+        mBar.setPosition(7_000);
+        touch(MotionEvent.ACTION_DOWN, 70);
+        touch(MotionEvent.ACTION_MOVE, 77); // 1 px past the slop, rightwards: ~1:1 there
+        assertEquals("start 7000", mEvents.get(0));
+        assertEquals(7_100.0, lastPosition(), 10.0);
+    }
+
+    @Test
+    public void aDragReachesTheEndShortOfTheOtherEdge() {
+        mBar.setPosition(93_000); // the dot at x = 930
+        touch(MotionEvent.ACTION_DOWN, 930);
+        touch(MotionEvent.ACTION_MOVE, 940); // starts at 936: 70 px of track, 48 px of room to 984
+        touch(MotionEvent.ACTION_MOVE, 984);
+        touch(MotionEvent.ACTION_UP, 990);
+        assertEquals("stop 100000", last());
+    }
+
+    @Test
+    public void withRoomPastTheEndsTheDotKeepsPaceWithTheFinger() {
+        // Fullscreen: the track sits 30 px in from the window's edges, more than the 16 dp reach.
+        mBar.setPadding(30, 0, 30, 0); // a 940 px track from x = 30; the dot at 30 + 470 = 500
+        touch(MotionEvent.ACTION_DOWN, 500);
+        touch(MotionEvent.ACTION_MOVE, 400); // the drag starts at 494
+        assertEquals("move 40000", last()); // 94 px of 940: 1:1
+        touch(MotionEvent.ACTION_UP, 20); // past the track's end
+        assertEquals("stop 0", last());
     }
 
     @Test
     public void aTakenTouchCancels() {
-        touch(MotionEvent.ACTION_DOWN, 800);
-        touch(MotionEvent.ACTION_CANCEL, 800);
+        touch(MotionEvent.ACTION_DOWN, 300);
+        touch(MotionEvent.ACTION_MOVE, 400);
+        touch(MotionEvent.ACTION_CANCEL, 400);
         assertEquals("cancel 50000", last());
+
+        mEvents.clear();
+        touch(MotionEvent.ACTION_DOWN, 300);
+        touch(MotionEvent.ACTION_CANCEL, 300); // taken before it was a drag
+        assertTrue(mEvents.isEmpty());
     }
 
     @Test
@@ -140,17 +201,20 @@ public class PlayerTimeBarTest {
 
     @Test
     public void hidingTheControlsMidDragCancelsIt() {
-        touch(MotionEvent.ACTION_DOWN, 800);
+        touch(MotionEvent.ACTION_DOWN, 300);
+        touch(MotionEvent.ACTION_MOVE, 400);
         mBar.setShown(false, false);
+        assertEquals("cancel 50000", last());
+        touch(MotionEvent.ACTION_UP, 400);
         assertEquals("cancel 50000", last());
     }
 
     @Test
     public void letGoIsWhereTheFingerLifts() {
-        touch(MotionEvent.ACTION_DOWN, 800);
-        touch(MotionEvent.ACTION_MOVE, 850);
-        touch(MotionEvent.ACTION_UP, 900);
-        assertEquals("stop 90000", last());
+        touch(MotionEvent.ACTION_DOWN, 300);
+        touch(MotionEvent.ACTION_MOVE, 350);
+        touch(MotionEvent.ACTION_UP, 406);
+        assertEquals("stop 60000", last());
     }
 
     @Test
@@ -188,11 +252,11 @@ public class PlayerTimeBarTest {
         assertFalse(touch(MotionEvent.ACTION_DOWN, 800)); // on the view itself: left to the views under it
         assertTrue(mEvents.isEmpty());
 
-        assertTrue(routed(MotionEvent.ACTION_DOWN, 800, 30)); // under the view, in the band
-        routed(MotionEvent.ACTION_MOVE, 900, 30);
-        routed(MotionEvent.ACTION_UP, 900, 30);
-        assertEquals("start 80000", mEvents.get(0));
-        assertEquals("stop 90000", last());
+        assertTrue(routed(MotionEvent.ACTION_DOWN, 300, 30)); // under the view, in the band
+        routed(MotionEvent.ACTION_MOVE, 406, 30);
+        routed(MotionEvent.ACTION_UP, 406, 30);
+        assertEquals("start 50000", mEvents.get(0));
+        assertEquals("stop 60000", last());
     }
 
     @Test
@@ -291,5 +355,10 @@ public class PlayerTimeBarTest {
 
     private String last() {
         return mEvents.get(mEvents.size() - 1);
+    }
+
+    private double lastPosition() {
+        String event = last();
+        return Double.parseDouble(event.substring(event.indexOf(' ') + 1));
     }
 }

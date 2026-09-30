@@ -53,10 +53,13 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * YouTube's inline player; fullscreen hides the bar). Only the shown bar takes touches, in a band
  * as tall as a fingertip around the track ({@link #isInTouchBand}; WatchRootLayout routes it).</p>
  *
- * <p>Dragging ticks a haptic at every chapter boundary, and dragging back onto where playback was
- * snaps there with a click: letting go then cancels the seek ({@link CancelListener} shows
- * "Release to cancel"). A touch that never leaves that spot cancels too, so resting a finger on the
- * dot never nudges playback.</p>
+ * <p>A drag moves the dot by as much as the finger moves, from wherever the finger lands - it never
+ * jumps to the finger, and a tap seeks nothing (YouTube 21.18's bar, measured on the reference
+ * emulator). Near a screen edge the dot runs just fast enough to reach the video's start or end
+ * before the finger runs out of glass ({@link #EDGE_REACH_DP}). Dragging ticks a haptic at every
+ * chapter boundary and at the start and end; a drag that went away and comes back onto where
+ * playback was clicks, and letting go there cancels the seek ({@link CancelListener} shows
+ * "Release to cancel") - the time keeps following the finger, nothing sticks.</p>
  */
 public class PlayerTimeBar extends View implements TimeBar {
 
@@ -78,10 +81,31 @@ public class PlayerTimeBar extends View implements TimeBar {
     private static final float SCRUBBER_DRAGGING_DP = 18f;
     /** The pink tail of the played track, ending at the dot. */
     private static final float TAIL_DP = 40f;
-    /** Within this of where playback was, a drag snaps back onto it. */
-    private static final float SNAP_DP = 10f;
-    /** ...and has to move this far to come off it again (no flicker at the edge). */
-    private static final float UNSNAP_DP = 14f;
+    /*
+     * Touch distances below are physical dp (the system density, not the app's UI scale): a finger
+     * does not shrink with the UI.
+     */
+    /**
+     * A touch becomes a drag once the finger has moved this far along the bar (YouTube: between 12
+     * and 16 px at 420 dpi), and the drag then starts from where playback is. The first cut rested
+     * 10 dp around the dot and then jumped to the finger; near the start of a video that dead zone
+     * swallowed every nearby time ("you need to move way past forward for it to actually move").
+     */
+    private static final float DRAG_SLOP_DP = 6f;
+    /** A drag that has been this far from where playback was... */
+    private static final float CANCEL_AWAY_DP = 8f;
+    /** ...and comes back within this of it arms "Release to cancel" (hysteresis: disarms past AWAY). */
+    private static final float CANCEL_DP = 4f;
+    /**
+     * A fingertip leaves the glass before its middle gets to the edge: on the owner's Pixel 9, 22 of
+     * 23 drags to the start of a video let go 1-39 px short of the screen's left edge, half of them
+     * within 9 px (getevent). In portrait the track runs edge to edge, so the start took a touch on
+     * its very first pixel. A drag reaches each end with the finger this far in from the screen's
+     * edge instead (YouTube reaches it 13 dp in).
+     */
+    private static final float EDGE_REACH_DP = 16f;
+    /** A drag begun right at an edge still gets this much room to run to that end. */
+    private static final float EDGE_MIN_ROOM_DP = 4f;
     /** A SponsorBlock range narrower than this still shows. */
     private static final float MIN_SEGMENT_DP = 2f;
     /**
@@ -147,12 +171,27 @@ public class PlayerTimeBar extends View implements TimeBar {
 
     private boolean mScrubbing;
     private long mScrubPosition;
-    /** Where playback was when the drag began: the snap-back / cancel spot. */
+    /** Where playback was when the drag began: the cancel spot. */
     private long mScrubOrigin;
+    /** The drag has been {@link #CANCEL_AWAY_DP} from the origin, so coming back can cancel. */
     private boolean mLeftOrigin;
-    private boolean mSnapped;
+    private boolean mCancelArmed;
     private int mScrubChapter;
+    private boolean mEndTickArmed;
     private long mLastTickAt;
+
+    /** A touch on the band that has not moved {@link #DRAG_SLOP_DP} yet: nothing shows, nothing seeks. */
+    private boolean mTouchPending;
+    private float mDownX;
+    /** The drag's anchor: the finger's x where the dot is at the origin's track x... */
+    private float mAnchorX;
+    private float mAnchorTrackX;
+    /** ...and how many track px the dot moves per finger px, leftward and rightward. */
+    private float mGainLeft = 1f;
+    private float mGainRight = 1f;
+    private final int[] mLocation = new int[2];
+    /** px per physical dp, for the touch distances. */
+    private final float mTouchDensity;
 
     public PlayerTimeBar(Context context) {
         this(context, null);
@@ -165,6 +204,7 @@ public class PlayerTimeBar extends View implements TimeBar {
     public PlayerTimeBar(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         mDensity = getResources().getDisplayMetrics().density;
+        mTouchDensity = context.getApplicationContext().getResources().getConfiguration().densityDpi / 160f;
         mTailPx = dp(TAIL_DP);
         mPlayedPaint.setColor(PLAYED_COLOR);
         mPlayedPaint.setShader(new LinearGradient(0f, 0f, mTailPx, 0f,
@@ -213,8 +253,8 @@ public class PlayerTimeBar extends View implements TimeBar {
             return;
         }
         mShownTarget = shown;
-        if (!shown && mScrubbing) {
-            stopScrubbing(true);
+        if (!shown) {
+            endTouch(true);
         }
         // Hidden, the bar is a line at most: not a control TalkBack or a keyboard can land on (its
         // old home, the controls overlay, went GONE with the controls and took it along).
@@ -341,8 +381,8 @@ public class PlayerTimeBar extends View implements TimeBar {
     public void setDuration(long duration) {
         if (mDuration != duration) {
             mDuration = duration;
-            if (mScrubbing && (duration == C.TIME_UNSET || duration <= 0)) {
-                stopScrubbing(true);
+            if (duration == C.TIME_UNSET || duration <= 0) {
+                endTouch(true);
             }
             invalidate();
         }
@@ -366,8 +406,8 @@ public class PlayerTimeBar extends View implements TimeBar {
     @Override
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
-        if (!enabled && mScrubbing) {
-            stopScrubbing(true);
+        if (!enabled) {
+            endTouch(true);
         }
     }
 
@@ -482,16 +522,6 @@ public class PlayerTimeBar extends View implements TimeBar {
         return left + (right - left) * fraction;
     }
 
-    private long positionAt(float x) {
-        float left = trackLeft();
-        float right = trackRight();
-        if (right <= left || mDuration <= 0) {
-            return 0;
-        }
-        float fraction = Math.max(0f, Math.min(1f, (x - left) / (right - left)));
-        return (long) (fraction * mDuration);
-    }
-
     // ---------------------------------------------------------------------------------
     // Touch
     // ---------------------------------------------------------------------------------
@@ -574,25 +604,36 @@ public class PlayerTimeBar extends View implements TimeBar {
                 if (mScrubbing) {
                     stopScrubbing(false); // a keyboard scrub still waiting to land
                 }
-                startScrubbing(x);
+                ViewParent parent = getParent();
+                if (parent != null) {
+                    parent.requestDisallowInterceptTouchEvent(true); // no minimize drag, no pinch
+                }
+                mTouchPending = true;
+                mDownX = x;
                 return true;
             case MotionEvent.ACTION_MOVE:
+                if (mTouchPending && Math.abs(x - mDownX) > touchDp(DRAG_SLOP_DP)) {
+                    mTouchPending = false;
+                    startDrag(x);
+                }
                 if (mScrubbing) {
                     moveScrubbing(x);
-                    return true;
                 }
-                break;
+                return mTouchPending || mScrubbing;
             case MotionEvent.ACTION_UP:
                 if (mScrubbing) {
                     moveScrubbing(x); // the finger's last spot rides on the UP itself
-                    // Back on the start (or never off it): nothing to seek to.
-                    stopScrubbing(mSnapped || !mLeftOrigin);
+                    stopScrubbing(mCancelArmed);
+                    return true;
+                }
+                if (mTouchPending) {
+                    endTouch(false); // a tap: seeks nothing, like YouTube's bar
                     return true;
                 }
                 break;
             case MotionEvent.ACTION_CANCEL:
-                if (mScrubbing) {
-                    stopScrubbing(true);
+                if (mScrubbing || mTouchPending) {
+                    endTouch(true);
                     return true;
                 }
                 break;
@@ -602,23 +643,52 @@ public class PlayerTimeBar extends View implements TimeBar {
         return false;
     }
 
-    private void startScrubbing(float x) {
-        ViewParent parent = getParent();
-        if (parent != null) {
-            parent.requestDisallowInterceptTouchEvent(true); // no minimize drag, no pinch
+    /** Ends a touch or a drag without seeking (a tap, a taken touch, a hidden bar). */
+    private void endTouch(boolean cancelDrag) {
+        if (mTouchPending) {
+            mTouchPending = false;
+            ViewParent parent = getParent();
+            if (parent != null) {
+                parent.requestDisallowInterceptTouchEvent(false);
+            }
         }
-        boolean leftOrigin = Math.abs(x - xFor(mPosition, trackLeft(), trackRight())) > dp(SNAP_DP);
-        beginScrub(leftOrigin, leftOrigin ? positionAt(x) : mPosition);
+        if (cancelDrag && mScrubbing) {
+            stopScrubbing(true);
+        }
     }
 
-    /** A drag or an arrow key starts a scrub from where playback is; {@code leftOrigin}: already off it. */
-    private void beginScrub(boolean leftOrigin, long position) {
+    /**
+     * The finger has moved a slop from where it landed: the drag starts there with the dot where
+     * playback is. Each way, the dot keeps pace with the finger, unless the finger would run out of
+     * screen first ({@link #EDGE_REACH_DP} from the edge): then it runs just fast enough to get to
+     * that end of the video there - from a dot a minute into a 20-minute video, the finger has
+     * only a few dp of glass left to cover that minute.
+     */
+    private void startDrag(float x) {
+        float left = trackLeft();
+        float right = trackRight();
+        float slop = touchDp(DRAG_SLOP_DP);
+        mAnchorX = x > mDownX ? mDownX + slop : mDownX - slop;
+        mAnchorTrackX = xFor(mPosition, left, right);
+        getLocationInWindow(mLocation);
+        float reach = touchDp(EDGE_REACH_DP);
+        float minRoom = touchDp(EDGE_MIN_ROOM_DP);
+        float leftStop = reach - mLocation[0]; // the window's left edge + reach, in this view's x
+        float rightStop = getRootView().getWidth() - mLocation[0] - reach;
+        mGainLeft = Math.max(1f, (mAnchorTrackX - left) / Math.max(minRoom, mAnchorX - leftStop));
+        mGainRight = Math.max(1f, (right - mAnchorTrackX) / Math.max(minRoom, rightStop - mAnchorX));
+        beginScrub(mPosition);
+    }
+
+    /** A drag or an arrow key starts a scrub from where playback is. */
+    private void beginScrub(long position) {
         mScrubbing = true;
         mScrubOrigin = mPosition;
-        mSnapped = false;
-        mLeftOrigin = leftOrigin;
+        mLeftOrigin = false;
+        mCancelArmed = false;
         mScrubPosition = position;
         mScrubChapter = chapterAt(position);
+        mEndTickArmed = distanceToEnd(position) > touchDp(CANCEL_DP);
         mLastTickAt = 0;
         setPressed(true);
         animateDrag(1f);
@@ -627,29 +697,56 @@ public class PlayerTimeBar extends View implements TimeBar {
         }
     }
 
-    private void moveScrubbing(float x) {
-        float originX = xFor(mScrubOrigin, trackLeft(), trackRight());
-        float fromOrigin = Math.abs(x - originX);
-        long position = positionAt(x);
-        if (!mLeftOrigin) {
-            if (fromOrigin <= dp(SNAP_DP)) {
-                return; // still resting where it started
-            }
-            mLeftOrigin = true;
-        } else if (!mSnapped && fromOrigin <= dp(SNAP_DP)) {
-            setSnapped(true);
-        } else if (mSnapped && fromOrigin > dp(UNSNAP_DP)) {
-            setSnapped(false);
+    /** Where a drag puts the dot for the finger at {@code x}. */
+    private long dragPositionAt(float x) {
+        float gain = x < mAnchorX ? mGainLeft : mGainRight;
+        return positionAtTrackX(mAnchorTrackX + (x - mAnchorX) * gain);
+    }
+
+    private long positionAtTrackX(float trackX) {
+        float left = trackLeft();
+        float right = trackRight();
+        if (right <= left || mDuration <= 0) {
+            return 0;
         }
-        if (mSnapped) {
-            position = mScrubOrigin;
+        double fraction = Math.max(0d, Math.min(1d, (trackX - left) / (double) (right - left)));
+        return Math.round(fraction * mDuration); // double: the end is exactly the duration
+    }
+
+    /** Track px from {@code position} to the nearer end of the video. */
+    private float distanceToEnd(long position) {
+        float left = trackLeft();
+        float right = trackRight();
+        float positionX = xFor(position, left, right);
+        return Math.min(positionX - left, right - positionX);
+    }
+
+    private void moveScrubbing(float x) {
+        long position = dragPositionAt(x);
+        float left = trackLeft();
+        float right = trackRight();
+        float fromOrigin = Math.abs(xFor(position, left, right) - xFor(mScrubOrigin, left, right));
+        if (!mLeftOrigin) {
+            mLeftOrigin = fromOrigin > touchDp(CANCEL_AWAY_DP);
+        } else if (!mCancelArmed && fromOrigin <= touchDp(CANCEL_DP)) {
+            setCancelArmed(true);
+        } else if (mCancelArmed && fromOrigin > touchDp(CANCEL_AWAY_DP)) {
+            setCancelArmed(false);
         }
 
+        // The start and the end tick like a chapter line (re-armed a few dp away: no buzz on jitter).
+        boolean endTick = false;
+        if (position <= 0 || position >= mDuration) {
+            endTick = mEndTickArmed;
+            mEndTickArmed = false;
+        } else if (distanceToEnd(position) > touchDp(CANCEL_DP)) {
+            mEndTickArmed = true;
+        }
         int chapter = chapterAt(position);
-        if (chapter != mScrubChapter) {
+        if (chapter != mScrubChapter || endTick) {
             mScrubChapter = chapter;
             long now = SystemClock.uptimeMillis();
-            if (!mSnapped && now - mLastTickAt >= TICK_MIN_INTERVAL_MS) {
+            if (!mCancelArmed && now - mLastTickAt >= TICK_MIN_INTERVAL_MS) {
                 mLastTickAt = now;
                 Haptics.tick(this);
             }
@@ -664,13 +761,13 @@ public class PlayerTimeBar extends View implements TimeBar {
         }
     }
 
-    private void setSnapped(boolean snapped) {
-        mSnapped = snapped;
-        if (snapped) {
+    private void setCancelArmed(boolean armed) {
+        mCancelArmed = armed;
+        if (armed) {
             Haptics.click(this);
         }
         if (mCancelListener != null) {
-            mCancelListener.onReleaseToCancel(snapped);
+            mCancelListener.onReleaseToCancel(armed);
         }
     }
 
@@ -684,10 +781,10 @@ public class PlayerTimeBar extends View implements TimeBar {
             parent.requestDisallowInterceptTouchEvent(false);
         }
         mScrubbing = false;
-        if (mSnapped && mCancelListener != null) {
+        if (mCancelArmed && mCancelListener != null) {
             mCancelListener.onReleaseToCancel(false);
         }
-        mSnapped = false;
+        mCancelArmed = false;
         setPressed(false);
         animateDrag(0f);
         long position = canceled ? mScrubOrigin : mScrubPosition;
@@ -698,6 +795,11 @@ public class PlayerTimeBar extends View implements TimeBar {
         for (OnScrubListener listener : mListeners) {
             listener.onScrubStop(this, position, canceled);
         }
+    }
+
+    /** Physical dp to px, for touch distances ({@link #DRAG_SLOP_DP} and on). */
+    private float touchDp(float dp) {
+        return dp * mTouchDensity;
     }
 
     // ---------------------------------------------------------------------------------
@@ -741,7 +843,7 @@ public class PlayerTimeBar extends View implements TimeBar {
             return false;
         }
         if (!mScrubbing) {
-            beginScrub(true, target);
+            beginScrub(target);
         }
         mScrubPosition = target;
         mScrubChapter = chapterAt(target);
@@ -755,9 +857,7 @@ public class PlayerTimeBar extends View implements TimeBar {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        if (mScrubbing) {
-            stopScrubbing(true);
-        }
+        endTouch(true);
         mKeyHandler.removeCallbacks(mStopKeyScrub);
     }
 
