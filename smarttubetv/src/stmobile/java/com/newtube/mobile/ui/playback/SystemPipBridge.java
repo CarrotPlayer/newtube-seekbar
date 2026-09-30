@@ -3,7 +3,6 @@ package com.newtube.mobile.ui.playback;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Intent;
-import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -62,7 +61,7 @@ public final class SystemPipBridge {
             public void onActivityStopped(@NonNull Activity activity) {
                 if (!(activity instanceof MobilePlaybackActivity)) {
                     sStartedScreens = Math.max(0, sStartedScreens - 1);
-                    if (sStartedScreens == 0 && sInAppPip) {
+                    if (sInAppPip && leftApp(sStartedScreens, activity.isChangingConfigurations())) {
                         sInAppPip = false;
                         com.liskovsoft.smartyoutubetv2.common.misc.NetPath.log(
                                 "pip in-app end reason=app-left");
@@ -99,8 +98,21 @@ public final class SystemPipBridge {
     static void detach(MobilePlaybackActivity activity) {
         if (sActivity.get() == activity) {
             sActivity = new WeakReference<>(null);
-            sInAppPip = false;
+            // A recreated player (configuration change while pinned) is the same PiP stint.
+            if (!activity.isChangingConfigurations()) {
+                sInAppPip = false;
+            }
         }
+    }
+
+    /**
+     * Decision half of the "our screens left the screen" check, for tests. A screen stopped for a
+     * recreation (dark mode, locale, font size, a fold while the player floats) is replaced at
+     * once, so the count's brief zero is not the user leaving; the replacement's start brings it
+     * back and its focus must not read as a launcher return.
+     */
+    static boolean leftApp(int startedScreensAfterStop, boolean changingConfigurations) {
+        return startedScreensAfterStop == 0 && !changingConfigurations;
     }
 
     /**
@@ -130,14 +142,8 @@ public final class SystemPipBridge {
     /** Returns true only when a live pinned player accepted the launcher restore. */
     public static boolean restoreFromLauncher(Activity launcher) {
         MobilePlaybackActivity player = sActivity.get();
-        // NEWTUBE(menu-pip): both the player's own mode callbacks and the platform must say pinned.
-        // A PiP entry the system undoes at once can skip both callbacks and leave
-        // isInPictureInPictureMode() true for the fullscreen player (API 35); on its own it then
-        // "restored" a player that was not in PiP on every later Home focus, which threw the
-        // player back to full screen right after a minimize.
         boolean pinned = player != null && !player.isFinishing() && !player.isDestroyed()
-                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
-                && player.isInPIPMode() && player.isInPictureInPictureMode();
+                && player.isPinnedForRestore();
         if (!shouldRestore(pinned, sInAppPip)) {
             if (pinned) {
                 com.liskovsoft.smartyoutubetv2.common.misc.NetPath.log(

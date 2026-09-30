@@ -559,6 +559,15 @@ public class MobilePlaybackActivity extends MobileActivity
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode();
     }
 
+    /** Pinned as far as the launcher restore is concerned (see {@link #mPipStateStale}). */
+    boolean isPinnedForRestore() {
+        return pinnedForRestore(isInPipModeNow(), mPipStateStale);
+    }
+
+    static boolean pinnedForRestore(boolean platformSaysPinned, boolean stateStale) {
+        return platformSaysPinned && !stateStale;
+    }
+
     /** Decision half of {@link #mRoutedInWhileLeaving}; our own expand request never counts. */
     static boolean routedInWhileLeaving(boolean resumed, boolean inPip, boolean ownRestoreRequest) {
         return !resumed && !inPip && !ownRestoreRequest;
@@ -1207,6 +1216,7 @@ public class MobilePlaybackActivity extends MobileActivity
             // exit callback puts the watch page and controls back: the player came back as video
             // over a black page with no controls.
             logPip("enter-aborted-restored inPip=" + (isInPipModeNow() ? "y" : "n"));
+            mPipStateStale = isInPipModeNow();
             int orientation = getResources().getConfiguration().orientation;
             applyWatchLayoutForOrientation(orientation);
             applySystemBarsForOrientation(orientation);
@@ -1447,6 +1457,16 @@ public class MobilePlaybackActivity extends MobileActivity
      * its way to pinned in that window, so the minimize guards have to treat it as PiP.
      */
     private boolean mPipEnterPending;
+
+    /**
+     * NEWTUBE(menu-pip): an accepted PiP entry was undone without either mode callback, and
+     * {@code isInPictureInPictureMode()} kept saying pinned for the fullscreen player (API 35). On
+     * that word the launcher restore then "expanded" a player that was not in PiP on every later
+     * Home focus, throwing it back to full screen right after a minimize. Cleared by the next real
+     * mode callback. (The player's own {@link #mIsInPip} cannot stand in: a player recreated
+     * while pinned - font size, locale - gets no callback either, yet must still be restored.)
+     */
+    private boolean mPipStateStale;
 
     @Override
     protected void onUserLeaveHint() {
@@ -1999,6 +2019,7 @@ public class MobilePlaybackActivity extends MobileActivity
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
 
         mIsInPip = isInPictureInPictureMode;
+        mPipStateStale = false;
         mPipEnterPending = false;
         logPip("mode-changed inPip=" + (isInPictureInPictureMode ? "y" : "n")
                 + " stopped=" + (mIsStopped ? "y" : "n"));
