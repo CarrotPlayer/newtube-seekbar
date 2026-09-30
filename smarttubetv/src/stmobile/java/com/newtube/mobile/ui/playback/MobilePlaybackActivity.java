@@ -3462,6 +3462,15 @@ public class MobilePlaybackActivity extends MobileActivity
         Utils.removeCallbacks(mHideControlsRunnable);
     }
 
+    /**
+     * NEWTUBE(seek bar): a finger on the seek bar, dragging or still within its slop - a drag only
+     * starts (onScrubStart) once the finger has moved, and hiding the controls before that took the
+     * bar out from under a finger about to drag.
+     */
+    private boolean isHoldingSeekBar() {
+        return mScrubbing || (mTimeBar != null && mTimeBar.isHeld());
+    }
+
     private void onAutoHideTick() {
         if (!mControlsVisible || mIsStopped) {
             return;
@@ -3469,7 +3478,7 @@ public class MobilePlaybackActivity extends MobileActivity
 
         // Keep the controls up while the user is scrubbing or while paused/buffering/ended;
         // re-check shortly. Only auto-hide during steady playback (matches YouTube/PlayerUIController).
-        if (mScrubbing || mIsEnded || mPlayer == null || !isPlaying()) {
+        if (isHoldingSeekBar() || mIsEnded || mPlayer == null || !isPlaying()) {
             armAutoHide();
             return;
         }
@@ -5403,7 +5412,7 @@ public class MobilePlaybackActivity extends MobileActivity
     public void showOverlay(boolean show) {
         if (show) {
             showControlsInternal(true);
-        } else if (!mScrubbing) {
+        } else if (!isHoldingSeekBar()) {
             // NEWTUBE(seek bar): the shared UI timer (PlayerUIController's auto-hide) fires on its
             // own clock; it used to pull the controls - and now the seek bar with its drag - out
             // from under a finger that was still dragging.

@@ -159,6 +159,71 @@ public class PlayerTimeBarTest {
     }
 
     @Test
+    public void aDragBegunInsideTheReachGoesStraightToThatEnd() {
+        mBar.setPosition(1_500); // the dot at x = 15: the finger on it is already within 16 dp of the edge
+        touch(MotionEvent.ACTION_DOWN, 15);
+        touch(MotionEvent.ACTION_MOVE, 8);
+        touch(MotionEvent.ACTION_UP, 8);
+        assertEquals("stop 0", last());
+    }
+
+    @Test
+    public void theStartNeverCancelsFromADotJustAfterIt() {
+        mBar.setPosition(300); // the dot at x = 3: the start is within its 4 dp cancel margin
+        touch(MotionEvent.ACTION_DOWN, 300);
+        touch(MotionEvent.ACTION_MOVE, 400); // away
+        touch(MotionEvent.ACTION_MOVE, 290); // on the start
+        assertEquals("move 0", last());
+        touch(MotionEvent.ACTION_MOVE, 304); // 1 px off it, 2 px from the dot: no re-arm at the line
+        touch(MotionEvent.ACTION_MOVE, 290);
+        touch(MotionEvent.ACTION_UP, 290);
+        assertTrue(mCancelArmed.isEmpty());
+        assertEquals("stop 0", last());
+    }
+
+    @Test
+    public void aFingerRestingOnTheBarLeavesAnArrowKeyScrubAlone() {
+        touch(MotionEvent.ACTION_DOWN, 300);
+        key(KeyEvent.KEYCODE_DPAD_RIGHT); // 55 s
+        touch(MotionEvent.ACTION_MOVE, 400); // would have been a drag
+        touch(MotionEvent.ACTION_UP, 400);
+        assertEquals(Arrays.asList("start 55000", "move 55000"), mEvents);
+        key(KeyEvent.KEYCODE_ENTER);
+        assertEquals("stop 55000", last());
+    }
+
+    @Test
+    public void aSecondFingerNeitherTakesOverNorJumpsTheDrag() {
+        touch(MotionEvent.ACTION_DOWN, 300);
+        touch(MotionEvent.ACTION_MOVE, 406); // 60 s
+        pointers(MotionEvent.ACTION_POINTER_DOWN, 1, 406, 950);
+        pointers(MotionEvent.ACTION_MOVE, -1, 406, 960); // only the second finger moved
+        assertEquals("move 60000", last());
+        pointers(MotionEvent.ACTION_POINTER_UP, 0, 406, 960); // the dragging finger lifts
+        assertEquals("stop 60000", last());
+        assertFalse(mBar.isHeld());
+
+        int count = mEvents.size();
+        pointers1(MotionEvent.ACTION_MOVE, 1000); // the other finger, now alone
+        pointers1(MotionEvent.ACTION_UP, 1000);
+        assertEquals(count, mEvents.size());
+    }
+
+    @Test
+    public void theBarIsHeldFromTheFirstTouch() {
+        assertFalse(mBar.isHeld());
+        touch(MotionEvent.ACTION_DOWN, 300); // not a drag yet: the controls must stay all the same
+        assertTrue(mBar.isHeld());
+        touch(MotionEvent.ACTION_MOVE, 400);
+        assertTrue(mBar.isHeld());
+        touch(MotionEvent.ACTION_UP, 400);
+        assertFalse(mBar.isHeld());
+        touch(MotionEvent.ACTION_DOWN, 300);
+        touch(MotionEvent.ACTION_UP, 300);
+        assertFalse(mBar.isHeld());
+    }
+
+    @Test
     public void aDragReachesTheEndShortOfTheOtherEdge() {
         mBar.setPosition(93_000); // the dot at x = 930
         touch(MotionEvent.ACTION_DOWN, 930);
@@ -351,6 +416,47 @@ public class PlayerTimeBarTest {
             mDownTime = now;
         }
         return MotionEvent.obtain(mDownTime, now, action, x, y, 0);
+    }
+
+    /** Two fingers, ids 0 and 1, at x0 and x1; {@code actionIndex} is the finger going down or up. */
+    private void pointers(int action, int actionIndex, float x0, float x1) {
+        MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[2];
+        MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[2];
+        float[] xs = {x0, x1};
+        for (int i = 0; i < 2; i++) {
+            properties[i] = new MotionEvent.PointerProperties();
+            properties[i].id = i;
+            properties[i].toolType = MotionEvent.TOOL_TYPE_FINGER;
+            coords[i] = new MotionEvent.PointerCoords();
+            coords[i].x = xs[i];
+            coords[i].y = 9;
+        }
+        int fullAction = actionIndex < 0 ? action
+                : action | (actionIndex << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
+        MotionEvent event = MotionEvent.obtain(mDownTime, SystemClock.uptimeMillis(), fullAction, 2,
+                properties, coords, 0, 0, 1f, 1f, 0, 0, 0, 0);
+        try {
+            mBar.onTouchEvent(event);
+        } finally {
+            event.recycle();
+        }
+    }
+
+    /** Finger id 1 alone (after finger 0 lifted). */
+    private void pointers1(int action, float x) {
+        MotionEvent.PointerProperties[] properties = {new MotionEvent.PointerProperties()};
+        properties[0].id = 1;
+        properties[0].toolType = MotionEvent.TOOL_TYPE_FINGER;
+        MotionEvent.PointerCoords[] coords = {new MotionEvent.PointerCoords()};
+        coords[0].x = x;
+        coords[0].y = 9;
+        MotionEvent event = MotionEvent.obtain(mDownTime, SystemClock.uptimeMillis(), action, 1,
+                properties, coords, 0, 0, 1f, 1f, 0, 0, 0, 0);
+        try {
+            mBar.onTouchEvent(event);
+        } finally {
+            event.recycle();
+        }
     }
 
     private String last() {
