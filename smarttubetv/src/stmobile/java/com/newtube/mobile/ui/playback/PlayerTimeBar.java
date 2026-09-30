@@ -11,8 +11,11 @@ import android.graphics.Rect;
 import android.graphics.Shader;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.util.AttributeSet;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewParent;
@@ -97,6 +100,8 @@ public class PlayerTimeBar extends View implements TimeBar {
     private static final long DRAG_MS = 120;
     /** Default accessibility / key step when none is set: a twentieth of the video. */
     private static final int DEFAULT_KEY_COUNT = 20;
+    /** A keyboard scrub seeks this long after its last arrow key (media3's DefaultTimeBar's rule). */
+    private static final long KEY_SCRUB_STOP_MS = 1000;
 
     private final Paint mPlayedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -119,6 +124,9 @@ public class PlayerTimeBar extends View implements TimeBar {
 
     private long mKeyTimeIncrement = C.TIME_UNSET;
     private int mKeyCountIncrement = DEFAULT_KEY_COUNT;
+    /** Lands a keyboard scrub; a plain main-thread handler, so it runs whether or not the bar is attached. */
+    private final Handler mKeyHandler = new Handler(Looper.getMainLooper());
+    private final Runnable mStopKeyScrub = () -> stopScrubbing(false);
 
     /** 0 = hidden (a line or nothing), 1 = shown; animated. */
     private float mShown = 1f;
@@ -208,6 +216,10 @@ public class PlayerTimeBar extends View implements TimeBar {
         if (!shown && mScrubbing) {
             stopScrubbing(true);
         }
+        // Hidden, the bar is a line at most: not a control TalkBack or a keyboard can land on (its
+        // old home, the controls overlay, went GONE with the controls and took it along).
+        setFocusable(shown);
+        setImportantForAccessibility(shown ? IMPORTANT_FOR_ACCESSIBILITY_YES : IMPORTANT_FOR_ACCESSIBILITY_NO);
         updateGestureExclusion();
         if (mShowAnimator != null) {
             mShowAnimator.cancel();
@@ -559,6 +571,9 @@ public class PlayerTimeBar extends View implements TimeBar {
                 if (!mShownTarget || mShown < 0.5f) {
                     return false; // hidden: the tap belongs to the video under it
                 }
+                if (mScrubbing) {
+                    stopScrubbing(false); // a keyboard scrub still waiting to land
+                }
                 startScrubbing(x);
                 return true;
             case MotionEvent.ACTION_MOVE:
@@ -592,17 +607,23 @@ public class PlayerTimeBar extends View implements TimeBar {
         if (parent != null) {
             parent.requestDisallowInterceptTouchEvent(true); // no minimize drag, no pinch
         }
+        boolean leftOrigin = Math.abs(x - xFor(mPosition, trackLeft(), trackRight())) > dp(SNAP_DP);
+        beginScrub(leftOrigin, leftOrigin ? positionAt(x) : mPosition);
+    }
+
+    /** A drag or an arrow key starts a scrub from where playback is; {@code leftOrigin}: already off it. */
+    private void beginScrub(boolean leftOrigin, long position) {
         mScrubbing = true;
         mScrubOrigin = mPosition;
         mSnapped = false;
-        mLeftOrigin = Math.abs(x - xFor(mScrubOrigin, trackLeft(), trackRight())) > dp(SNAP_DP);
-        mScrubPosition = mLeftOrigin ? positionAt(x) : mScrubOrigin;
-        mScrubChapter = chapterAt(mScrubPosition);
+        mLeftOrigin = leftOrigin;
+        mScrubPosition = position;
+        mScrubChapter = chapterAt(position);
         mLastTickAt = 0;
         setPressed(true);
         animateDrag(1f);
         for (OnScrubListener listener : mListeners) {
-            listener.onScrubStart(this, mScrubPosition);
+            listener.onScrubStart(this, position);
         }
     }
 
@@ -654,6 +675,7 @@ public class PlayerTimeBar extends View implements TimeBar {
     }
 
     private void stopScrubbing(boolean canceled) {
+        mKeyHandler.removeCallbacks(mStopKeyScrub);
         if (!mScrubbing) {
             return;
         }
@@ -676,6 +698,67 @@ public class PlayerTimeBar extends View implements TimeBar {
         for (OnScrubListener listener : mListeners) {
             listener.onScrubStop(this, position, canceled);
         }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Keys (a hardware keyboard or D-pad on the focused bar, like media3's DefaultTimeBar)
+    // ---------------------------------------------------------------------------------
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (isEnabled() && mShownTarget && mDuration > 0 && mDuration != C.TIME_UNSET) {
+            long increment = positionIncrement();
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    increment = -increment;
+                    // fall through
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    if (scrubByKey(increment)) {
+                        mKeyHandler.removeCallbacks(mStopKeyScrub);
+                        mKeyHandler.postDelayed(mStopKeyScrub, KEY_SCRUB_STOP_MS);
+                        return true;
+                    }
+                    break;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    if (mScrubbing) {
+                        stopScrubbing(false);
+                        return true;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    /** One arrow key: starts a scrub off where playback is, or moves it on a step. */
+    private boolean scrubByKey(long increment) {
+        long from = mScrubbing ? mScrubPosition : mPosition;
+        long target = Math.max(0, Math.min(mDuration, from + increment));
+        if (target == from) {
+            return false;
+        }
+        if (!mScrubbing) {
+            beginScrub(true, target);
+        }
+        mScrubPosition = target;
+        mScrubChapter = chapterAt(target);
+        invalidate();
+        for (OnScrubListener listener : mListeners) {
+            listener.onScrubMove(this, target);
+        }
+        return true;
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (mScrubbing) {
+            stopScrubbing(true);
+        }
+        mKeyHandler.removeCallbacks(mStopKeyScrub);
     }
 
     private void animateDrag(float target) {
@@ -723,7 +806,7 @@ public class PlayerTimeBar extends View implements TimeBar {
         super.onInitializeAccessibilityNodeInfo(info);
         info.setClassName(ACCESSIBILITY_CLASS_NAME);
         info.setContentDescription(progressText());
-        if (mDuration <= 0) {
+        if (mDuration <= 0 || !mShownTarget) {
             return;
         }
         info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD);
@@ -735,8 +818,8 @@ public class PlayerTimeBar extends View implements TimeBar {
         if (super.performAccessibilityAction(action, args)) {
             return true;
         }
-        if (mDuration <= 0) {
-            return false;
+        if (mDuration <= 0 || !mShownTarget) {
+            return false; // hidden: nothing on screen to seek with
         }
         long step = positionIncrement();
         if (action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) {

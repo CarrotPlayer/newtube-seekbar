@@ -3,11 +3,15 @@ package com.newtube.mobile.ui.playback;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.robolectric.Shadows.shadowOf;
 
 import android.app.Application;
+import android.os.Looper;
 import android.os.SystemClock;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
 
 import androidx.media3.ui.TimeBar;
 import org.robolectric.RuntimeEnvironment;
@@ -18,8 +22,11 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.ConscryptMode;
+import org.robolectric.annotation.LooperMode;
 
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Formatter;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +40,7 @@ import java.util.Locale;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28, manifest = Config.NONE, application = Application.class)
 @ConscryptMode(ConscryptMode.Mode.OFF)
+@LooperMode(LooperMode.Mode.PAUSED)
 public class PlayerTimeBarTest {
     private PlayerTimeBar mBar;
     private final List<String> mEvents = new ArrayList<>();
@@ -85,11 +93,11 @@ public class PlayerTimeBarTest {
         touch(MotionEvent.ACTION_MOVE, 506); // within 10 dp of the dot: snaps onto 50 s
 
         assertEquals("move 50000", last());
-        assertEquals(java.util.Arrays.asList(true), mCancelArmed);
+        assertEquals(Arrays.asList(true), mCancelArmed);
 
         touch(MotionEvent.ACTION_UP, 506);
         assertEquals("cancel 50000", last());
-        assertEquals(java.util.Arrays.asList(true, false), mCancelArmed);
+        assertEquals(Arrays.asList(true, false), mCancelArmed);
     }
 
     @Test
@@ -97,11 +105,11 @@ public class PlayerTimeBarTest {
         touch(MotionEvent.ACTION_DOWN, 800);
         touch(MotionEvent.ACTION_MOVE, 505);
         touch(MotionEvent.ACTION_MOVE, 512); // inside the 14 dp release margin: still snapped
-        assertEquals(java.util.Arrays.asList(true), mCancelArmed);
+        assertEquals(Arrays.asList(true), mCancelArmed);
 
         touch(MotionEvent.ACTION_MOVE, 300);
         touch(MotionEvent.ACTION_UP, 300);
-        assertEquals(java.util.Arrays.asList(true, false), mCancelArmed);
+        assertEquals(Arrays.asList(true, false), mCancelArmed);
         assertEquals("stop 30000", last());
     }
 
@@ -188,6 +196,39 @@ public class PlayerTimeBarTest {
     }
 
     @Test
+    public void arrowKeysScrubAndEnterLands() {
+        assertTrue(key(KeyEvent.KEYCODE_DPAD_RIGHT)); // a twentieth of the video: 5 s
+        assertEquals(Arrays.asList("start 55000", "move 55000"), mEvents);
+        key(KeyEvent.KEYCODE_DPAD_RIGHT);
+        assertEquals("move 60000", last());
+        assertTrue(key(KeyEvent.KEYCODE_ENTER));
+        assertEquals("stop 60000", last());
+    }
+
+    @Test
+    public void anArrowKeyScrubLandsASecondAfterTheLastKey() {
+        key(KeyEvent.KEYCODE_DPAD_LEFT);
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(999));
+        assertEquals("move 45000", last());
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1));
+        assertEquals("stop 45000", last());
+    }
+
+    @Test
+    public void theHiddenBarIsNoControl() {
+        mBar.setShown(false, false);
+        assertFalse(mBar.isFocusable());
+        assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, mBar.getImportantForAccessibility());
+        assertFalse(key(KeyEvent.KEYCODE_DPAD_RIGHT));
+        assertFalse(mBar.performAccessibilityAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, null));
+        assertTrue(mEvents.isEmpty());
+
+        mBar.setShown(true, false);
+        assertTrue(mBar.isFocusable());
+        assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_YES, mBar.getImportantForAccessibility());
+    }
+
+    @Test
     public void chapterIndexCountsTheStartsPassed() {
         long[] starts = {10_000, 20_000, 35_000};
         assertEquals(0, PlayerTimeBar.chapterAt(starts, 0));
@@ -225,6 +266,10 @@ public class PlayerTimeBarTest {
         } finally {
             event.recycle();
         }
+    }
+
+    private boolean key(int keyCode) {
+        return mBar.onKeyDown(keyCode, new KeyEvent(KeyEvent.ACTION_DOWN, keyCode));
     }
 
     private boolean routed(int action, float x, float y) {

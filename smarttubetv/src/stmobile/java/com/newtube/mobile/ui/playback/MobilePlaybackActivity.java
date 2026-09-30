@@ -662,6 +662,11 @@ public class MobilePlaybackActivity extends MobileActivity
         mVideoArea = findViewById(R.id.mobile_video_area);
         mZoomHintView = findViewById(R.id.mobile_player_zoom_hint);
         mPlayerView = findViewById(R.id.mobile_player_view);
+        // NEWTUBE(seek bar): the video box leaves its children unclipped so that the seek bar's dot
+        // can hang over the page - but the picture must stay in the box: zoomed to fill, a vertical
+        // video's frame is far taller than the portrait box and spilled over the page.
+        mPlayerView.setOutlineProvider(android.view.ViewOutlineProvider.BOUNDS);
+        mPlayerView.setClipToOutline(true);
         mYouTubeOverlay = findViewById(R.id.mobile_player_yt_overlay);
         mControlsRoot = findViewById(R.id.mobile_controls_root);
         mTopScrim = findViewById(R.id.mobile_player_top_scrim);
@@ -1379,6 +1384,12 @@ public class MobilePlaybackActivity extends MobileActivity
             SystemPipBridge.onPipEnded();
         }
         mPipEnterPending = false;
+        if (!mIsInPip && mTimeBar != null && mTimeBar.getVisibility() != View.VISIBLE) {
+            // NEWTUBE(seek bar): PiP hid the bar (applyPipVideoOnlyLayout); an entry undone before
+            // any mode callback (above) came back without it.
+            mTimeBar.setVisibility(View.VISIBLE);
+            updateSeekBarLine();
+        }
         // The PiP exit ended in the fullscreen UI, so it was an expand, not a dismiss.
         mPipDismissPending = false;
         mRoutedInWhileLeaving = false; // NEWTUBE(link-while-playing): the routed-in open is in front
@@ -2096,14 +2107,16 @@ public class MobilePlaybackActivity extends MobileActivity
 
     /**
      * The seek bar's line (hidden controls): portrait only, not in PiP, not for a live stream (the
-     * played part of a DVR window says nothing).
+     * played part of a DVR window says nothing), not while casting (the local player is idle).
      */
     private void updateSeekBarLine() {
         if (mTimeBar == null) {
             return;
         }
         Video video = getVideo();
-        boolean line = !isLandscape() && !mIsInPip && !mPipEnterPending && (video == null || !video.isLive);
+        boolean casting = mCastOverlay != null && mCastOverlay.getVisibility() == View.VISIBLE;
+        boolean line = !isLandscape() && !mIsInPip && !mPipEnterPending && !casting
+                && (video == null || !video.isLive);
         if (line != mTimeBar.isLineWhenHidden()) {
             mTimeBar.setLineWhenHidden(line);
             if (!mControlsVisible) {
@@ -2402,6 +2415,14 @@ public class MobilePlaybackActivity extends MobileActivity
     private void applyPipVideoOnlyLayout() {
         cancelAutoHide();
         hideControls();
+        // NEWTUBE(seek bar): the pills beside the controls go at once, not on a fade that the
+        // pinned window would show.
+        for (View pill : new View[] {mTopPill, mScrubChapterView}) {
+            if (pill != null) {
+                pill.animate().cancel();
+                pill.setVisibility(View.GONE);
+            }
+        }
         // NEWTUBE(theme): the pinned window is all video - black behind it in both themes (the
         // light theme's portrait backdrop is white below the status band). The exit restores it
         // through applySystemBarsForOrientation.
@@ -2987,6 +3008,7 @@ public class MobilePlaybackActivity extends MobileActivity
                     target != null ? target.getName() : ""));
         }
         mCastOverlay.setVisibility(View.VISIBLE);
+        updateSeekBarLine(); // the TV plays it now: no local progress line under the overlay
         hideControls();
         updateCastOverlay();
         // 1s remote ticker: CastEvents only arrive on changes; the position interpolates between
@@ -3000,6 +3022,7 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mCastOverlay != null) {
             mCastOverlay.setVisibility(View.GONE);
         }
+        updateSeekBarLine();
     }
 
     private void updateCastOverlay() {
