@@ -25,10 +25,9 @@ related list under a video ends too; Notifications is empty. Details: HANDOFF §
   not device-checked: no signed-in device).
 - **Back to a tab within its 5-minute cache** repaints the whole grid, not its first 120 cards.
 - **Up next** loads the second page the TV answer offers: 30 -> 60 related videos.
-- **Notifications**: the inbox request uses the TV client, which the endpoint refuses (HTTP 400,
-  signed in too), and the fallback RSS feed of bell-"All" channels is empty for phone users. The
-  section now also asks with a WEB context before the RSS fallback, pending a signed-in run; if that
-  fails too, the section is removed from the phone (HANDOFF §35).
+- **Notifications removed from the phone**: YouTube refuses the inbox to our TV sign-in (HTTP 400
+  with the TV and WEB contexts, signed in on the Mi 8), and the RSS fallback of bell-"All" channels
+  is empty for phone users. The section and its "hide watched" row are hidden (HANDOFF §35).
 
 ## Player routes and time to first frame (2026-09-28/29, 1.11.0)
 

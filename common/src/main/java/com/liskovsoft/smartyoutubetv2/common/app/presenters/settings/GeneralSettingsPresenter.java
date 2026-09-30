@@ -163,9 +163,13 @@ public class GeneralSettingsPresenter extends BasePresenter<Void> {
                 option -> mMediaServiceData.setContentHidden(MediaServiceData.CONTENT_WATCHED_SUBSCRIPTIONS, option.isSelected()),
                 mMediaServiceData.isContentHidden(MediaServiceData.CONTENT_WATCHED_SUBSCRIPTIONS)));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.hide_watched_from_notifications),
-                option -> mGeneralData.setHideWatchedFromNotificationsEnabled(option.isSelected()),
-                mGeneralData.isHideWatchedFromNotificationsEnabled()));
+        // NEWTUBE(notifications): the phone has no Notifications section (SidebarService), so its
+        // hide-watched row would do nothing there.
+        if (!PhoneUi.isEnabled()) {
+            options.add(UiOptionItem.from(getContext().getString(R.string.hide_watched_from_notifications),
+                    option -> mGeneralData.setHideWatchedFromNotificationsEnabled(option.isSelected()),
+                    mGeneralData.isHideWatchedFromNotificationsEnabled()));
+        }
 
         if (shortsRows) {
             options.add(UiOptionItem.from(getContext().getString(R.string.hide_shorts),

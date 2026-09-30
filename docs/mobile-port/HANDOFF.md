@@ -2257,7 +2257,7 @@ signed out; NetPath `feed-grid section= action= in= size=` (grid size per update
   (it is the buffering spinner on the phone). Test: MSC `SuggestionsSectionContinuationTest`
   (trimmed 2026-09-30 fixtures).
 
-### Notifications: the TV inbox is refused; a WEB attempt chain, pending the owner's run
+### Notifications: the TV inbox is refused, so the phone has no Notifications section
 - The section is wired (`TYPE_NOTIFICATIONS` grid -> `getNotificationItemsObserve`). The inbox request
   `youtubei/v1/notification/get_notification_menu` is sent with the TVHTML5 context
   (`NotificationsApiHelper`), and the endpoint refuses it: HTTP 400 "Precondition check failed"
@@ -2269,15 +2269,13 @@ signed out; NetPath `feed-grid section= action= in= size=` (grid size per update
 - Anonymous probe of every client the same day: only WEB is accepted (200, the
   `backgroundPromoRenderer` "Your notifications live here" card); MWEB, ANDROID, IOS,
   TVHTML5_SIMPLY and TVHTML5 5.x/7.x (newer version, no request type) all 400.
-- **Attempt chain (MSC 73886e0f):** TV (upstream's request) -> WEB (WEB context + WEB User-Agent /
-  client headers, same Authorization) -> WEB_NOTYPE (no `notificationsMenuRequestType`, yt-dlp's
-  body) -> RSS. The first attempt that lists items wins. Log per attempt:
-  `notifications attempt client=TV|WEB|WEB_NOTYPE code= items= shape=items|promo|none [error=]`,
-  then `notifications source=inbox client=…` or `notifications source=rss`. `shape=promo` with a
-  200 means the account was ignored or the inbox is empty. The WEB list reuses the TV models (same
-  paths as yt-dlp's `:ytnotif`); its trailing continuation item is skipped. Owner check: the
-  `.check` benchmark APK built from `0bf23c31`, signed in, You -> Notifications, grep those lines.
-- **If no attempt lists items:** the removal commit on top hides the section on the phone
-  (`SidebarService.setNotificationsSectionHidden`, MobileMainApplication): not in the You panel,
-  Set-up sections or Boot to section, a stored boot to it opens Home; prefs and shared code stay.
-  Keep one of the two.
+- *- **Signed-in attempts, all refused** (Mi 8, test account, 2026-09-30, a `.check` build of MSC
+  73886e0f, which was not merged): TV `code=400` "Precondition check failed", WEB with the same
+  Authorization `code=400` "Request contains an invalid argument", WEB without the request type
+  `code=400` (same), then RSS with 0 channels. A TV OAuth sign-in doesn't open the WEB inbox.
+- **So the section is removed on the phone** (owner's rule: if it isn't supported and is a mess to
+  add back, remove it): `SidebarService.setNotificationsSectionHidden` (set in
+  MobileMainApplication) leaves it out of the You panel, Set-up sections and Boot to section, a
+  stored boot to it opens Home, and "Hide watched videos from Notifications" is hidden
+  (GeneralSettingsPresenter). Prefs and shared code stay; MSC keeps only the `notifications source=`
+  log line (56bf9c08). To revisit: an inbox that accepts the TV sign-in, or a WEB sign-in.
