@@ -15,6 +15,8 @@
     <string name="mobile_player_audio_track">Audio track</string>
     <string name="mobile_player_subtitles">Subtitles</string>
     <string name="mobile_player_speed">Playback speed</string>
+    <!-- Spoken for the current-chapter button above the seek bar (it opens the Chapters list). -->
+    <string name="mobile_player_chapter_button">Chapter: %1$s. Show all chapters</string>
     <string name="mobile_player_pip">Picture-in-picture</string>
     <string name="mobile_player_previous">Previous</string>
     <string name="mobile_player_next">Next</string>

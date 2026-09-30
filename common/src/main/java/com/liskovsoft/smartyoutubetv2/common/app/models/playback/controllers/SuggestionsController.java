@@ -4,7 +4,6 @@ import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Pair;
 
-import androidx.core.content.ContextCompat;
 
 import com.liskovsoft.mediaserviceinterfaces.ContentService;
 import com.liskovsoft.mediaserviceinterfaces.MediaItemService;
@@ -24,7 +23,6 @@ import com.liskovsoft.smartyoutubetv2.common.app.models.data.VideoGroup;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.BasePlayerController;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.manager.PlayerConstants;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem;
-import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.SeekBarSegment;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.PlaybackPresenter;
@@ -1046,14 +1044,6 @@ public class SuggestionsController extends BasePlayerController {
         }
     }
 
-    private void addChapterMarkersIfNeeded() {
-        if (getPlayer() == null || mChapters == null) {
-            return;
-        }
-
-        getPlayer().setSeekBarSegments(toSeekBarSegments(mChapters));
-    }
-
     private void appendChapterSuggestionsIfNeeded() {
         if (getPlayer() == null || mChapters == null) {
             return;
@@ -1091,8 +1081,11 @@ public class SuggestionsController extends BasePlayerController {
 
     private void appendChaptersIfNeeded(MediaItemMetadata mediaItemMetadata) {
         mChapters = mediaItemMetadata.getChapters();
-        
-        addChapterMarkersIfNeeded();
+
+        // NEWTUBE(chapters, issue #13): no chapter ticks through setSeekBarSegments any more. That
+        // slot holds ONE list and SponsorBlockController fills it too, so whichever arrived second
+        // wiped the other (the ticks usually lost, and were 1/10000 of the video wide in black).
+        // The phone marks chapters on its time bar itself, from the chapters row appended below.
         appendChapterSuggestionsIfNeeded();
         startChapterNotificationServiceIfNeeded();
         focusCurrentChapter();
@@ -1150,31 +1143,6 @@ public class SuggestionsController extends BasePlayerController {
         if (currentChapter != null) {
             getPlayer().setSeekPreviewTitle(currentChapter.first.getTitle());
         }
-    }
-
-    private List<SeekBarSegment> toSeekBarSegments(List<ChapterItem> chapters) {
-        if (chapters == null) {
-            return null;
-        }
-
-        List<SeekBarSegment> result = new ArrayList<>();
-        long markLengthMs = getPlayer().getDurationMs() / 10000;
-
-        for (ChapterItem chapter : chapters) {
-            if (chapter.getStartTimeMs() == 0) {
-                continue;
-            }
-
-            SeekBarSegment seekBarSegment = new SeekBarSegment();
-            float startRatio = (float) chapter.getStartTimeMs() / getPlayer().getDurationMs(); // Range: [0, 1]
-            float endRatio = (float) (chapter.getStartTimeMs() + markLengthMs) / getPlayer().getDurationMs(); // Range: [0, 1]
-            seekBarSegment.startProgress = startRatio;
-            seekBarSegment.endProgress = endRatio;
-            seekBarSegment.color = ContextCompat.getColor(getContext(), R.color.black);
-            result.add(seekBarSegment);
-        }
-
-        return result;
     }
 
     /**

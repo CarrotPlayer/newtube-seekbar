@@ -57,6 +57,7 @@
     <string name="mobile_captions_on_toast">Subtítulos activados (%1$s)</string>
     <string name="mobile_captions_off_toast">Subtítulos desactivados</string>
 
+    <string name="mobile_player_chapter_button">Capítulo: %1$s. Ver todos los capítulos</string>
     <!-- Speed sheet -->
     <string name="mobile_player_speed">Velocidad de reproducción</string>
     <string name="mobile_speed_normal">Normal</string>

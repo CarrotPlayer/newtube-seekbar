@@ -275,6 +275,13 @@ public class MobilePlaybackActivity extends MobileActivity
     private final List<Video> mChapterVideos = new ArrayList<>();
     /** Shown above the seek bar ONLY while scrubbing: the chapter under the scrub position. */
     private TextView mScrubChapterView;
+    /**
+     * NEWTUBE(chapters, issue #13): above the seek bar while the controls are up and the bar is not
+     * being dragged - the playing chapter's title; a tap opens the Chapters list (ChaptersSheet).
+     */
+    private TextView mChapterButton;
+    /** The chapter mChapterButton shows (-1 = hidden), so the progress tick only writes on a change. */
+    private int mChapterButtonIndex = -1;
     private View mWatchChatEntry;
     private String mCommentsKey;
     private String mLiveChatKey;
@@ -715,6 +722,8 @@ public class MobilePlaybackActivity extends MobileActivity
         mWatchCommentsCount = findViewById(R.id.mobile_watch_comments_count);
         mWatchChatEntry = findViewById(R.id.mobile_watch_chat_entry);
         mScrubChapterView = findViewById(R.id.mobile_player_scrub_chapter);
+        mChapterButton = findViewById(R.id.mobile_player_chapter);
+        mChapterButton.setOnClickListener(v -> showChaptersSheet());
     }
 
     private void setupControls() {
@@ -849,6 +858,7 @@ public class MobilePlaybackActivity extends MobileActivity
                 endUserSeekBurst();
                 cancelAutoHide();
                 mPositionView.setText(formatTime(position));
+                updateChapterButton(position); // gives its line to the scrub label
                 updateScrubChapterLabel(position);
             }
 
@@ -863,6 +873,9 @@ public class MobilePlaybackActivity extends MobileActivity
                 mScrubbing = false;
                 if (mScrubChapterView != null) {
                     mScrubChapterView.setVisibility(View.GONE);
+                }
+                if (!canceled) {
+                    updateChapterButton(position);
                 }
                 if (!canceled && mExoPlayerController != null) {
                     // Plain seek -> the player's mobile default, the bounded 5s/1s tolerance
@@ -3761,6 +3774,7 @@ public class MobilePlaybackActivity extends MobileActivity
             mPositionView.setText(formatTime(position));
             mDurationView.setText(formatTime(duration));
             updateLiveChip(position, duration);
+            updateChapterButton(position);
         }
 
         updatePlayPauseIcon();
@@ -5534,10 +5548,19 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     // ---------------------------------------------------------------------------------
-    // Chapters (data = the isChapters() suggestions group; UI = the scrub-time label above the
-    // seek bar - YouTube's subtle "which chapter is this" hover text - plus the shared seek-bar
-    // tick marks that already flow through setSeekBarSegments)
+    // Chapters (NEWTUBE(chapters), issue #13). Data = the isChapters() suggestions group. UI, as in
+    // YouTube: a mark on the time bar at every chapter start, the playing chapter's title above the
+    // bar (tap = the Chapters list, ChaptersSheet), and while dragging the bar the title of the
+    // chapter under the finger in its place.
     // ---------------------------------------------------------------------------------
+
+    /**
+     * A chapter jump never lands before the chapter's start (the player-wide default may land 5 s
+     * early, which would play the end of the previous chapter and name it above the bar): the
+     * start itself, or a keyframe at most 2 s into the chapter when there is one.
+     */
+    private static final SeekParameters CHAPTER_SEEK_PARAMETERS =
+            new SeekParameters(/* toleranceBeforeUs= */ 0, /* toleranceAfterUs= */ 2_000_000);
 
     /** Store the current video's chapters (null/empty clears them). */
     private void setChapters(List<Video> chapters) {
@@ -5550,6 +5573,66 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mScrubChapterView != null && mChapterVideos.isEmpty()) {
             mScrubChapterView.setVisibility(View.GONE);
         }
+
+        updateChapterMarks();
+        mChapterButtonIndex = -1;
+        updateChapterButton(mExoPlayerController != null ? mExoPlayerController.getPositionMs() : 0);
+    }
+
+    /** One mark on the time bar per chapter start after the first (media3's marker layer). */
+    private void updateChapterMarks() {
+        if (mTimeBar == null) {
+            return;
+        }
+
+        long[] starts = new long[mChapterVideos.size()];
+        int count = 0;
+        for (Video chapter : mChapterVideos) {
+            if (chapter.startTimeMs > 0) {
+                starts[count++] = chapter.startTimeMs;
+            }
+        }
+
+        mTimeBar.setAdGroupTimesMs(count > 0 ? starts : null, count > 0 ? new boolean[count] : null, count);
+    }
+
+    /** The chapter playing at {@code positionMs}: an index into mChapterVideos, -1 if none. */
+    private int chapterIndexAt(long positionMs) {
+        int index = -1;
+        for (int i = 0; i < mChapterVideos.size(); i++) {
+            if (mChapterVideos.get(i).startTimeMs <= positionMs) {
+                index = i;
+            } else {
+                break;
+            }
+        }
+        return index;
+    }
+
+    /** The playing chapter's title above the seek bar; hidden without chapters and while scrubbing. */
+    private void updateChapterButton(long positionMs) {
+        if (mChapterButton == null) {
+            return;
+        }
+
+        int index = mScrubbing ? -1 : chapterIndexAt(positionMs);
+        if (index >= 0 && TextUtils.isEmpty(mChapterVideos.get(index).title)) {
+            index = -1;
+        }
+
+        if (index < 0) {
+            mChapterButtonIndex = -1;
+            mChapterButton.setVisibility(View.GONE);
+            return;
+        }
+
+        if (index != mChapterButtonIndex) {
+            mChapterButtonIndex = index;
+            String title = mChapterVideos.get(index).title;
+            mChapterButton.setText(title);
+            mChapterButton.setContentDescription(getString(R.string.mobile_player_chapter_button, title));
+        }
+        mChapterButton.setVisibility(View.VISIBLE);
     }
 
     /** While scrubbing: show the title of the chapter under the scrub position (hidden if none). */
@@ -5558,19 +5641,8 @@ public class MobilePlaybackActivity extends MobileActivity
             return;
         }
 
-        if (mChapterVideos.isEmpty()) {
-            mScrubChapterView.setVisibility(View.GONE);
-            return;
-        }
-
-        CharSequence title = null;
-        for (int i = 0; i < mChapterVideos.size(); i++) {
-            if (mChapterVideos.get(i).startTimeMs <= positionMs) {
-                title = mChapterVideos.get(i).title;
-            } else {
-                break;
-            }
-        }
+        int index = chapterIndexAt(positionMs);
+        CharSequence title = index >= 0 ? mChapterVideos.get(index).title : null;
 
         if (TextUtils.isEmpty(title)) {
             mScrubChapterView.setVisibility(View.GONE);
@@ -5579,6 +5651,60 @@ public class MobilePlaybackActivity extends MobileActivity
                 mScrubChapterView.setText(title);
             }
             mScrubChapterView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    /**
+     * The Chapters list over the player. In portrait it stops at the bottom of the video, like the
+     * comments panel, so the chapter being picked stays in view; fullscreen gets the usual sheet.
+     */
+    private void showChaptersSheet() {
+        if (mChapterVideos.isEmpty()) {
+            return;
+        }
+        cancelAutoHide();
+
+        int maxHeightPx = 0;
+        if (!isLandscape() && mVideoArea != null) {
+            int[] location = new int[2];
+            mVideoArea.getLocationInWindow(location);
+            int belowVideo = getWindow().getDecorView().getHeight() - (location[1] + mVideoArea.getHeight());
+            if (belowVideo >= dp(240)) {
+                maxHeightPx = belowVideo;
+            }
+        }
+
+        releaseImageRequests("chapters-sheet"); // like the chat sheet: its frames are what's on screen now
+        long positionMs = mExoPlayerController != null ? mExoPlayerController.getPositionMs() : 0;
+        BottomSheetDialog dialog = ChaptersSheet.create(this, mChapterVideos, chapterIndexAt(positionMs),
+                maxHeightPx, chapter -> seekFromList(chapter.startTimeMs, CHAPTER_SEEK_PARAMETERS));
+        dialog.setOnDismissListener(d -> armAutoHide());
+        showPlayerSheet(dialog);
+    }
+
+    /**
+     * A jump picked from a list (a chapter, a comment's timestamp): on the TV while casting, else
+     * here - with {@code parameters} for this one seek when given - then the controls come up for
+     * their usual while to show where it landed.
+     */
+    private void seekFromList(long positionMs, @Nullable SeekParameters parameters) {
+        if (mCastSessionManager != null && mCastSessionManager.isConnected()) {
+            mCastSessionManager.seekTo(positionMs);
+        } else if (mExoPlayerController != null) {
+            // set -> seek -> restore reach the playback thread in order (see SEEK_BURST_WATCHDOG_MS).
+            SeekParameters previous = parameters != null && mPlayer != null ? mPlayer.getSeekParameters() : null;
+            if (previous != null) {
+                mPlayer.setSeekParameters(parameters);
+            }
+            mExoPlayerController.setPositionMs(positionMs);
+            if (previous != null) {
+                mPlayer.setSeekParameters(previous);
+            }
+            updateChapterButton(positionMs);
+        }
+        if (mControlsRoot != null && !mIsInPip) {
+            showControlsInternal(true);
+            armAutoHide();
         }
     }
 
@@ -6045,16 +6171,7 @@ public class MobilePlaybackActivity extends MobileActivity
     private final CommentsPanel.Host mCommentsHost = new CommentsPanel.Host() {
         @Override
         public void onCommentTimestamp(long positionMs) {
-            if (mCastSessionManager != null && mCastSessionManager.isConnected()) {
-                mCastSessionManager.seekTo(positionMs);
-            } else if (mExoPlayerController != null) {
-                mExoPlayerController.setPositionMs(positionMs);
-            }
-            // Show where it landed: the controls (time + seek bar) come up for their usual while.
-            if (mControlsRoot != null && !mIsInPip) {
-                showControlsInternal(true);
-                armAutoHide();
-            }
+            seekFromList(positionMs, null);
         }
 
         @Override
