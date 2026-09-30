@@ -792,6 +792,20 @@ public class MobilePlaybackActivity extends MobileActivity
         // a seek puts the controls away (the seek ripple takes the screen), anything else undoes
         // the first tap's toggle.
         mPlayerView.setInstantSingleTap(true);
+        // NEWTUBE(hold-speed): press and hold the video = 2x for as long as the finger stays,
+        // YouTube's gesture, with its firm buzz and a "2x" pill; letting go returns to the speed
+        // that was chosen. Never saved as a speed.
+        mPlayerView.setHoldListener(new DoubleTapPlayerViewImpl.HoldListener() {
+            @Override
+            public boolean onHoldStart(float x, float y) {
+                return beginHoldSpeed();
+            }
+
+            @Override
+            public void onHoldEnd() {
+                endHoldSpeed();
+            }
+        });
         mPlayerView.setDoubleTapBeganListener(posX -> {
             if (mPlayer != null && doubleTapSeekForward(mPlayer, posX) != null) {
                 hideControls();
@@ -1480,6 +1494,9 @@ public class MobilePlaybackActivity extends MobileActivity
         mIsStopped = true;
         stopProgressUpdates();
         cancelAutoHide();
+        if (mExoPlayerController != null && mExoPlayerController.isHoldSpeedOn()) {
+            endHoldSpeed(); // the finger's lift can't reach a stopped window
+        }
 
         // Glide pauses the activity's request manager on its own here and resumes it on the next
         // onStart. Drop our hold flag (WITHOUT resuming - that would defeat Glide's background
@@ -5923,13 +5940,51 @@ public class MobilePlaybackActivity extends MobileActivity
 
     /** The pill over the top of the video ({@code null} hides it). */
     private void showTopPill(@Nullable CharSequence text) {
+        showTopPill(text, 0);
+    }
+
+    /** ...with {@code iconRes} after the text (0 = none). */
+    private void showTopPill(@Nullable CharSequence text, int iconRes) {
         if (mTopPill == null) {
             return;
         }
         if (text != null) {
             setTextIfChanged(mTopPill, text);
+            mTopPill.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, iconRes, 0);
+            mTopPill.setCompoundDrawablePadding(iconRes != 0 ? dp(4) : 0);
         }
         fadePill(mTopPill, text != null);
+    }
+
+    /** Press-and-hold speed: YouTube's. */
+    private static final float HOLD_SPEED = 2f;
+
+    /**
+     * A still finger on the video passed the long-press timeout: play at 2x until it lifts. Only
+     * over local, non-live playback that is playing and slower than that; the controls step aside
+     * like YouTube's and a pill says what is happening.
+     */
+    private boolean beginHoldSpeed() {
+        Video video = getVideo();
+        if (mExoPlayerController == null || mPlayer == null || mIsEnded || mIsInPip || mScrubbing
+                || (mCastSessionManager != null && mCastSessionManager.isConnected())
+                || (video != null && video.isLive)
+                || !mExoPlayerController.getPlayWhenReady()
+                || mExoPlayerController.getSpeed() >= HOLD_SPEED) {
+            return false;
+        }
+        mExoPlayerController.beginHoldSpeed(HOLD_SPEED);
+        Haptics.longPress(mPlayerView);
+        hideControls();
+        showTopPill(getString(R.string.mobile_player_hold_speed), R.drawable.ic_player_hold_speed);
+        return true;
+    }
+
+    private void endHoldSpeed() {
+        if (mExoPlayerController != null) {
+            mExoPlayerController.endHoldSpeed();
+        }
+        showTopPill(null);
     }
 
     /** A pill appears with a short fade and scale-up from 90%, and leaves with a shorter fade. */

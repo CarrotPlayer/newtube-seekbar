@@ -23,6 +23,8 @@
     <string name="mobile_player_chapter_title" translatable="false">·\u0020%1$s</string>
     <!-- Over the video while a seek-bar drag rests on where playback was: letting go cancels. -->
     <string name="mobile_player_release_to_cancel">Release to cancel</string>
+    <!-- Pill over the video while press-and-hold plays it at double speed. -->
+    <string name="mobile_player_hold_speed" translatable="false">2x</string>
     <string name="mobile_player_pip">Picture-in-picture</string>
     <string name="mobile_player_previous">Previous</string>
     <string name="mobile_player_next">Next</string>

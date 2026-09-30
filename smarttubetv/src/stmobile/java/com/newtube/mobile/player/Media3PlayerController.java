@@ -822,6 +822,7 @@ public class Media3PlayerController implements Player.Listener {
             mPlayer.release();
             mPlayer = null;
         }
+        mHoldBaseSpeed = -1;
     }
 
     /**
@@ -1009,19 +1010,69 @@ public class Media3PlayerController implements Player.Listener {
     // Speed / pitch / volume
     // ---------------------------------------------------------------------------------
 
+    /**
+     * NEWTUBE(hold-speed): while press-and-hold plays the video at 2x, the speed the person chose;
+     * -1 when no hold is on.
+     */
+    private float mHoldBaseSpeed = -1;
+
+    /** The chosen speed - during a press-and-hold boost, the speed it returns to. */
     public float getSpeed() {
+        if (mHoldBaseSpeed > 0) {
+            return mHoldBaseSpeed;
+        }
         return mPlayer != null ? mPlayer.getPlaybackParameters().speed : -1;
     }
 
     public void setSpeed(float speed) {
         if (mPlayer != null && speed > 0) {
-            if (PlayerTweaksData.instance(mContext).isAudioTimeStretchingEnabled()) {
-                mPlayer.setPlaybackParameters(new PlaybackParameters(speed, mPlayer.getPlaybackParameters().pitch));
+            if (mHoldBaseSpeed > 0) {
+                mHoldBaseSpeed = speed; // chosen mid-hold: the hold ends on it
             } else {
-                mPlayer.setPlaybackParameters(new PlaybackParameters(speed, speed));
+                applySpeed(speed);
             }
 
             mEventListener.onSpeedChanged(speed);
+        }
+    }
+
+    /**
+     * NEWTUBE(hold-speed): play at {@code speed} while a finger holds the video (YouTube's
+     * press-and-hold 2x). Temporary by design: no speed-changed event, so nothing persists it
+     * (VideoStateController saves per-channel/per-video speeds from that event), and
+     * {@link #getSpeed()} keeps answering the chosen speed for anything saved meanwhile.
+     */
+    public void beginHoldSpeed(float speed) {
+        if (mPlayer == null || speed <= 0) {
+            return;
+        }
+        if (mHoldBaseSpeed <= 0) {
+            mHoldBaseSpeed = mPlayer.getPlaybackParameters().speed;
+        }
+        applySpeed(speed);
+    }
+
+    /** Back to the chosen speed after {@link #beginHoldSpeed}. */
+    public void endHoldSpeed() {
+        if (mHoldBaseSpeed <= 0) {
+            return;
+        }
+        float base = mHoldBaseSpeed;
+        mHoldBaseSpeed = -1;
+        if (mPlayer != null) {
+            applySpeed(base);
+        }
+    }
+
+    public boolean isHoldSpeedOn() {
+        return mHoldBaseSpeed > 0;
+    }
+
+    private void applySpeed(float speed) {
+        if (PlayerTweaksData.instance(mContext).isAudioTimeStretchingEnabled()) {
+            mPlayer.setPlaybackParameters(new PlaybackParameters(speed, mPlayer.getPlaybackParameters().pitch));
+        } else {
+            mPlayer.setPlaybackParameters(new PlaybackParameters(speed, speed));
         }
     }
 
