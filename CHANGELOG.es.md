@@ -13,6 +13,29 @@ versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
   arriba al momento. Tus comentarios tienen un menú ⋮ con Eliminar, previa
   confirmación. Un comentario a medias te espera hasta que cambias de vídeo, y
   si falla la publicación la app dice por qué y conserva el texto.
+- **Capítulos** ([#13](https://github.com/aleixrodriala/newtube/issues/13)).
+  Los capítulos de un vídeo aparecen en la barra de progreso como pequeños
+  cortes, y el nombre del capítulo actual va detrás del tiempo («1:10 /
+  4:26:52 · Introducción ›»). Tócalo para ver la lista completa con un
+  fotograma de cada capítulo y toca uno para saltar a su inicio.
+- **Mantén pulsado para ir a 2x.** Deja el dedo sobre el vídeo para verlo a
+  doble velocidad; al soltar vuelve a tu velocidad.
+
+### Cambiado
+
+- **Una barra de progreso como la de YouTube.** Fina, de todo el ancho del
+  vídeo, en su borde inferior, con un punto más pequeño y fácil de agarrar:
+  un toque justo encima o debajo la coge, y un arrastre desde el borde de la
+  pantalla la mueve en vez de ir atrás. Con los controles ocultos, una línea
+  fina sigue mostrando por dónde vas. Mientras la
+  arrastras, el resto de controles se aparta, una etiqueta muestra el tiempo
+  y el capítulo bajo el dedo, una vibración suave marca cada capítulo y, si
+  vuelves a donde estabas, se queda ahí: suelta para cancelar.
+- **Un reproductor que responde al tacto.** Reproducir y pausa se
+  transforman uno en otro; «Me gusta», «No me gusta» y Suscribirse dan una
+  vibración corta; los botones que no reaccionaban al pulsarlos ahora lo
+  hacen, y tocar la pestaña en la que estás vuelve el feed arriba. Las
+  vibraciones siguen el ajuste de vibración al tocar del teléfono.
 
 ## 1.12.0 — 30-09-2026 — Edición Paco Martínez Soria
 

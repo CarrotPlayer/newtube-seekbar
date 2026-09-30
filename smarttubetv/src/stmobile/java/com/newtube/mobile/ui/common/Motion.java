@@ -30,7 +30,30 @@ public final class Motion {
     /** A surface leaving (a sheet sliding down). */
     public static final long EXIT_MS = 200;
 
+    /** The like "pop": a quick press-in, overshoot and settle (the comments' thumb uses the same). */
+    public static final long POP_MS = 260;
+
     private Motion() {
+    }
+
+    /**
+     * NEWTUBE(motion): pop {@code view} - scale to 78%, overshoot to 112%, settle - for an action
+     * that just took effect under the finger (a like, a dislike).
+     */
+    public static void pop(android.view.View view) {
+        if (view == null) {
+            return;
+        }
+        android.animation.Keyframe k0 = android.animation.Keyframe.ofFloat(0f, 1f);
+        android.animation.Keyframe k1 = android.animation.Keyframe.ofFloat(0.35f, 0.78f);
+        android.animation.Keyframe k2 = android.animation.Keyframe.ofFloat(0.75f, 1.12f);
+        android.animation.Keyframe k3 = android.animation.Keyframe.ofFloat(1f, 1f);
+        android.animation.ObjectAnimator pop = android.animation.ObjectAnimator.ofPropertyValuesHolder(view,
+                android.animation.PropertyValuesHolder.ofKeyframe(android.view.View.SCALE_X, k0, k1, k2, k3),
+                android.animation.PropertyValuesHolder.ofKeyframe(android.view.View.SCALE_Y, k0, k1, k2, k3));
+        pop.setDuration(POP_MS);
+        pop.setInterpolator(STANDARD);
+        pop.start();
     }
 
     private static Path emphasizedPath() {

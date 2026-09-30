@@ -8,7 +8,7 @@
         FrameLayout  @id/mobile_video_area  - the video + its custom controls overlay.
             Portrait: fixed 16:9 height (set in code). Landscape: match_parent (full-bleed).
             Children (back to front): DoubleTapPlayerView, YouTubeOverlay, controls overlay,
-            buffering spinner - exactly the PLAYER POLISH surface, now clipped to the video box.
+            seek bar (PlayerTimeBar, whose dot hangs over the page below), buffering spinner.
         NestedScrollView  @id/mobile_watch_scroll  - the YouTube-style content column.
             Portrait: fills the rest and scrolls. Landscape: GONE (immersive video only).
             Holds: title, views/date, actions row (Like/Dislike + counts, Share), channel row
@@ -27,10 +27,11 @@
     android:background="@android:color/transparent"
     android:keepScreenOn="true">
 
-    <LinearLayout
+    <com.newtube.mobile.ui.playback.WatchRootLayout
         android:id="@+id/mobile_watch_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:clipChildren="false"
         android:orientation="vertical">
 
         <!-- Video area: 16:9 in portrait (set in code), match_parent in landscape.
@@ -43,6 +44,7 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:background="@android:color/black"
+            android:clipChildren="false"
             android:theme="@style/ThemeOverlay.NewTube.PlayerChrome"
             tools:ignore="Suspicious0dp">
 
@@ -191,6 +193,7 @@
                      Previous & next dispatch PlaybackPresenter.onPreviousClicked / onNextClicked
                      (manual skip; auto-advance already works via the controllers). -->
                 <LinearLayout
+                    android:id="@+id/mobile_player_transport"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
@@ -231,88 +234,43 @@
 
                 </LinearLayout>
 
-                <!-- Bottom seek block: the scrub-time chapter label (YouTube's subtle "which
-                     chapter am I hovering" text, visible only while dragging the bar) stacked
-                     above the seek row. -->
+                <!-- NEWTUBE(seek bar): the bottom row sits on the seek bar (PlayerTimeBar, outside this
+                     overlay, so that it can stay on the video's edge as a line while the controls
+                     are hidden): the time, the current chapter (YouTube's "· Title >"; tap = the
+                     Chapters list; gone without chapters) and fullscreen. Its bottom margin clears
+                     the bar's touch band (applyControlsInsets adds the fullscreen lift). -->
                 <LinearLayout
+                    android:id="@+id/mobile_player_bottom_row"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_gravity="bottom"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/mobile_player_scrub_chapter"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:gravity="center"
-                        android:maxLines="1"
-                        android:paddingHorizontal="24dp"
-                        android:paddingBottom="4dp"
-                        android:shadowColor="#B3000000"
-                        android:shadowRadius="4"
-                        android:textColor="@android:color/white"
-                        android:textSize="13sp"
-                        android:textStyle="bold"
-                        android:visibility="gone"
-                        tools:text="Working With Strings" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/mobile_player_bottom_row_margin"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingStart="12dp"
-                    android:paddingEnd="4dp"
-                    android:paddingBottom="2dp">
+                    android:paddingEnd="4dp">
 
                     <TextView
                         android:id="@+id/mobile_player_position"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFeatureSettings="tnum"
+                        android:shadowColor="#80000000"
+                        android:shadowRadius="3"
                         android:text="@string/mobile_player_time_default"
                         android:textColor="@android:color/white"
                         android:textSize="@dimen/mobile_player_time_text" />
-
-                    <!-- Time bar + SponsorBlock segment overlay share one cell so the colored
-                         ranges line up exactly with the scrubber track underneath. -->
-                    <FrameLayout
-                        android:layout_width="0dp"
-                        android:layout_height="32dp"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:layout_weight="1">
-
-                        <androidx.media3.ui.DefaultTimeBar
-                            android:id="@+id/mobile_player_time_bar"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            app:bar_height="3dp"
-                            app:buffered_color="#80FFFFFF"
-                            app:played_color="@color/mobile_color_primary"
-                            app:scrubber_color="@color/mobile_color_primary"
-                            app:scrubber_enabled_size="14dp"
-                            app:scrubber_dragged_size="18dp"
-                            app:unplayed_color="#4DFFFFFF" />
-
-                        <com.newtube.mobile.ui.playback.SeekBarSegmentsView
-                            android:id="@+id/mobile_player_segments"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:clickable="false"
-                            android:focusable="false" />
-
-                    </FrameLayout>
 
                     <TextView
                         android:id="@+id/mobile_player_duration"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFeatureSettings="tnum"
-                        android:text="@string/mobile_player_time_default"
+                        android:shadowColor="#80000000"
+                        android:shadowRadius="3"
                         android:textColor="@android:color/white"
-                        android:textSize="@dimen/mobile_player_time_text" />
+                        android:textSize="@dimen/mobile_player_time_text"
+                        tools:text=" / 4:26:52" />
 
                     <!-- Live streams only (toggled from onProgressTick): red at the live edge,
                          dimmed while rewound into the DVR window; tap = jump back to the edge. -->
@@ -331,6 +289,35 @@
                         android:textStyle="bold"
                         android:visibility="gone" />
 
+                    <FrameLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1">
+
+                        <TextView
+                            android:id="@+id/mobile_player_chapter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="start|center_vertical"
+                            android:background="@drawable/bg_mobile_player_chapter"
+                            android:drawableEnd="@drawable/ic_player_chapter_chevron"
+                            android:drawablePadding="2dp"
+                            android:ellipsize="end"
+                            android:gravity="center_vertical"
+                            android:maxLines="1"
+                            android:minHeight="32dp"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="4dp"
+                            android:shadowColor="#80000000"
+                            android:shadowRadius="3"
+                            android:textColor="@android:color/white"
+                            android:textSize="@dimen/mobile_player_time_text"
+                            android:visibility="gone"
+                            tools:text="· Working With Strings"
+                            tools:visibility="visible" />
+
+                    </FrameLayout>
+
                     <ImageButton
                         android:id="@+id/mobile_player_fullscreen"
                         android:layout_width="@dimen/mobile_player_icon_button"
@@ -343,9 +330,38 @@
 
                 </LinearLayout>
 
-                </LinearLayout>
-
             </FrameLayout>
+
+            <!-- NEWTUBE(seek bar): the seek bar, YouTube-style - outside the controls overlay so that
+                 in portrait it stays on the video's bottom edge as a thin progress line while the
+                 controls are hidden. Its dot hangs over the watch page below the video, which is
+                 why this box and mobile_watch_root draw their children unclipped (WatchRootLayout
+                 draws the video box last). Only the shown bar takes touches. -->
+            <com.newtube.mobile.ui.playback.PlayerTimeBar
+                android:id="@+id/mobile_player_time_bar"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/mobile_player_bar_height"
+                android:layout_gravity="bottom" />
+
+            <!-- While the bar is dragged: the time under the finger and its chapter, in a pill above
+                 the bar (the other controls step aside). -->
+            <TextView
+                android:id="@+id/mobile_player_scrub_chapter"
+                style="@style/MobilePlayerPill"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_marginBottom="@dimen/mobile_player_scrub_pill_margin"
+                android:visibility="gone"
+                tools:text="2:10:42   Dictionaries" />
+
+            <!-- Top pill: "Release to cancel" while a drag rests where playback was, "2x" while
+                 press-and-hold speeds the video up. -->
+            <TextView
+                android:id="@+id/mobile_player_top_pill"
+                style="@style/MobilePlayerPill"
+                android:layout_gravity="top|center_horizontal"
+                android:layout_marginTop="12dp"
+                android:visibility="gone"
+                tools:text="Release to cancel" />
 
             <!-- Center loading stack: the spinner plus (fresh installs only) the one-time-setup
                  hint shown while the first YouTube session is still being established. Both are
@@ -392,7 +408,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|center_horizontal"
-                android:layout_marginBottom="52dp"
+                android:layout_marginBottom="60dp"
                 android:ellipsize="end"
                 android:gravity="center"
                 android:maxLines="2"
@@ -1147,6 +1163,6 @@
 
         </FrameLayout>
 
-    </LinearLayout>
+    </com.newtube.mobile.ui.playback.WatchRootLayout>
 
 </com.newtube.mobile.ui.playback.PlayerContainerLayout>

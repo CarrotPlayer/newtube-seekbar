@@ -1416,6 +1416,8 @@ final class CommentsPanel implements CommentsAdapter.Listener, CommentsPanelLayo
         if (WatchActionFeedback.blockIfSignedOut(mActivity, R.string.mobile_comments_sign_in_to_like)) {
             return;
         }
+        // NEWTUBE(haptics): the like takes effect - the watch page's like clicks the same way.
+        com.newtube.mobile.ui.common.Haptics.click(mActivity.getWindow().getDecorView());
         boolean liked = !entry.liked;
         entry.liked = liked;
         String count = entry.likeCount;

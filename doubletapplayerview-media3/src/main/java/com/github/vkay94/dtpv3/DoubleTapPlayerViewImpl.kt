@@ -49,6 +49,23 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
 
     var doubleTapBeganListener: DoubleTapBeganListener? = null
 
+    /**
+     * NEWTUBE(hold-speed): press-and-hold on the video (YouTube's 2x). [onHoldStart] is asked when
+     * a still finger passes the long-press timeout - not during a double-tap seek - and answers
+     * whether it took the hold; [onHoldEnd] follows when that finger lifts or the touch is taken.
+     */
+    interface HoldListener {
+        fun onHoldStart(x: Float, y: Float): Boolean
+        fun onHoldEnd()
+    }
+
+    var holdListener: HoldListener? = null
+
+    private var isHolding = false
+
+    /** The finger that holds: its lift ends the hold even while another finger stays down. */
+    private var holdPointerId = MotionEvent.INVALID_POINTER_ID
+
     private val contentFrame: AspectRatioFrameLayout = AspectRatioFrameLayout(context)
     private val subtitleView: SubtitleView = SubtitleView(context)
 
@@ -148,8 +165,37 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
         gestureListener.cancelInDoubleTapMode()
     }
 
+    /** Called by the gesture listener: a still press passed the long-press timeout. */
+    private fun onLongPressed(e: MotionEvent) {
+        val listener = holdListener ?: return
+        if (gestureListener.isDoubleTapping || isHolding) {
+            return
+        }
+        if (listener.onHoldStart(e.x, e.y)) {
+            isHolding = true
+            holdPointerId = e.getPointerId(0)
+            // The hold owns this finger now: no swipe-to-minimize, no pinch taking it over.
+            parent?.requestDisallowInterceptTouchEvent(true)
+        }
+    }
+
+    private fun endHold() {
+        if (isHolding) {
+            isHolding = false
+            holdPointerId = MotionEvent.INVALID_POINTER_ID
+            holdListener?.onHoldEnd()
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (isHolding && (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL
+                    || (ev.actionMasked == MotionEvent.ACTION_POINTER_UP
+                        && ev.getPointerId(ev.actionIndex) == holdPointerId))) {
+            gestureDetector.onTouchEvent(ev)
+            endHold()
+            return true
+        }
         if (isDoubleTapEnabled) {
             gestureDetector.onTouchEvent(ev)
             // NEWTUBE(motion): a parent took the touch (drag, pinch) - the detector forgets its
@@ -191,6 +237,10 @@ open class DoubleTapPlayerViewImpl @JvmOverloads constructor(
             mHandler.removeCallbacks(mRunnable)
             isDoubleTapping = false
             controls?.onDoubleTapFinished()
+        }
+
+        override fun onLongPress(e: MotionEvent) {
+            rootView.onLongPressed(e)
         }
 
         override fun onDown(e: MotionEvent): Boolean {

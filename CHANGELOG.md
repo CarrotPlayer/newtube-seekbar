@@ -12,6 +12,29 @@ All notable user-facing changes to NewTube, the phone app built on SmartTube.
   away. Your own comments get a ⋮ menu with Delete, after a confirmation. A
   half-written comment waits for you until you change videos, and if posting
   fails the app says why and keeps your text.
+- **Chapters** ([#13](https://github.com/aleixrodriala/newtube/issues/13)).
+  A video's chapters show on the seek bar as small gaps, and the current
+  chapter's name sits after the time ("1:10 / 4:26:52 · Introduction ›"). Tap
+  it for the full list with a frame of each chapter, then tap a chapter to
+  jump to its start.
+- **Press and hold for 2x.** Hold a finger on the video to play it at double
+  speed; let go and it returns to your speed.
+
+### Changed
+
+- **A seek bar like YouTube's.** Thin, the full width of the video, on its
+  bottom edge, with a smaller dot, and easy to grab: a touch just above or
+  below it takes it, and a drag from the screen's edge moves it instead of
+  going back. With the controls hidden, a thin line keeps showing how far
+  along you are. While you drag it, the other controls
+  step aside, a label shows the time and chapter under your finger, a light
+  vibration marks each chapter, and dragging back to where you were snaps
+  there: let go to cancel.
+- **A player that answers your touch.** Play and pause morph into each
+  other; likes, dislikes and Subscribe give a short vibration; buttons that
+  had no press feedback now have it; tapping the tab you're on scrolls the
+  feed back to the top. Vibrations follow your phone's touch-vibration
+  setting.
 
 ## 1.12.0 — 2026-09-30 — Paco Martínez Soria Edition
 
