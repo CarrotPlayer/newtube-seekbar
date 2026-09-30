@@ -129,6 +129,7 @@ import com.newtube.mobile.downloads.DownloadRegistry;
 import com.newtube.mobile.SessionWarmup;
 import com.newtube.mobile.ui.common.FrameGate;
 import com.newtube.mobile.ui.common.Haptics;
+import com.newtube.mobile.ui.common.MagneticDrag;
 import com.newtube.mobile.ui.common.MobileActivity;
 import com.newtube.mobile.ui.common.Motion;
 import com.newtube.mobile.ui.common.ThemeMode;
@@ -4770,6 +4771,18 @@ public class MobilePlaybackActivity extends MobileActivity
     private long mInstantRevealAt;
     /** NEWTUBE(motion): finger travel for the whole drag (dragTravelFor); set when a drag begins. */
     private float mDragTravelPx = 1f;
+    /**
+     * NEWTUBE(haptics): the minimize drag sticks, then lets go with a click, like a notification on
+     * the Pixel (MagneticDrag): letting go past that click minimizes, before it springs back. The
+     * morph used to follow the finger from the first pixel and minimize past 30% of its travel
+     * (~185 dp on a Pixel 9); it now commits at the click, 72 dp.
+     */
+    @Nullable
+    private MagneticDrag mMinimizeMagnet;
+    /** NEWTUBE(haptics): a minimize drag is under the finger (from its first move to its release). */
+    private boolean mMagnetDragging;
+    /** NEWTUBE(haptics): a flick this fast (dp/s) minimizes even before the drag lets go. */
+    private static final float MINIMIZE_FLICK_DP = 800f;
     private static final long SETTLE_MIN_MS = 90;
     private static final long SETTLE_MAX_MS = 280;
     private boolean mMorphOverOwnBackdrop;
@@ -5048,11 +5061,36 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void onDismissDrag(float dy) {
-        if (mMorphFraction == 0f && dy > 0f) {
+        if (!mMagnetDragging) {
+            if (dy <= 0f) {
+                return;
+            }
+            mMagnetDragging = true;
             beginMinimizeMorph();
             mDragTravelPx = dragTravelFor(mContainer.getDownRawY());
+            minimizeMagnet().start();
         }
-        applyMorph(Math.min(1f, dy / mDragTravelPx));
+        minimizeMagnet().move(dy);
+    }
+
+    /** NEWTUBE(haptics): the magnet moves the morph; its position is finger travel in px. */
+    private MagneticDrag minimizeMagnet() {
+        if (mMinimizeMagnet == null) {
+            mMinimizeMagnet = new MagneticDrag(mContainer,
+                    position -> applyMorph(Math.max(0f, Math.min(1f, position / mDragTravelPx))));
+        }
+        return mMinimizeMagnet;
+    }
+
+    /** NEWTUBE(haptics): the finger let go (or was taken away): was the drag past its click? */
+    private boolean endMagnetDrag() {
+        if (!mMagnetDragging) {
+            return false;
+        }
+        mMagnetDragging = false;
+        MagneticDrag magnet = minimizeMagnet();
+        magnet.finish();
+        return magnet.isDetached();
     }
 
     /**
@@ -5079,6 +5117,7 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void onDismissDragCancelled() {
+        endMagnetDrag();
         settleMorph(0f, 0f, this::resetMorph);
     }
 
@@ -5114,9 +5153,17 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void onDismissDragReleased(float dy, float yVelocity) {
-        boolean dismiss = mMorphFraction > 0.3f || (yVelocity > 2200f && mMorphFraction > 0.08f);
-        if (yVelocity < -1200f) {
-            dismiss = false; // NEWTUBE(motion): flicked back up - the finger changed its mind
+        boolean dismiss;
+        if (endMagnetDrag()) {
+            // Past the click: it goes, unless flicked back up - the finger changed its mind.
+            dismiss = yVelocity >= -1200f;
+        } else {
+            // Still stuck: only a real flick down takes it, with the click it skipped (a flung
+            // notification clicks the same way).
+            dismiss = yVelocity > MINIMIZE_FLICK_DP * getResources().getDisplayMetrics().density;
+            if (dismiss) {
+                Haptics.threshold(mContainer, true);
+            }
         }
 
         if (!dismiss) {

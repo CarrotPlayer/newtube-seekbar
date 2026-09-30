@@ -40,6 +40,10 @@
     <!-- Video downloads run as a dataSync foreground service (the type Android 14 accepts for
          transfers); this is its API 34+ companion permission. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Drag haptics (ui/common/Haptics): the Pixel's own swipe feel is composed from vibration
+         primitives, which only the Vibrator plays - View.performHapticFeedback has no way to ask
+         for them. Normal, auto-granted permission. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- The in-app updater hands its APK straight to Android's installer (AppUpdates.systemInstaller):
          from Android 11 these queries make the installers visible, so apps that also open APK files

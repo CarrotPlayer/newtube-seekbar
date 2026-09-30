@@ -75,7 +75,7 @@
         <!-- Pull-to-refresh reloads the channel (ChannelPresenter.reload), like Home; the rows on
              screen stay until fresh ones land. Also the retry gesture over the failure state,
              which doesn't consume touches. -->
-        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        <com.newtube.mobile.ui.common.HapticSwipeRefreshLayout
             android:id="@+id/mobile_channel_swipe"
             android:layout_width="match_parent"
             android:layout_height="match_parent">
@@ -90,7 +90,7 @@
                 android:scrollbars="vertical"
                 tools:listitem="@layout/item_video_card" />
 
-        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+        </com.newtube.mobile.ui.common.HapticSwipeRefreshLayout>
 
         <!-- First page failed / came back empty: message + Try again (PageLoadState). -->
         <include layout="@layout/mobile_page_load_state" />
