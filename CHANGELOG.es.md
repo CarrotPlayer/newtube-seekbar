@@ -24,8 +24,10 @@ versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 ### Cambiado
 
 - **Una barra de progreso como la de YouTube.** Fina, de todo el ancho del
-  vídeo, en su borde inferior y con un punto más pequeño. Con los controles
-  ocultos, una línea fina sigue mostrando por dónde vas. Mientras la
+  vídeo, en su borde inferior, con un punto más pequeño y fácil de agarrar:
+  un toque justo encima o debajo la coge, y un arrastre desde el borde de la
+  pantalla la mueve en vez de ir atrás. Con los controles ocultos, una línea
+  fina sigue mostrando por dónde vas. Mientras la
   arrastras, el resto de controles se aparta, una etiqueta muestra el tiempo
   y el capítulo bajo el dedo, una vibración suave marca cada capítulo y, si
   vuelves a donde estabas, se queda ahí: suelta para cancelar.

@@ -23,8 +23,10 @@ All notable user-facing changes to NewTube, the phone app built on SmartTube.
 ### Changed
 
 - **A seek bar like YouTube's.** Thin, the full width of the video, on its
-  bottom edge, with a smaller dot. With the controls hidden, a thin line
-  keeps showing how far along you are. While you drag it, the other controls
+  bottom edge, with a smaller dot, and easy to grab: a touch just above or
+  below it takes it, and a drag from the screen's edge moves it instead of
+  going back. With the controls hidden, a thin line keeps showing how far
+  along you are. While you drag it, the other controls
   step aside, a label shows the time and chapter under your finger, a light
   vibration marks each chapter, and dragging back to where you were snaps
   there: let go to cancel.
