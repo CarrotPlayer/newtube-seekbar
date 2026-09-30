@@ -129,6 +129,8 @@ import com.newtube.mobile.downloads.DownloadOption;
 import com.newtube.mobile.downloads.DownloadRegistry;
 import com.newtube.mobile.SessionWarmup;
 import com.newtube.mobile.ui.common.MobileActivity;
+import com.newtube.mobile.ui.common.ThemeMode;
+import com.newtube.mobile.ui.common.ThemeRefresh;
 import com.newtube.mobile.ui.dialog.MaxHeightRecyclerView;
 
 import java.io.InputStream;
@@ -420,6 +422,7 @@ public class MobilePlaybackActivity extends MobileActivity
         super.onCreate(savedInstanceState);
 
         SystemPipBridge.attach(this);
+        sCurrent = new java.lang.ref.WeakReference<>(this);
 
         // A tapped card supplies its own geometry-driven open below. Suppress Android's whole-
         // window animation so it cannot fade/scale the custom thumbnail morph a second time.
@@ -575,6 +578,22 @@ public class MobilePlaybackActivity extends MobileActivity
 
     private boolean isInPipModeNow() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode();
+    }
+
+    /** NEWTUBE(theme): the one player instance, for {@link #isCoveringScreens}. */
+    private static java.lang.ref.WeakReference<MobilePlaybackActivity> sCurrent = new java.lang.ref.WeakReference<>(null);
+
+    /**
+     * NEWTUBE(theme): the full-window player is on screen (started, not minimized, not in PiP), so
+     * the screen under it is paused but visible. Relaunching that screen there is not safe: the
+     * relaunch passes through onResume, whose ViewManager.addTop drops the player from the view
+     * stack, and the next minimize never completed (a frozen morph over a blank page). A theme
+     * change waits for that screen's own onResume instead (MobileActivity.onThemeChanged).
+     */
+    public static boolean isCoveringScreens() {
+        MobilePlaybackActivity player = sCurrent.get();
+        return player != null && !player.mIsStopped && !player.isFinishing() && !player.isDestroyed()
+                && !player.isInPipModeNow();
     }
 
     /** Pinned as far as the launcher restore is concerned (see {@link #mPipStateStale}). */
@@ -1582,6 +1601,67 @@ public class MobilePlaybackActivity extends MobileActivity
         }
     }
 
+    /** NEWTUBE(theme): the status bar is over the black video band in both themes. */
+    @Override
+    protected boolean isStatusBarOverDarkContent() {
+        return true;
+    }
+
+    /**
+     * NEWTUBE(theme): a theme change must not restart the video (recreating this screen reopened
+     * it with a 0.5-0.8 s gap - why uiMode is in the manifest's configChanges), so the player
+     * changes side in place. The video area is dark in both themes and is left alone; the watch
+     * page under it - title, actions, description, cards, Up next, the comments panel - takes its
+     * colours from a fresh inflation of this layout under the new theme (ThemeRefresh), its lists
+     * rebuild their rows, and what code draws from state (thumbs, Save, Subscribe, Download) is
+     * drawn again. A sheet that happens to be open (gear and its pickers, cast, live chat) closes:
+     * it was built on the other side, and reopens on the new one.
+     */
+    @Override
+    protected boolean onThemeChanged(int night) {
+        for (java.lang.ref.WeakReference<BottomSheetDialog> ref : mShownSheets) {
+            BottomSheetDialog sheet = ref.get();
+            if (sheet != null && sheet.isShowing()) {
+                sheet.dismiss();
+            }
+        }
+        mShownSheets.clear();
+        for (androidx.fragment.app.Fragment fragment : getSupportFragmentManager().getFragments()) {
+            if (fragment instanceof androidx.fragment.app.DialogFragment) {
+                ((androidx.fragment.app.DialogFragment) fragment).dismissAllowingStateLoss();
+            }
+        }
+        ThemeMode.syncResources(this, night);
+        View liveArea = findViewById(R.id.mobile_watch_area);
+        if (liveArea == null) {
+            return true;
+        }
+        int scrollY = mWatchScroll != null ? mWatchScroll.getScrollY() : 0;
+        View fresh = getLayoutInflater().inflate(R.layout.activity_mobile_playback, new FrameLayout(this), false);
+        View freshArea = fresh.findViewById(R.id.mobile_watch_area);
+        List<RecyclerView> lists = new ArrayList<>();
+        int skipped = freshArea != null ? ThemeRefresh.copyColors(liveArea, freshArea, lists) : 1;
+        if (mCommentsPanel != null) {
+            mCommentsPanel.onThemeChanged(); // before its rows are rebound
+        }
+        for (RecyclerView list : lists) {
+            ThemeRefresh.rebuildRows(list);
+        }
+        for (int id : new int[] {R.id.action_thumbs_up, R.id.action_thumbs_down, R.id.action_playlist_add,
+                R.id.action_subscribe}) {
+            updateButtonVisual(id, getButtonState(id));
+        }
+        updateDownloadPill();
+        if (!mIsInPip) {
+            applySystemBarsForOrientation(getResources().getConfiguration().orientation);
+        }
+        if (mWatchScroll != null && scrollY > 0) {
+            mWatchScroll.post(() -> mWatchScroll.scrollTo(0, scrollY));
+        }
+        NetPath.log("theme player in-place lists=" + lists.size() + " skipped=" + skipped);
+        return true;
+    }
+
     private void handleBack() {
         if (mPresenter != null) {
             mPresenter.onFinish();
@@ -1713,6 +1793,10 @@ public class MobilePlaybackActivity extends MobileActivity
             applyDisplayCutoutMode(true);
             // Immersive full-bleed video (PLAYER POLISH behaviour).
             Helpers.makeActivityFullscreen2(this);
+            if (ThemeMode.isLight(this)) {
+                // NEWTUBE(theme): all video - not the light portrait backdrop's white page band.
+                getWindow().getDecorView().setBackgroundColor(Color.BLACK);
+            }
         } else {
             applyDisplayCutoutMode(false);
             // Watch page: standard phone chrome (solid status bar, video box below it -
@@ -1728,7 +1812,14 @@ public class MobilePlaybackActivity extends MobileActivity
             // minimize morph animates this drawable's alpha so it does not become an opaque black
             // wall between the shrinking player and the translucent window's live backdrop.
             Window window = getWindow();
-            window.getDecorView().setBackgroundColor(Color.BLACK);
+            if (ThemeMode.isLight(this)) {
+                // NEWTUBE(theme): black only behind the status bar; the navigation-bar band takes
+                // the white page's colour instead of drawing a black strip under it.
+                window.getDecorView().setBackground(new WatchBackdropDrawable(window.getDecorView(),
+                        Color.BLACK, getColorInt(R.color.mobile_color_background)));
+            } else {
+                window.getDecorView().setBackgroundColor(Color.BLACK);
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 window.setStatusBarContrastEnforced(false);
             }
@@ -1871,6 +1962,10 @@ public class MobilePlaybackActivity extends MobileActivity
     private void applyPipVideoOnlyLayout() {
         cancelAutoHide();
         hideControls();
+        // NEWTUBE(theme): the pinned window is all video - black behind it in both themes (the
+        // light theme's portrait backdrop is white below the status band). The exit restores it
+        // through applySystemBarsForOrientation.
+        getWindow().getDecorView().setBackgroundColor(Color.BLACK);
         // Defensive surface repair: a task/mini-player hand-off can leave the Activity-owned
         // TextureView detached for a frame. PiP must never snapshot the watch UI with no video
         // consumer. Do not steal a texture that is legitimately owned by an active mini card.
@@ -2428,7 +2523,8 @@ public class MobilePlaybackActivity extends MobileActivity
             return;
         }
         if (mCastSessionManager != null && mCastSessionManager.isConnected()) {
-            mCastButton.setColorFilter(getColorInt(R.color.mobile_color_cast_active));
+            // The player's own (fixed) blue: this icon is over the video in both themes.
+            mCastButton.setColorFilter(getColorInt(R.color.mobile_player_cast_active));
         } else {
             mCastButton.clearColorFilter();
         }
@@ -3191,7 +3287,17 @@ public class MobilePlaybackActivity extends MobileActivity
      * mirrored onto its window (focus is restored right after, per the standard immersive-dialog
      * recipe) so the bars stay hidden.
      */
+    /** NEWTUBE(theme): the sheets shown over this screen, closed by a theme change (onThemeChanged). */
+    private final List<java.lang.ref.WeakReference<BottomSheetDialog>> mShownSheets = new ArrayList<>();
+
     private void showPlayerSheet(BottomSheetDialog dialog) {
+        for (int i = mShownSheets.size() - 1; i >= 0; i--) {
+            BottomSheetDialog shown = mShownSheets.get(i).get();
+            if (shown == null || !shown.isShowing()) {
+                mShownSheets.remove(i);
+            }
+        }
+        mShownSheets.add(new java.lang.ref.WeakReference<>(dialog));
         Window window = dialog.getWindow();
         boolean immersive = isLandscape();
         if (immersive && window != null) {
@@ -5908,10 +6014,12 @@ public class MobilePlaybackActivity extends MobileActivity
             }
         } else if (buttonId == R.id.action_subscribe && mWatchSubscribe != null) {
             mWatchSubscribe.setText(on ? R.string.mobile_watch_subscribed : R.string.mobile_watch_subscribe);
+            // NEWTUBE(theme): the main-action pill while not subscribed (white on the dark page,
+            // near-black on the light one), the quiet grey once subscribed.
             mWatchSubscribe.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                    getColorInt(on ? R.color.mobile_color_subscribed_button : android.R.color.white)));
+                    getColorInt(on ? R.color.mobile_color_subscribed_button : R.color.mobile_color_inverse_surface)));
             mWatchSubscribe.setTextColor(getColorInt(on
-                    ? R.color.mobile_color_on_surface : android.R.color.black));
+                    ? R.color.mobile_color_on_surface : R.color.mobile_color_on_inverse_surface));
         }
     }
 

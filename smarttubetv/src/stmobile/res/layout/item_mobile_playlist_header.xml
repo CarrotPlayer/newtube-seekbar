@@ -116,20 +116,20 @@
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
-                android:backgroundTint="@android:color/white"
+                android:backgroundTint="@color/mobile_color_inverse_surface"
                 android:fontFamily="sans-serif-medium"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:minHeight="48dp"
                 android:text="@string/mobile_playlist_play_all"
                 android:textAllCaps="false"
-                android:textColor="@android:color/black"
+                android:textColor="@color/mobile_color_on_inverse_surface"
                 android:textSize="15sp"
                 app:cornerRadius="24dp"
                 app:icon="@drawable/ic_player_play"
                 app:iconGravity="textStart"
                 app:iconSize="20dp"
-                app:iconTint="@android:color/black" />
+                app:iconTint="@color/mobile_color_on_inverse_surface" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/mobile_channel_uploads_shuffle"

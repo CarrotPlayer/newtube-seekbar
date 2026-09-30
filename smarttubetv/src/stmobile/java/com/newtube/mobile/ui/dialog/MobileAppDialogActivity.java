@@ -422,6 +422,22 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         mScrim.setVisibility(View.VISIBLE);
         mHandle.setVisibility(View.VISIBLE);
         mContent.setBackgroundResource(R.drawable.bg_mobile_sheet);
+        // NEWTUBE(theme): in the light theme the sheet window draws edge to edge, so the scrim also
+        // dims the status-bar band (a fitted window left it as an undimmed white strip over the
+        // dimmed page, or over the player's black video band) and its icons are light over it; the
+        // sheet's surface runs under the navigation bar, whose icons keep the theme's. Only the
+        // appearance changes: the bars' visibility stays the caller's. The dark theme keeps its
+        // fitted #0F0F0F band, as it always had.
+        if (com.newtube.mobile.ui.common.ThemeMode.isLight(this)) {
+            android.view.Window window = getWindow();
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false);
+            window.setStatusBarColor(android.graphics.Color.TRANSPARENT);
+            // Below Android 8.1 the navigation buttons can't turn dark: keep the black bar there.
+            window.setNavigationBarColor(Build.VERSION.SDK_INT >= 27 ? android.graphics.Color.TRANSPARENT
+                    : ContextCompat.getColor(this, R.color.mobile_color_navigation_bar));
+            androidx.core.view.WindowCompat.getInsetsController(window, window.getDecorView())
+                    .setAppearanceLightStatusBars(false);
+        }
 
         // Anchor the content to the bottom and size it to its content.
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mContent.getLayoutParams();

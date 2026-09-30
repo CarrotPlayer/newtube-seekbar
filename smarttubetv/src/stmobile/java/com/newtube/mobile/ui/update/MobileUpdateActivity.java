@@ -186,9 +186,28 @@ public class MobileUpdateActivity extends MobileActivity implements AppUpdates.L
             refresh(mMode);
             mUpdates.markSeen();
         }
+        // NEWTUBE(theme): a recreation (a theme change, say) keeps the user's Update tap and the
+        // trip to "Install unknown apps", so the install still follows on its own.
+        if (savedInstanceState != null) {
+            mInstallWhenReady |= savedInstanceState.getBoolean(STATE_INSTALL_WHEN_READY);
+            mAskingPermission = savedInstanceState.getBoolean(STATE_ASKING_PERMISSION);
+            mAwaitingPermission = savedInstanceState.getBoolean(STATE_AWAITING_PERMISSION);
+        }
 
         render();
         mSheet.show();
+    }
+
+    private static final String STATE_INSTALL_WHEN_READY = "newtube:update_install_when_ready";
+    private static final String STATE_ASKING_PERMISSION = "newtube:update_asking_permission";
+    private static final String STATE_AWAITING_PERMISSION = "newtube:update_awaiting_permission";
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(STATE_INSTALL_WHEN_READY, mInstallWhenReady);
+        outState.putBoolean(STATE_ASKING_PERMISSION, mAskingPermission);
+        outState.putBoolean(STATE_AWAITING_PERMISSION, mAwaitingPermission);
     }
 
     @Override

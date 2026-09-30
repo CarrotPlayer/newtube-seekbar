@@ -58,6 +58,9 @@ public class MainUISettingsPresenter extends BasePresenter<Void> {
     public void show() {
         AppDialogPresenter settingsPresenter = AppDialogPresenter.instance(getContext());
 
+        if (sPhoneTopRows != null) {
+            sPhoneTopRows.append(getContext(), settingsPresenter);
+        }
         appendThumbSource(settingsPresenter);
         //appendCardTitleLines(settingsPresenter);
         appendChannelSortingCategory(settingsPresenter);
@@ -67,6 +70,18 @@ public class MainUISettingsPresenter extends BasePresenter<Void> {
         appendMiscCategory(settingsPresenter);
 
         settingsPresenter.showDialog(getContext().getString(R.string.dialog_main_ui), mOnFinish);
+    }
+
+    /** NEWTUBE(theme): rows the phone app puts at the top of User interface (its Theme setting). */
+    public interface ExtraRows {
+        void append(Context context, AppDialogPresenter settingsPresenter);
+    }
+
+    /** Phone gate: set once from MobileMainApplication; the TV flavors never set it. */
+    private static ExtraRows sPhoneTopRows;
+
+    public static void setPhoneTopRows(ExtraRows rows) {
+        sPhoneTopRows = rows;
     }
 
     private void appendCardTitleLines(AppDialogPresenter settingsPresenter) {

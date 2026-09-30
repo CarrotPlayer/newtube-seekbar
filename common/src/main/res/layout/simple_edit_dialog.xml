@@ -20,5 +20,5 @@
         android:textColor="@color/dialog_text_color"
         android:textCursorDrawable="@null"
         android:backgroundTint="@color/dialog_text_color"
-        android:textColorHint="@color/white_20" />
+        android:textColorHint="@color/dialog_hint_color" />
 </LinearLayout>

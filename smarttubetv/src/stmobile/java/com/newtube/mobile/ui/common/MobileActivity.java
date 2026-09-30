@@ -1,5 +1,6 @@
 package com.newtube.mobile.ui.common;
 
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -43,16 +44,119 @@ import com.newtube.mobile.ui.playback.MiniPlayerBridge;
  */
 public abstract class MobileActivity extends MotherActivity {
 
+    /**
+     * NEWTUBE(theme): the night bits this screen's views were built with (see {@link #checkTheme}).
+     */
+    private int mThemedNight;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         MobileSnackbar.install(getApplication()); // NEWTUBE(snackbar): tracks the screen in front
+        mThemedNight = ThemeMode.currentNight(this);
+        ThemeMode.register(this);
     }
+
+    @Override
+    protected void onDestroy() {
+        ThemeMode.unregister(this);
+        super.onDestroy();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        checkTheme();
+    }
+
+    /**
+     * NEWTUBE(theme): brings this screen to the side the Theme setting wants now. Every touch screen
+     * lists uiMode in its manifest configChanges, so neither a system day/night switch nor the
+     * setting relaunches anything by itself; this is called on every configuration change, on
+     * resume, and by {@link ThemeMode#set} for each open screen. A screen whose views are on the
+     * other side is rebuilt by {@link #onThemeChanged}; one whose views are right but whose
+     * resources were reset to the override it was created with (the player, after an in-place
+     * change) only gets its resources put back.
+     */
+    public final void checkTheme() {
+        if (isFinishing() || isDestroyed() || mRecreating) {
+            return;
+        }
+        int desired = ThemeMode.desiredNight(this);
+        if (desired == mThemedNight) {
+            ThemeMode.syncResources(this, desired);
+            return;
+        }
+        com.liskovsoft.smartyoutubetv2.common.misc.NetPath.log("theme screen=" + getClass().getSimpleName()
+                + " night=" + (desired == Configuration.UI_MODE_NIGHT_YES ? "y" : "n"));
+        if (onThemeChanged(desired)) {
+            mThemedNight = desired;
+        }
+    }
+
+    /**
+     * Rebuild this screen for the other side. Default: recreate it, which creates it again under
+     * the new override (screens already keep their state across a recreation: Browse its You
+     * panel, Settings its level stack). The player overrides this to keep playing.
+     *
+     * @return true if the views now show {@code night} (a recreation returns false: this instance
+     * is going away)
+     */
+    protected boolean onThemeChanged(int night) {
+        if (!mResumed && com.newtube.mobile.ui.playback.MobilePlaybackActivity.isCoveringScreens()) {
+            // Paused under the full-window player: relaunched there, this screen would pass
+            // through onResume and take the player's place in ViewManager's stack (see
+            // isCoveringScreens). Its own next onResume brings it over instead.
+            com.liskovsoft.smartyoutubetv2.common.misc.NetPath.log("theme screen=" + getClass().getSimpleName()
+                    + " deferred reason=under-player");
+            return false;
+        }
+        mRecreating = true; // one relaunch, however many checks run before it happens
+        recreate();
+        return false;
+    }
+
+    private boolean mRecreating;
+    private boolean mResumed;
 
     @Override
     public void setContentView(int layoutResID) {
         super.setContentView(layoutResID);
+        mContentLayoutId = layoutResID;
         installContentInsets();
+    }
+
+    /** NEWTUBE(theme): the layout {@link #recolourInPlace} inflates again. */
+    private int mContentLayoutId;
+
+    /**
+     * NEWTUBE(theme): changes this screen's side without recreating it, for a screen whose live
+     * state a recreation would lose (the sign-in and pairing screens restart their code and its
+     * poll): resources and theme first, then the colours of a fresh inflation of the same layout
+     * copied onto the live views (ThemeRefresh), the window background and the bars.
+     *
+     * @return false if the content isn't a plain setContentView(layout) tree (recreate instead)
+     */
+    protected final boolean recolourInPlace(int night) {
+        android.view.ViewGroup content = findViewById(android.R.id.content);
+        if (mContentLayoutId == 0 || content == null || content.getChildCount() != 1) {
+            return false;
+        }
+        ThemeMode.syncResources(this, night);
+        View fresh = getLayoutInflater().inflate(mContentLayoutId, content, false);
+        java.util.List<androidx.recyclerview.widget.RecyclerView> lists = new java.util.ArrayList<>();
+        int skipped = ThemeRefresh.copyColors(content.getChildAt(0), fresh, lists);
+        for (androidx.recyclerview.widget.RecyclerView list : lists) {
+            ThemeRefresh.rebuildRows(list);
+        }
+        android.content.res.TypedArray window = getTheme().obtainStyledAttributes(
+                new int[] {android.R.attr.windowBackground});
+        getWindow().setBackgroundDrawable(window.getDrawable(0));
+        window.recycle();
+        applyFullscreenModeIfNeeded();
+        com.liskovsoft.smartyoutubetv2.common.misc.NetPath.log("theme screen=" + getClass().getSimpleName()
+                + " in-place skipped=" + skipped);
+        return true;
     }
 
     /**
@@ -172,10 +276,16 @@ public abstract class MobileActivity extends MotherActivity {
         // they join THIS task). Without it, app-context NEW_TASK launches resolve by affinity
         // and can land inside the player's pinned picture-in-picture task.
         ViewManager.setForegroundActivity(this);
+
+        // NEWTUBE(theme): a screen that was in the back stack (or under the player) when the
+        // theme changed.
+        mResumed = true;
+        checkTheme();
     }
 
     @Override
     protected void onPause() {
+        mResumed = false;
         super.onPause();
 
         ViewManager.unsetForegroundActivity(this);
@@ -256,7 +366,7 @@ public abstract class MobileActivity extends MotherActivity {
 
     /**
      * Standard phone window chrome: status + navigation bars visible, painted with the app
-     * background, white icons (dark theme), and the decor fitting system windows so layouts
+     * background, icons that contrast with it, and the decor fitting system windows so layouts
      * never end up under the bars. Idempotent - safe to call on resume/rotation.
      *
      * <p>Half of this only reaches Android 15 and below. From targetSdk 36 the platform ignores
@@ -278,24 +388,45 @@ public abstract class MobileActivity extends MotherActivity {
         window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
 
-        int barColor = ContextCompat.getColor(this, R.color.mobile_color_background);
-        window.setStatusBarColor(barColor);
-        window.setNavigationBarColor(barColor);
+        window.setStatusBarColor(ContextCompat.getColor(this, R.color.mobile_color_background));
+        // NEWTUBE(theme): the page colour, except black below Android 8.1 in the light theme -
+        // those can't draw dark navigation buttons (mobile_color_navigation_bar).
+        window.setNavigationBarColor(ContextCompat.getColor(this, R.color.mobile_color_navigation_bar));
 
+        // NEWTUBE(theme): dark icons over the light theme's white bars, light ones over the dark
+        // theme's (and over the player's black status band in both - isStatusBarOverDarkContent).
+        boolean lightTheme = ThemeMode.isLight(this);
+        boolean darkStatusIcons = lightTheme && !isStatusBarOverDarkContent();
+        boolean darkNavigationIcons = lightTheme && Build.VERSION.SDK_INT >= 27;
         if (Build.VERSION.SDK_INT >= 30) {
             window.setDecorFitsSystemWindows(true);
             WindowInsetsController controller = window.getInsetsController();
             if (controller != null) {
                 controller.show(WindowInsets.Type.systemBars());
                 controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_DEFAULT);
-                // Dark backgrounds -> keep light (white) status/navigation icons.
                 controller.setSystemBarsAppearance(
-                        0,
+                        (darkStatusIcons ? WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS : 0)
+                                | (darkNavigationIcons ? WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0),
                         WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                                 | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
             }
         } else {
-            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+            int flags = View.SYSTEM_UI_FLAG_VISIBLE;
+            if (darkStatusIcons) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            }
+            if (darkNavigationIcons) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            }
+            getWindow().getDecorView().setSystemUiVisibility(flags);
         }
+    }
+
+    /**
+     * NEWTUBE(theme): true while this screen draws something dark behind the status bar whatever
+     * the theme (the player's black video band), so its status icons stay light.
+     */
+    protected boolean isStatusBarOverDarkContent() {
+        return false;
     }
 }

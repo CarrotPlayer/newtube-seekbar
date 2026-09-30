@@ -75,7 +75,7 @@
         android:layout_marginTop="20dp"
         android:visibility="gone"
         app:indicatorColor="@color/mobile_color_progress"
-        app:trackColor="@color/mobile_color_progress_track"
+        app:trackColor="@color/mobile_color_track"
         app:trackCornerRadius="2dp"
         app:trackThickness="4dp"
         tools:visibility="visible" />

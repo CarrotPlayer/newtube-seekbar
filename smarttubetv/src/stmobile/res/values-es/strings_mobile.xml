@@ -378,4 +378,8 @@
     <string name="mobile_update_row_ready">Actualización lista para instalar</string>
     <string name="mobile_update_channel_name">Actualizaciones de la app</string>
     <string name="mobile_update_channel_desc">Descarga de una actualización de NewTube</string>
+    <string name="mobile_theme">Tema</string>
+    <string name="mobile_theme_system">Predeterminado del sistema</string>
+    <string name="mobile_theme_light">Claro</string>
+    <string name="mobile_theme_dark">Oscuro</string>
 </resources>
