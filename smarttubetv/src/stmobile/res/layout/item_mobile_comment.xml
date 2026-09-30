@@ -6,6 +6,8 @@
   top-level comment. The action row is 48dp tall to the finger (bg_comment_action draws the 36dp
   pill); its negative margins keep the 36dp look. The replies page's comment reuses this layout
   on a lighter ground (CommentsAdapter.TYPE_PARENT).
+  NEWTUBE(write-comments): a Reply button after the like, and a ⋮ at the end of the person's own
+  comments (Delete).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -150,6 +152,24 @@
 
             </LinearLayout>
 
+            <FrameLayout
+                android:id="@+id/comment_reply"
+                android:layout_width="48dp"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_comment_action"
+                android:clickable="true"
+                android:contentDescription="@string/mobile_comments_reply"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_comment_reply" />
+
+            </FrameLayout>
+
             <LinearLayout
                 android:id="@+id/comment_replies"
                 android:layout_width="wrap_content"
@@ -188,5 +208,19 @@
         </LinearLayout>
 
     </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/comment_more"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginTop="-10dp"
+        android:layout_marginEnd="-10dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/mobile_comments_more"
+        android:padding="10dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_mobile_more_vert"
+        android:visibility="gone"
+        tools:visibility="visible" />
 
 </LinearLayout>

@@ -90,6 +90,28 @@
     <string name="mobile_comments_unlike">Remove like</string>
     <string name="mobile_comments_liked">Liked</string>
     <string name="mobile_comments_sign_in_to_like">Sign in to like comments</string>
+    <!-- NEWTUBE(write-comments) -->
+    <string name="mobile_comments_add_hint">Add a comment&#8230;</string>
+    <string name="mobile_comments_reply_hint">Add a reply&#8230;</string>
+    <string name="mobile_comments_reply">Reply</string>
+    <string name="mobile_comments_post">Post</string>
+    <string name="mobile_comments_posted">Comment posted</string>
+    <string name="mobile_comments_reply_posted">Reply posted</string>
+    <string name="mobile_comments_view_reply">View</string>
+    <string name="mobile_comments_post_failed">Couldn\'t post your comment</string>
+    <string name="mobile_comments_post_failed_reason">Couldn\'t post: %1$s</string>
+    <string name="mobile_comments_try_again">Try again</string>
+    <string name="mobile_comments_sign_in_to_comment">Sign in to comment</string>
+    <string name="mobile_comments_more">More actions</string>
+    <string name="mobile_comments_delete">Delete</string>
+    <string name="mobile_comments_delete_title">Delete comment?</string>
+    <string name="mobile_comments_delete_reply_title">Delete reply?</string>
+    <string name="mobile_comments_delete_message">It will be removed for everyone.</string>
+    <string name="mobile_comments_delete_cancel">Cancel</string>
+    <string name="mobile_comments_deleted">Comment deleted</string>
+    <string name="mobile_comments_delete_failed">Couldn\'t delete the comment</string>
+    <string name="mobile_comments_one_reply">1 reply</string>
+    <string name="mobile_comments_n_replies">%1$d replies</string>
 
     <!-- Live chat panel (bottom sheet) -->
     <string name="mobile_live_chat_entry">Live chat</string>

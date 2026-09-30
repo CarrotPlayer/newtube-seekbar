@@ -177,6 +177,28 @@
     <string name="mobile_comments_unlike">Quitar me gusta</string>
     <string name="mobile_comments_liked">Te gusta</string>
     <string name="mobile_comments_sign_in_to_like">Inicia sesión para dar me gusta a los comentarios</string>
+    <!-- NEWTUBE(write-comments) -->
+    <string name="mobile_comments_add_hint">Añade un comentario&#8230;</string>
+    <string name="mobile_comments_reply_hint">Añade una respuesta&#8230;</string>
+    <string name="mobile_comments_reply">Responder</string>
+    <string name="mobile_comments_post">Publicar</string>
+    <string name="mobile_comments_posted">Comentario publicado</string>
+    <string name="mobile_comments_reply_posted">Respuesta publicada</string>
+    <string name="mobile_comments_view_reply">Ver</string>
+    <string name="mobile_comments_post_failed">No se ha podido publicar el comentario</string>
+    <string name="mobile_comments_post_failed_reason">No se ha podido publicar: %1$s</string>
+    <string name="mobile_comments_try_again">Reintentar</string>
+    <string name="mobile_comments_sign_in_to_comment">Inicia sesión para comentar</string>
+    <string name="mobile_comments_more">Más acciones</string>
+    <string name="mobile_comments_delete">Eliminar</string>
+    <string name="mobile_comments_delete_title">¿Eliminar el comentario?</string>
+    <string name="mobile_comments_delete_reply_title">¿Eliminar la respuesta?</string>
+    <string name="mobile_comments_delete_message">Se eliminará para todos.</string>
+    <string name="mobile_comments_delete_cancel">Cancelar</string>
+    <string name="mobile_comments_deleted">Comentario eliminado</string>
+    <string name="mobile_comments_delete_failed">No se ha podido eliminar el comentario</string>
+    <string name="mobile_comments_one_reply">1 respuesta</string>
+    <string name="mobile_comments_n_replies">%1$d respuestas</string>
 
     <!-- Live chat -->
     <string name="mobile_live_chat_entry">Chat en directo</string>
