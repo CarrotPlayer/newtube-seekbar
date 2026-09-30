@@ -10,7 +10,7 @@ Background playback with the screen off, picture-in-picture, and a mini-player y
 Pick a quality up to 1080p, or keep only the audio. Saved videos play in the same player with no connection.
 
 <b>Less noise</b>
-SponsorBlock skips sponsor segments, DeArrow swaps clickbait titles and thumbnails, and Return YouTube Dislike shows estimated dislike counts. Shorts are hidden in Home and Subscriptions.
+SponsorBlock skips sponsor segments, DeArrow swaps clickbait titles and thumbnails, and Return YouTube Dislike shows estimated dislike counts. There are no Shorts anywhere in the app.
 
 <b>Works with SmartTube on your TV</b>
 Pair with SmartTube on the TV using its Remote control code, play straight to a Chromecast from the phone (no live streams or subtitles in that mode), or use the TV's own YouTube app.
