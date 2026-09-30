@@ -1,3 +1,9 @@
+> [!WARNING]
+> **Archived July 2026 plan — do not reuse any copy from this folder.** It predates the
+> 2026-09-27 positioning and the legal copy rules (no "ad-free"/"no ads"/"without Premium",
+> "save for offline", no "only"/"first" claims) and many files break them. The live launch
+> plan and drafts are kept outside the repo (owner's `newtube-launch` folder).
+
 # NewTube — Go-to-Market package
 
 Everything for launching **NewTube** — *"SmartTube, but for your Android phone"* — a free,
