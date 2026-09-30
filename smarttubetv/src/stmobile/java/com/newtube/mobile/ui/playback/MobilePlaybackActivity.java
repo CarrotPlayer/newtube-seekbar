@@ -4997,6 +4997,9 @@ public class MobilePlaybackActivity extends MobileActivity
             mMorphAnimator.cancel();
             mMorphAnimator = null;
         }
+        // NEWTUBE(haptics): a drag cut short without its release (onStop mid-drag) must not keep
+        // its gap spring moving the box, nor leave the next drag thinking it already began.
+        endMagnetDrag();
         // Drag cancelled (or undone by the in-PiP guard): this window owns the video again, so
         // re-arm the standing auto-enter flag the drag turned off.
         if (mDismissDragActive) {
@@ -5162,7 +5165,12 @@ public class MobilePlaybackActivity extends MobileActivity
             return;
         }
         float travel = Math.max(1f, mDragTravelPx);
+        // The curve's own start speed, or the finger's if faster - but never faster than the curve
+        // ever started (its shortest, 90 ms): an unbounded flick in a short window (landscape,
+        // tablet) sprang far enough past the card to shrink the box through zero. Capped, the
+        // overshoot stays under 1.5% of the travel for any window.
         float launch = Math.max(yVelocity / travel, 2f * distance * 1000f / durationMs); // fraction/s
+        launch = Math.min(launch, 2f * distance * 1000f / SETTLE_MIN_MS);
         Motion.Spring spring = new Motion.Spring(mMorphFraction, to, launch,
                 SETTLE_LAND_STIFFNESS, SETTLE_LAND_DAMPING, 1f / travel);
         animateMorph(to, spring.durationMs, spring, endAction);
@@ -5181,6 +5189,9 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void onDismissDragReleased(float dy, float yVelocity) {
+        if (mMagnetDragging) {
+            minimizeMagnet().move(dy); // where the finger lifted, which a last MOVE may not have said
+        }
         boolean dismiss;
         if (endMagnetDrag()) {
             // Past the click: it goes, unless flicked back up - the finger changed its mind.

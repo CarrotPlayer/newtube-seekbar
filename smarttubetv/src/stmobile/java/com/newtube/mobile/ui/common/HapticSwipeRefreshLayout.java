@@ -39,6 +39,8 @@ public class HapticSwipeRefreshLayout extends SwipeRefreshLayout {
     private static Field sIsBeingDragged;
     @Nullable
     private static Field sInitialMotionY;
+    @Nullable
+    private static Field sActivePointerId;
 
     /** The pull is past the refresh point: letting go now refreshes. */
     private boolean mEngaged;
@@ -79,7 +81,7 @@ public class HapticSwipeRefreshLayout extends SwipeRefreshLayout {
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
             mEngaged = false;
         } else if (action == MotionEvent.ACTION_MOVE) {
-            follow(touchPull(ev.getY()));
+            follow(touchPull(ev));
         }
         return handled;
     }
@@ -110,14 +112,22 @@ public class HapticSwipeRefreshLayout extends SwipeRefreshLayout {
         return readFloat(sTotalUnconsumed);
     }
 
-    /** How far a pull caught by this layout itself has gone (px), or -1 when it is not dragging. */
-    private float touchPull(float y) {
+    /**
+     * How far a pull caught by this layout itself has gone (px), or -1 when it is not dragging.
+     * Measured on the finger SwipeRefreshLayout follows: a second finger takes the pull over.
+     */
+    private float touchPull(MotionEvent ev) {
         lookUp();
         try {
-            if (sIsBeingDragged == null || sInitialMotionY == null || !sIsBeingDragged.getBoolean(this)) {
+            if (sIsBeingDragged == null || sInitialMotionY == null || sActivePointerId == null
+                    || !sIsBeingDragged.getBoolean(this)) {
                 return -1f;
             }
-            return (y - sInitialMotionY.getFloat(this)) * DRAG_RATE;
+            int index = ev.findPointerIndex(sActivePointerId.getInt(this));
+            if (index < 0) {
+                return -1f;
+            }
+            return (ev.getY(index) - sInitialMotionY.getFloat(this)) * DRAG_RATE;
         } catch (IllegalAccessException e) {
             return -1f;
         }
@@ -144,6 +154,7 @@ public class HapticSwipeRefreshLayout extends SwipeRefreshLayout {
         sTotalDragDistance = field("mTotalDragDistance");
         sIsBeingDragged = field("mIsBeingDragged");
         sInitialMotionY = field("mInitialMotionY");
+        sActivePointerId = field("mActivePointerId");
     }
 
     @Nullable
