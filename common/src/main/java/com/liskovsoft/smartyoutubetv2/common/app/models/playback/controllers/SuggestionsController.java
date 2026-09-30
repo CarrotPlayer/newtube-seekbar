@@ -570,10 +570,16 @@ public class SuggestionsController extends BasePlayerController {
 
         MediaGroup mediaGroup = group.getMediaGroup();
 
+        // NEWTUBE(related-more): on the touch watch page the player's progress bar is the video's
+        // buffering spinner; a quiet page must not hide it when the video happens to be buffering.
+        boolean hideWhenDone = showLoading || !sRowContinuationsDisabled;
+
         Disposable continueAction = contentService().continueGroupObserve(mediaGroup)
                 .subscribe(
                         continueMediaGroup -> {
-                            getPlayer().showProgressBar(false);
+                            if (hideWhenDone) {
+                                getPlayer().showProgressBar(false);
+                            }
 
                             VideoGroup videoGroup = VideoGroup.from(group, continueMediaGroup);
                             getPlayer().updateSuggestions(videoGroup);
@@ -589,12 +595,12 @@ public class SuggestionsController extends BasePlayerController {
                         },
                         error -> {
                             Log.e(TAG, "continueGroup error: %s", error.getMessage());
-                            if (getPlayer() != null) {
+                            if (hideWhenDone && getPlayer() != null) {
                                 getPlayer().showProgressBar(false);
                             }
                         },
                         () -> {
-                            if (getPlayer() != null) {
+                            if (hideWhenDone && getPlayer() != null) {
                                 getPlayer().showProgressBar(false);
                             }
                         }

@@ -1016,7 +1016,6 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                                 mHomeWalkDelivered = true;
                                 mPendingScrollEndItem = null; // the grid grew; the view re-triggers if needed
                             }
-                            mTailDemanded = false; // likewise: a short grid asks again after this page
 
                             filterHomeIfNeeded(mediaGroups);
 
@@ -1052,6 +1051,12 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                             HomeSectionPacer pacer = sHomePacer;
                             if (pacedHome && !pageHadRows && pacer != null) {
                                 pacer.demand();
+                            }
+                            // NEWTUBE(shelf-tail): likewise a pending shelf-tail demand stays for the
+                            // walk's end unless this page reached the grid, whose runway check (posted
+                            // after the update) asks again if it is still short.
+                            if (pageHadRows) {
+                                mTailDemanded = false;
                             }
                         },
                         error -> {
@@ -1259,10 +1264,12 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                             }
 
                             if (Helpers.containsAny(error.getMessage(), "fromNullable result is null")) {
-                                // No page at all (the shelf's end): no grid update follows, so ask
-                                // for the next shelf now. ShelfTail counts it toward its empty-page cap.
-                                tail.onNothing(shelf);
-                                requestShelfPage(tail, tail.lastGridSize());
+                                // No page at all (a stale key, an HTTP error without a body, or a
+                                // refused connection): no grid update follows, so ask for the next
+                                // shelf now - a couple of times in a row at most (ShelfTail.onNothing).
+                                if (tail.onNothing(shelf)) {
+                                    requestShelfPage(tail, tail.lastGridSize());
+                                }
                             } else {
                                 Log.e(TAG, "shelf-tail error: %s", error.getMessage());
                                 tail.onFailed(shelf);
@@ -1272,8 +1279,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                             if (getView() != null) {
                                 getView().showProgressBar(false);
                             }
-                            if (!landed[0]) {
-                                tail.onNothing(shelf);
+                            if (!landed[0] && tail.onNothing(shelf)) {
                                 requestShelfPage(tail, tail.lastGridSize());
                             }
                         }

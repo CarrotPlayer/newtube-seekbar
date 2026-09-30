@@ -146,6 +146,31 @@ public class ShelfTailTest {
     }
 
     @Test
+    public void aRefusedConnectionCostsACoupleOfRequestsNotEveryShelf() {
+        ShelfTail<Shelf> tail = tail();
+        for (int i = 0; i < 8; i++) {
+            tail.offer(new Shelf("s" + i, 5));
+        }
+
+        // The presenter asks again at once only while onNothing() says so.
+        int requests = 0;
+        Shelf shelf = tail.next(30);
+        while (shelf != null) {
+            requests++;
+            shelf = tail.onNothing(shelf) ? tail.next(tail.lastGridSize()) : null;
+        }
+
+        assertEquals(ShelfTail.MAX_CHAINED_NOTHING + 1, requests);
+        assertFalse(tail.isFetching());
+
+        // A page that lands resets the run: a later stale key may be skipped at once again.
+        Shelf next = tail.next(30);
+        land(tail, next, 30, 5);
+        Shelf stale = tail.next(35);
+        assertTrue(tail.onNothing(stale));
+    }
+
+    @Test
     public void aFailedFetchKeepsItsShelfForALaterRequest() {
         ShelfTail<Shelf> tail = tail();
         Shelf a = new Shelf("a", 2);
@@ -214,6 +239,27 @@ public class ShelfTailTest {
         }
         assertFalse("capped", tail.startRound(grid + 100));
         assertEquals(ShelfTail.MAX_ROUNDS, tail.rounds());
+    }
+
+    @Test
+    public void aShrunkGridNeitherBlamesAShelfNorEndsTheFeed() {
+        ShelfTail<Shelf> tail = tail();
+        Shelf a = new Shelf("a", 3);
+        Shelf b = new Shelf("b", 3);
+        tail.offer(a);
+        tail.offer(b);
+
+        assertSame(a, tail.next(250));
+        land(tail, a, 250, 5);
+        // Back from another tab within the TTL: FeedCache repainted its first 120 cards.
+        assertSame(b, tail.next(120));
+        assertEquals("a shrink is not an empty page", 0, tail.emptyPages());
+        land(tail, b, 120, 5);
+        assertSame("a keeps its turn", a, tail.next(125));
+
+        ShelfTail<Shelf> spent = tail();
+        assertTrue(spent.startRound(250));
+        assertTrue("a repainted grid is judged from zero", spent.startRound(120));
     }
 
     @Test

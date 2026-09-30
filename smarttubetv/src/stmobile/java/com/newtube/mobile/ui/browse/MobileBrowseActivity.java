@@ -601,6 +601,12 @@ public class MobileBrowseActivity extends MobileActivity
         mContentGrid.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                if (dy < 0) {
+                    // NEWTUBE(shelf-tail): scrolling back up re-arms the near-end report, so a
+                    // reader at a stalled end (a failed or refused page, nothing new to scroll to)
+                    // gets another try by scrolling down again - one per gesture, never a loop.
+                    mLastNearEndTriggerCount = -1;
+                }
                 maybeTriggerPagination();
             }
         });

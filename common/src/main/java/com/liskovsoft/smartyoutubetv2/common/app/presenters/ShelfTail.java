@@ -37,6 +37,8 @@ final class ShelfTail<G> {
     static final int MAX_ROUNDS = 20;
     /** A round - its section list plus its shelves' pages - that added fewer cards ends the feed. */
     static final int MIN_ROUND_CARDS = 12;
+    /** Fetches in a row that returned nothing after which the next shelf waits for the grid to ask. */
+    static final int MAX_CHAINED_NOTHING = 2;
 
     interface Keys<G> {
         /** Does the shelf have another page to fetch? */
@@ -52,6 +54,8 @@ final class ShelfTail<G> {
     /** Grid size when the last page was requested (-1: unknown). */
     private int mRequestGridSize = -1;
     private int mEmptyPages;
+    /** onNothing() results in a row, reset by a page that landed. */
+    private int mNothingRun;
     private boolean mEndNoticed;
     private int mRounds;
     /** Grid size when the current round began (the first load starts from an empty grid). */
@@ -104,20 +108,28 @@ final class ShelfTail<G> {
         }
         mInFlight = null;
         mLastLanded = shelf;
+        mNothingRun = 0;
         offer(shelf);
     }
 
     /**
-     * The fetch of {@code shelf} returned no page at all (its end, or an answer equal to the last one):
-     * no grid update follows, so it is counted as an empty page right away.
+     * The fetch of {@code shelf} returned no page at all (an answer equal to the last one, an HTTP
+     * error without a body, or a refused connection - they all arrive as the same null): no grid
+     * update follows, so it is counted as an empty page right away and the shelf leaves the rotation.
+     *
+     * @return whether the caller may ask for the next shelf at once (nothing else will ask - the grid
+     *         did not change): only for the first {@link #MAX_CHAINED_NOTHING} in a row, so that a
+     *         refused connection costs a couple of requests, not a burst through every shelf
      */
-    void onNothing(G shelf) {
+    boolean onNothing(G shelf) {
         if (shelf != mInFlight) {
-            return;
+            return false;
         }
         mInFlight = null;
         mLastLanded = null;
         mEmptyPages++;
+        mNothingRun++;
+        return mNothingRun <= MAX_CHAINED_NOTHING;
     }
 
     /**
@@ -173,7 +185,10 @@ final class ShelfTail<G> {
      * clean empty-page run.
      */
     boolean startRound(int gridSize) {
-        if (gridSize < 0 || mRounds >= MAX_ROUNDS || gridSize - mRoundStartGridSize < MIN_ROUND_CARDS) {
+        // A grid smaller than at the last round's start was repainted (FeedCache keeps the first 120
+        // cards) or had cards removed: judge from zero, as for the first load.
+        int roundStart = gridSize < mRoundStartGridSize ? 0 : mRoundStartGridSize;
+        if (gridSize < 0 || mRounds >= MAX_ROUNDS || gridSize - roundStart < MIN_ROUND_CARDS) {
             return false;
         }
         mRounds++;
@@ -207,6 +222,9 @@ final class ShelfTail<G> {
             return; // cannot tell yet; keep it for a request that knows the grid size
         }
         mLastLanded = null;
+        if (gridSize < mRequestGridSize) {
+            return; // the grid shrank (cards removed, or repainted from the capped FeedCache): cannot tell
+        }
         if (gridSize > mRequestGridSize) {
             mEmptyPages = 0;
         } else {
