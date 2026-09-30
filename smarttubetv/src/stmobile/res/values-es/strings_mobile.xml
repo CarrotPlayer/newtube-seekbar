@@ -10,12 +10,10 @@
          button - wrong action. App-module resources override the library's, so fix it here
          (the en default "SIGN IN" is overridden in values/strings_mobile.xml too). -->
     <string name="action_signin" tools:ignore="ExtraTranslation">Iniciar sesión</string>
-    <string name="subscriptions_signin_button_text" tools:ignore="ExtraTranslation">Iniciar sesión</string>
 
-    <!-- The search field's hint. Its default lives in the app module's shared strings.xml
-         (smarttubetv/src/main), which has no locale folders at all - this is the only string
-         in there the phone UI still reaches, so it is translated here with the rest. -->
-    <string name="search_hint">Buscar vídeos</string>
+    <!-- The search field's hint (was the Leanback sample's search_hint in smarttubetv/src/main,
+         which has no locale folders; now a phone string so Weblate offers it). -->
+    <string name="mobile_search_hint">Buscar vídeos</string>
 
     <!-- Signed-out empty states -->
     <string name="mobile_empty_signin_section">Inicia sesión para ver %1$s</string>
@@ -199,8 +197,11 @@
     <string name="mobile_comments_delete_cancel">Cancelar</string>
     <string name="mobile_comments_deleted">Comentario eliminado</string>
     <string name="mobile_comments_delete_failed">No se ha podido eliminar el comentario</string>
-    <string name="mobile_comments_one_reply">1 respuesta</string>
-    <string name="mobile_comments_n_replies">%1$d respuestas</string>
+    <plurals name="mobile_comments_replies">
+        <item quantity="one">%1$d respuesta</item>
+        <item quantity="many">%1$d respuestas</item>
+        <item quantity="other">%1$d respuestas</item>
+    </plurals>
 
     <!-- Live chat -->
     <string name="mobile_live_chat_entry">Chat en directo</string>
@@ -310,7 +311,7 @@
     <string name="mobile_cast_direct_summary">Envío directo · calidad desde este móvil · los subtítulos necesitan la app de la TV</string>
     <string name="mobile_cast_app_summary">App de TV · subtítulos desde este móvil · calidad con el mando de la TV</string>
     <string name="mobile_cast_quality_auto_1080">Automática (hasta 1080p)</string>
-    <string name="mobile_cast_quality_cap">Hasta %1$sp</string>
+    <string name="mobile_cast_quality_cap">Hasta %1$dp</string>
     <string name="mobile_cast_quality_tv_remote">Usar el mando de la TV</string>
     <string name="mobile_cast_quality_receiver_help">Elige la calidad en los ajustes del reproductor de tu TV.</string>
     <string name="mobile_cast_tv_volume_label">Volumen de la TV</string>
@@ -407,4 +408,7 @@
     <string name="mobile_theme_system">Predeterminado del sistema</string>
     <string name="mobile_theme_light">Claro</string>
     <string name="mobile_theme_dark">Oscuro</string>
+
+    <string name="sabr_vod_option">Preferir SABR aunque haya enlaces (experimental; próximo vídeo)</string>
+    <string name="sabr_vod_stopped">Se ha detenido la reproducción SABR experimental. Pulsa reproducir para reintentar o desactiva SABR en Ajustes.</string>
 </resources>

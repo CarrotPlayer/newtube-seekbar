@@ -49,7 +49,7 @@
             android:layout_marginHorizontal="4dp"
             android:layout_weight="1"
             android:background="@drawable/mobile_search_field_background"
-            android:hint="@string/search_hint"
+            android:hint="@string/mobile_search_hint"
             android:imeOptions="actionSearch"
             android:importantForAutofill="no"
             android:inputType="text"
