@@ -76,7 +76,7 @@
     <!-- Pull-to-refresh drives BrowsePresenter.refresh() - also the natural retry
          gesture when a section shows the error placeholder (the error overlay doesn't
          consume touches, so the pull still reaches this layout). -->
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    <com.newtube.mobile.ui.common.HapticSwipeRefreshLayout
         android:id="@+id/mobile_content_swipe"
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -95,7 +95,7 @@
             android:scrollbars="vertical"
             tools:listitem="@layout/item_video_card" />
 
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+    </com.newtube.mobile.ui.common.HapticSwipeRefreshLayout>
 
     <include
         layout="@layout/mobile_feed_skeleton"

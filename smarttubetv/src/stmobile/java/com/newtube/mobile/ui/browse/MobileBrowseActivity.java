@@ -394,7 +394,7 @@ public class MobileBrowseActivity extends MobileActivity
 
         findViewById(R.id.mobile_mini_close).setOnClickListener(v -> closeMiniPlayer());
         // NEWTUBE(motion): or swipe the card away sideways.
-        com.newtube.mobile.ui.playback.MiniCardSwipe.attach(mMiniPlayerBar,
+        mMiniSwipe = com.newtube.mobile.ui.playback.MiniCardSwipe.attach(mMiniPlayerBar,
                 new com.newtube.mobile.ui.playback.MiniCardSwipe.Callback() {
                     @Override
                     public boolean canSwipe() {
@@ -416,6 +416,8 @@ public class MobileBrowseActivity extends MobileActivity
      */
     private boolean mMiniClosing;
     private float mMiniVolumeBeforeClose = 1f;
+    @androidx.annotation.Nullable
+    private com.newtube.mobile.ui.playback.MiniCardSwipe mMiniSwipe;
 
     private void closeMiniPlayer() {
         closeMiniPlayer(null, 0);
@@ -435,6 +437,7 @@ public class MobileBrowseActivity extends MobileActivity
         MiniPlayerBridge.setClosing(this::abortMiniClose);
         MiniPlayerBridge.clearPendingCardFold(mMiniCardFold);
         detachMiniTexture();
+        stopMiniSwipe();
         mMiniPlayerBar.animate().cancel();
         android.view.ViewPropertyAnimator exit = flyToX != null
                 ? mMiniPlayerBar.animate().translationX(flyToX).alpha(0f).setDuration(flyMs)
@@ -493,6 +496,7 @@ public class MobileBrowseActivity extends MobileActivity
 
         MiniPlayerBridge.fitToVideo(mMiniPlayerFrame); // NEWTUBE(issue #9): letterbox, never stretch
         attachMiniTexture();
+        stopMiniSwipe();
         mMiniPlayerBar.animate().cancel(); // a closing card (closeMiniPlayer) comes back whole
         mMiniPlayerBar.setAlpha(1f);
         mMiniPlayerBar.setScaleX(1f);
@@ -670,10 +674,18 @@ public class MobileBrowseActivity extends MobileActivity
         }
     }
 
+    /** NEWTUBE(haptics): see MiniCardSwipe#stop - before this host moves the card itself. */
+    private void stopMiniSwipe() {
+        if (mMiniSwipe != null) {
+            mMiniSwipe.stop();
+        }
+    }
+
     private void foldMiniCard() {
         if (mMiniPlayerBar == null) {
             return;
         }
+        stopMiniSwipe();
         mMiniPlayerBar.animate().cancel();
         mMiniPlayerBar.setVisibility(View.GONE);
         mMiniPlayerBar.setAlpha(1f);

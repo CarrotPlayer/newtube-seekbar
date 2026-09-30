@@ -129,6 +129,7 @@ import com.newtube.mobile.downloads.DownloadRegistry;
 import com.newtube.mobile.SessionWarmup;
 import com.newtube.mobile.ui.common.FrameGate;
 import com.newtube.mobile.ui.common.Haptics;
+import com.newtube.mobile.ui.common.MagneticDrag;
 import com.newtube.mobile.ui.common.MobileActivity;
 import com.newtube.mobile.ui.common.Motion;
 import com.newtube.mobile.ui.common.ThemeMode;
@@ -4770,8 +4771,32 @@ public class MobilePlaybackActivity extends MobileActivity
     private long mInstantRevealAt;
     /** NEWTUBE(motion): finger travel for the whole drag (dragTravelFor); set when a drag begins. */
     private float mDragTravelPx = 1f;
+    /**
+     * NEWTUBE(haptics): the minimize drag sticks, then lets go with a click, like a notification on
+     * the Pixel (MagneticDrag): letting go past that click minimizes, before it springs back. The
+     * morph used to follow the finger from the first pixel and minimize past 30% of its travel
+     * (~185 dp on a Pixel 9); it now commits at the click, 72 dp.
+     */
+    @Nullable
+    private MagneticDrag mMinimizeMagnet;
+    /** NEWTUBE(haptics): a minimize drag is under the finger (from its first move to its release). */
+    private boolean mMagnetDragging;
+    /** NEWTUBE(haptics): a flick this fast (dp/s) minimizes even before the drag lets go. */
+    private static final float MINIMIZE_FLICK_DP = 800f;
+    /**
+     * NEWTUBE(haptics): the video follows 75% of the finger until the click - lighter than the
+     * notification's half (owner, on the Pixel: at half it trailed the finger).
+     */
+    private static final float MINIMIZE_PULL = 0.75f;
     private static final long SETTLE_MIN_MS = 90;
     private static final long SETTLE_MAX_MS = 280;
+    /**
+     * NEWTUBE(haptics): the spring a released minimize drag lands on the card with (Motion.Spring):
+     * it settles ~10 px past the card before coming to rest - the small landing of the Pixel's
+     * recents flick.
+     */
+    private static final float SETTLE_LAND_STIFFNESS = 800f;
+    private static final float SETTLE_LAND_DAMPING = 0.85f;
     private boolean mMorphOverOwnBackdrop;
     /** NEWTUBE(motion): an open/expand morph is posted but has not placed its first frame yet. */
     private boolean mMorphStartPending;
@@ -4886,7 +4911,10 @@ public class MobilePlaybackActivity extends MobileActivity
         // moving video. Any positive Z keeps the live TextureView visually on top during the morph.
         float density = getResources().getDisplayMetrics().density;
         mVideoArea.setTranslationZ(f > 0f ? MORPH_ELEVATION_DP * density : 0f);
-        applyMorphCorners(f, Math.min(sx, sy), density);
+        // NEWTUBE(haptics): the settle spring lands a few px past the card (f a little over 1):
+        // the box moves and shrinks on with it, but corners and fades stop at their card values.
+        float settled = Math.min(1f, f);
+        applyMorphCorners(settled, Math.min(sx, sy), density);
 
         // Remove labels/cards early so they do not ghost over Browse, then fade the solid watch
         // background more slowly. This reads as a black sheet becoming transparent while the live
@@ -4895,7 +4923,7 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mWatchContent != null) {
             mWatchContent.setAlpha(contentAlpha);
         }
-        float backdrop = morphBackdropAlpha(f, mMorphOverOwnBackdrop); // NEWTUBE(no-host-minimize)
+        float backdrop = morphBackdropAlpha(settled, mMorphOverOwnBackdrop); // NEWTUBE(no-host-minimize)
         if (mWatchScroll != null && mWatchScroll.getBackground() != null) {
             int backdropAlpha = Math.round(255f * backdrop);
             mWatchScroll.getBackground().mutate().setAlpha(backdropAlpha);
@@ -4969,6 +4997,9 @@ public class MobilePlaybackActivity extends MobileActivity
             mMorphAnimator.cancel();
             mMorphAnimator = null;
         }
+        // NEWTUBE(haptics): a drag cut short without its release (onStop mid-drag) must not keep
+        // its gap spring moving the box, nor leave the next drag thinking it already began.
+        endMagnetDrag();
         // Drag cancelled (or undone by the in-PiP guard): this window owns the video again, so
         // re-arm the standing auto-enter flag the drag turned off.
         if (mDismissDragActive) {
@@ -5048,11 +5079,36 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void onDismissDrag(float dy) {
-        if (mMorphFraction == 0f && dy > 0f) {
+        if (!mMagnetDragging) {
+            if (dy <= 0f) {
+                return;
+            }
+            mMagnetDragging = true;
             beginMinimizeMorph();
             mDragTravelPx = dragTravelFor(mContainer.getDownRawY());
+            minimizeMagnet().start();
         }
-        applyMorph(Math.min(1f, dy / mDragTravelPx));
+        minimizeMagnet().move(dy);
+    }
+
+    /** NEWTUBE(haptics): the magnet moves the morph; its position is finger travel in px. */
+    private MagneticDrag minimizeMagnet() {
+        if (mMinimizeMagnet == null) {
+            mMinimizeMagnet = new MagneticDrag(mContainer, MINIMIZE_PULL,
+                    position -> applyMorph(Math.max(0f, Math.min(1f, position / mDragTravelPx))));
+        }
+        return mMinimizeMagnet;
+    }
+
+    /** NEWTUBE(haptics): the finger let go (or was taken away): was the drag past its click? */
+    private boolean endMagnetDrag() {
+        if (!mMagnetDragging) {
+            return false;
+        }
+        mMagnetDragging = false;
+        MagneticDrag magnet = minimizeMagnet();
+        magnet.finish();
+        return magnet.isDetached();
     }
 
     /**
@@ -5079,6 +5135,7 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void onDismissDragCancelled() {
+        endMagnetDrag();
         settleMorph(0f, 0f, this::resetMorph);
     }
 
@@ -5087,6 +5144,11 @@ public class MobilePlaybackActivity extends MobileActivity
      * whose first frames carry on at the release velocity (DecelerateInterpolator starts at twice
      * its average speed), so a flick lands fast and a slow release eases in. Bounded, so a
      * near-still release still moves promptly and a fast one never snaps in a frame or two.
+     *
+     * <p>NEWTUBE(haptics): onto the card, a spring instead, so it lands with a small settle. It is
+     * launched at the speed that curve would have started with: a spring started at the finger's
+     * own speed began from rest after a slow release and hung back behind the finger for its first
+     * frames (owner, on the Pixel). Back to full size stays the curve - nothing to land there.</p>
      */
     private void settleMorph(float to, float yVelocity, Runnable endAction) {
         float distance = Math.abs(to - mMorphFraction);
@@ -5098,7 +5160,20 @@ public class MobilePlaybackActivity extends MobileActivity
             durationMs = Math.round(60f + 150f * distance);
         }
         durationMs = Math.max(SETTLE_MIN_MS, Math.min(SETTLE_MAX_MS, durationMs));
-        animateMorph(to, durationMs, new android.view.animation.DecelerateInterpolator(), endAction);
+        if (to <= mMorphFraction) {
+            animateMorph(to, durationMs, new android.view.animation.DecelerateInterpolator(), endAction);
+            return;
+        }
+        float travel = Math.max(1f, mDragTravelPx);
+        // The curve's own start speed, or the finger's if faster - but never faster than the curve
+        // ever started (its shortest, 90 ms): an unbounded flick in a short window (landscape,
+        // tablet) sprang far enough past the card to shrink the box through zero. Capped, the
+        // overshoot stays under 1.5% of the travel for any window.
+        float launch = Math.max(yVelocity / travel, 2f * distance * 1000f / durationMs); // fraction/s
+        launch = Math.min(launch, 2f * distance * 1000f / SETTLE_MIN_MS);
+        Motion.Spring spring = new Motion.Spring(mMorphFraction, to, launch,
+                SETTLE_LAND_STIFFNESS, SETTLE_LAND_DAMPING, 1f / travel);
+        animateMorph(to, spring.durationMs, spring, endAction);
     }
 
     /** Start a minimize morph: the drag's first move, a back gesture or Back itself. */
@@ -5114,9 +5189,20 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void onDismissDragReleased(float dy, float yVelocity) {
-        boolean dismiss = mMorphFraction > 0.3f || (yVelocity > 2200f && mMorphFraction > 0.08f);
-        if (yVelocity < -1200f) {
-            dismiss = false; // NEWTUBE(motion): flicked back up - the finger changed its mind
+        if (mMagnetDragging) {
+            minimizeMagnet().move(dy); // where the finger lifted, which a last MOVE may not have said
+        }
+        boolean dismiss;
+        if (endMagnetDrag()) {
+            // Past the click: it goes, unless flicked back up - the finger changed its mind.
+            dismiss = yVelocity >= -1200f;
+        } else {
+            // Still stuck: only a real flick down takes it, with the click it skipped (a flung
+            // notification clicks the same way).
+            dismiss = yVelocity > MINIMIZE_FLICK_DP * getResources().getDisplayMetrics().density;
+            if (dismiss) {
+                Haptics.threshold(mContainer, true);
+            }
         }
 
         if (!dismiss) {
