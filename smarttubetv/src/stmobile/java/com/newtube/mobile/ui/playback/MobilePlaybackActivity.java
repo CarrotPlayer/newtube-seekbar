@@ -555,6 +555,10 @@ public class MobilePlaybackActivity extends MobileActivity
         Utils.postDelayed(mRoutedInRestore, 500);
     }
 
+    private boolean isInPipModeNow() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode();
+    }
+
     /** Decision half of {@link #mRoutedInWhileLeaving}; our own expand request never counts. */
     static boolean routedInWhileLeaving(boolean resumed, boolean inPip, boolean ownRestoreRequest) {
         return !resumed && !inPip && !ownRestoreRequest;
@@ -1194,6 +1198,21 @@ public class MobilePlaybackActivity extends MobileActivity
         // In the foreground again: auto-PiP behaves normally from here on.
         mSuppressAutoPip = false;
         mDismissDragActive = false;
+        if (mPipEnterPending) {
+            // NEWTUBE(menu-pip): resumed while a PiP entry is still pending (accepted, no mode
+            // callback yet), so the entry was undone - an activity in PiP is paused, not resumed.
+            // When the player is expanded right away (the menu PiP bounce, 1.11.0) the platform
+            // may deliver neither mode callback, and isInPictureInPictureMode() still said pinned
+            // here (API 35). enterPipMode had already stripped the window to video, and only the
+            // exit callback puts the watch page and controls back: the player came back as video
+            // over a black page with no controls.
+            logPip("enter-aborted-restored inPip=" + (isInPipModeNow() ? "y" : "n"));
+            int orientation = getResources().getConfiguration().orientation;
+            applyWatchLayoutForOrientation(orientation);
+            applySystemBarsForOrientation(orientation);
+            showControlsInternal(false);
+            SystemPipBridge.onPipEnded();
+        }
         mPipEnterPending = false;
         // The PiP exit ended in the fullscreen UI, so it was an expand, not a dismiss.
         mPipDismissPending = false;
@@ -1729,6 +1748,22 @@ public class MobilePlaybackActivity extends MobileActivity
     // Picture-in-Picture
     // ---------------------------------------------------------------------------------
 
+    /**
+     * The menu's Picture-in-picture row: an explicit request, so it works in every background mode
+     * (with "Only audio" it is the one way into PiP). NEWTUBE(menu-pip): the screen under the player
+     * stays on screen and regains focus, which must not read as a launcher return - see
+     * {@code SystemPipBridge.sInAppPip}.
+     */
+    private void enterPipFromMenu() {
+        // Read before the request: once it is accepted the player already sits in its own pinned
+        // task, where it is always the root.
+        boolean screenUnderPlayer = !isTaskRoot();
+        enterPipMode();
+        if (mPipEnterPending) { // accepted
+            SystemPipBridge.onMenuPipEntered(screenUnderPlayer);
+        }
+    }
+
     /** Enter PiP: shrink the video into a floating window that keeps playing, with a play/pause action. */
     private void enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O
@@ -2003,6 +2038,7 @@ public class MobilePlaybackActivity extends MobileActivity
             }
             updatePipActions();
         } else {
+            SystemPipBridge.onPipEnded();
             if (mExoPlayerController != null) {
                 mExoPlayerController.clearSmallWindowViewport("pip-exit");
             }
@@ -2881,7 +2917,7 @@ public class MobilePlaybackActivity extends MobileActivity
                 currentSpeedLabel(), true, this::showSpeedSheet);
         if (Helpers.isPictureInPictureSupported(this)) {
             addMenuRow(content, sheet, R.drawable.ic_player_pip, R.string.mobile_player_pip,
-                    null, false, this::enterPipMode);
+                    null, false, this::enterPipFromMenu);
         }
         // Rotate lock (native screen-orientation lock) - the phone-holdable equivalent of the
         // official sheet's "Lock screen" slot.
