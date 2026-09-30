@@ -128,6 +128,8 @@
     <string name="not_recommend_channel">Don\'t recommend channel</string>
     <string name="you_wont_see_this_video">Video has been removed from recommended</string>
     <string name="you_wont_see_this_channel">You won\'t see this channel in recommendations</string>
+    <!-- NEWTUBE(not-interested): phone Snackbar when YouTube did not take "Not interested" / "Don't recommend channel". -->
+    <string name="feedback_failed">Couldn\'t send that to YouTube. Try again.</string>
     <string name="settings_search">Search</string>
     <string name="dialog_search">Search</string>
     <string name="instant_voice_search">Instant voice search</string>
