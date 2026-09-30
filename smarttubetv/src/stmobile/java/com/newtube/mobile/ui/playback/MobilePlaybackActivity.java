@@ -1317,7 +1317,9 @@ public class MobilePlaybackActivity extends MobileActivity
             // Plain mini-card expansion: exact reverse of minimize, from the card rectangle.
             overridePendingTransition(0, 0);
             mContainer.setVisibility(View.INVISIBLE);
+            mMorphStartPending = true;
             mContainer.post(() -> {
+                mMorphStartPending = false;
                 if (miniBounds != null) {
                     computeMorphTarget(miniBounds);
                 } else {
@@ -1340,7 +1342,20 @@ public class MobilePlaybackActivity extends MobileActivity
         }
 
         applySystemBarsForOrientation(getResources().getConfiguration().orientation);
+        if (mMorphStartPending) {
+            // NEWTUBE(motion): the morph's first step runs after the window's first frame(s), and
+            // the line above just painted the backdrop solid again: the page stays clear until
+            // then, or those frames were a blank black (dark) or white (light) screen over Home.
+            clearBackdropForMorphStart();
+        }
         updateOrientationHandBackListener();
+    }
+
+    private void clearBackdropForMorphStart() {
+        if (mWatchScroll != null && mWatchScroll.getBackground() != null) {
+            mWatchScroll.getBackground().mutate().setAlpha(0);
+        }
+        setWindowBackdropAlpha(0f);
     }
 
     @Override
@@ -4102,6 +4117,8 @@ public class MobilePlaybackActivity extends MobileActivity
      * thread and froze the settle half-way. Decided once per drag.
      */
     private boolean mMorphOverOwnBackdrop;
+    /** NEWTUBE(motion): an open/expand morph is posted but has not placed its first frame yet. */
+    private boolean mMorphStartPending;
     private static final int MINI_CARD_WIDTH_DP = 180;
     private static final int MINI_CARD_HEIGHT_DP = 102;
 
@@ -4158,7 +4175,9 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         overridePendingTransition(0, 0);
         mContainer.setVisibility(View.INVISIBLE);
+        mMorphStartPending = true;
         mContainer.post(() -> {
+            mMorphStartPending = false;
             if (isFinishing() || isDestroyed()) {
                 return;
             }
