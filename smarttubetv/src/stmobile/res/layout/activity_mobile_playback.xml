@@ -258,7 +258,7 @@
                             android:ellipsize="end"
                             android:gravity="center_vertical"
                             android:maxLines="1"
-                            android:minHeight="36dp"
+                            android:minHeight="32dp"
                             android:paddingStart="8dp"
                             android:paddingEnd="4dp"
                             android:shadowColor="#B3000000"

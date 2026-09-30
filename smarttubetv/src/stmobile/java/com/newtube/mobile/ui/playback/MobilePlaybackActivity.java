@@ -282,6 +282,8 @@ public class MobilePlaybackActivity extends MobileActivity
     private TextView mChapterButton;
     /** The chapter mChapterButton shows (-1 = hidden), so the progress tick only writes on a change. */
     private int mChapterButtonIndex = -1;
+    /** The open Chapters list, closed when the chapters change (autoplay): its rows would seek the next video. */
+    @Nullable private BottomSheetDialog mChaptersSheet;
     private View mWatchChatEntry;
     private String mCommentsKey;
     private String mLiveChatKey;
@@ -753,6 +755,7 @@ public class MobilePlaybackActivity extends MobileActivity
             if ((r - l) != (or_ - ol) || (b - t) != (ob - ot)) {
                 applyControlsInsets();
             }
+            fitChapterButton();
         });
 
         // No extra system-bar padding on the watch page itself: in portrait the Activity content
@@ -5564,6 +5567,11 @@ public class MobilePlaybackActivity extends MobileActivity
 
     /** Store the current video's chapters (null/empty clears them). */
     private void setChapters(List<Video> chapters) {
+        if (mChaptersSheet != null && !sameChapters(mChapterVideos, chapters)) {
+            mChaptersSheet.dismiss();
+            mChaptersSheet = null;
+        }
+
         mChapterVideos.clear();
 
         if (chapters != null && !chapters.isEmpty()) {
@@ -5577,6 +5585,71 @@ public class MobilePlaybackActivity extends MobileActivity
         updateChapterMarks();
         mChapterButtonIndex = -1;
         updateChapterButton(mExoPlayerController != null ? mExoPlayerController.getPositionMs() : 0);
+    }
+
+    /** Same starts and titles: a re-delivered document of the same video, not a new chapter list. */
+    private static boolean sameChapters(List<Video> current, @Nullable List<Video> incoming) {
+        int size = incoming != null ? incoming.size() : 0;
+        if (current.size() != size) {
+            return false;
+        }
+        for (int i = 0; i < size; i++) {
+            Video a = current.get(i);
+            Video b = incoming.get(i);
+            if (a.startTimeMs != b.startTimeMs || !TextUtils.equals(a.title, b.title)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The chapter line sits right above the seek row, and on a narrow portrait player (a 360 dp wide
+     * phone's 16:9 box is ~202 dp tall) it reaches up into the previous / play buttons: a long title
+     * would slide under them and take their taps. Its width is capped to end short of any transport
+     * button whose height it shares (layout positions, so the controls' fade-in motion can't move it).
+     */
+    private void fitChapterButton() {
+        if (mChapterButton == null || !(mChapterButton.getParent() instanceof View)) {
+            return;
+        }
+
+        View line = (View) mChapterButton.getParent();
+        int lineBottom = offsetInControls(line, false) + line.getHeight();
+        int lineTop = lineBottom - Math.max(mChapterButton.getMinHeight(), mChapterButton.getHeight());
+        int buttonLeft = offsetInControls(line, true)
+                + ((ViewGroup.MarginLayoutParams) mChapterButton.getLayoutParams()).getMarginStart();
+
+        int maxWidth = Integer.MAX_VALUE;
+        for (View control : new View[] {mPrevButton, mPlayPauseButton, mNextButton}) {
+            if (control == null || control.getVisibility() != View.VISIBLE) {
+                continue;
+            }
+            // Previous / next draw only their icon: grazing their touch padding is fine. The center
+            // button's circle is its whole box.
+            int controlBottom = offsetInControls(control, false) + control.getHeight()
+                    - (control == mPlayPauseButton ? 0 : control.getPaddingBottom());
+            int controlLeft = offsetInControls(control, true)
+                    + (control == mPlayPauseButton ? 0 : control.getPaddingLeft());
+            if (controlBottom > lineTop && controlLeft > buttonLeft) {
+                maxWidth = Math.min(maxWidth, Math.max(dp(64), controlLeft - buttonLeft - dp(8)));
+            }
+        }
+
+        if (mChapterButton.getMaxWidth() != maxWidth) {
+            mChapterButton.setMaxWidth(maxWidth);
+        }
+    }
+
+    /** {@code view}'s left (or top) edge relative to mControlsRoot, from layout positions only. */
+    private int offsetInControls(View view, boolean horizontal) {
+        int offset = 0;
+        View current = view;
+        while (current != null && current != mControlsRoot) {
+            offset += horizontal ? current.getLeft() : current.getTop();
+            current = current.getParent() instanceof View ? (View) current.getParent() : null;
+        }
+        return offset;
     }
 
     /** One mark on the time bar per chapter start after the first (media3's marker layer). */
@@ -5678,7 +5751,13 @@ public class MobilePlaybackActivity extends MobileActivity
         long positionMs = mExoPlayerController != null ? mExoPlayerController.getPositionMs() : 0;
         BottomSheetDialog dialog = ChaptersSheet.create(this, mChapterVideos, chapterIndexAt(positionMs),
                 maxHeightPx, chapter -> seekFromList(chapter.startTimeMs, CHAPTER_SEEK_PARAMETERS));
-        dialog.setOnDismissListener(d -> armAutoHide());
+        dialog.setOnDismissListener(d -> {
+            if (mChaptersSheet == d) {
+                mChaptersSheet = null;
+            }
+            armAutoHide();
+        });
+        mChaptersSheet = dialog;
         showPlayerSheet(dialog);
     }
 
