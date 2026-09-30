@@ -2,6 +2,7 @@ package com.newtube.mobile.ui.common;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
@@ -26,6 +27,8 @@ import java.lang.reflect.Field;
 public class HapticSwipeRefreshLayout extends SwipeRefreshLayout {
     /** SwipeRefreshLayout.DRAG_RATE: its own touch pull moves the spinner at half the finger. */
     private static final float DRAG_RATE = 0.5f;
+    /** Clicks closer together than this are the finger trembling on the line, not two crossings. */
+    private static final long CLICK_GAP_MS = 120;
 
     private static boolean sLookedUp;
     @Nullable
@@ -39,6 +42,7 @@ public class HapticSwipeRefreshLayout extends SwipeRefreshLayout {
 
     /** The pull is past the refresh point: letting go now refreshes. */
     private boolean mEngaged;
+    private long mLastClickAt;
 
     public HapticSwipeRefreshLayout(@NonNull Context context) {
         super(context);
@@ -85,10 +89,16 @@ public class HapticSwipeRefreshLayout extends SwipeRefreshLayout {
         if (pull < 0f || distance <= 0f || isRefreshing()) {
             return;
         }
+        // The line itself is SwipeRefreshLayout's (it decides the refresh), so no dead zone around
+        // it; a finger resting right on it clicks at most once per CLICK_GAP_MS instead.
         boolean engaged = pull > distance;
         if (engaged != mEngaged) {
             mEngaged = engaged;
-            Haptics.threshold(this, engaged);
+            long now = SystemClock.uptimeMillis();
+            if (now - mLastClickAt >= CLICK_GAP_MS) {
+                mLastClickAt = now;
+                Haptics.threshold(this, engaged);
+            }
         } else if (!engaged) {
             Haptics.tension(this, pull / distance);
         }

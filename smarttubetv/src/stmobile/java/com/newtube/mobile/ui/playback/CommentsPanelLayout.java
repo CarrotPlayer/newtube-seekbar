@@ -22,6 +22,7 @@ import androidx.core.view.ViewCompat;
 
 import com.google.android.material.motion.MaterialBottomContainerBackHelper;
 import com.liskovsoft.smartyoutubetv2.tv.R;
+import com.newtube.mobile.ui.common.Haptics;
 
 /**
  * NEWTUBE(comments-panel): the comments panel's frame - a scrim and a sheet covering the watch page
@@ -30,6 +31,10 @@ import com.liskovsoft.smartyoutubetv2.tv.R;
  * drags its header, or pulls down a list that is already at its top (nested scrolling); released
  * past a quarter of its height or on a downward flick it leaves, otherwise it settles back (250ms,
  * standard). Predictive back shrinks it the way Material's own sheets do.
+ *
+ * <p>NEWTUBE(haptics): a click when a drag carries the sheet past that quarter - letting go now
+ * closes it - and the same click if it comes back above; a flick that closes it from above the
+ * line clicks as it goes (Haptics.threshold, the Pixel's swipe click).</p>
  *
  * <p>Nothing here knows about comments: {@link CommentsPanel} fills the sheet and decides what a
  * dismissal means.</p>
@@ -60,6 +65,8 @@ public class CommentsPanelLayout extends FrameLayout implements NestedScrollingP
     private static final float FLICK_DP_PER_S = 600f;
     /** ...once it has moved at least this far. */
     private static final float FLICK_MIN_DP = 12f;
+    /** NEWTUBE(haptics): how far back above the close line the sheet must come to click again. */
+    private static final float HAPTIC_HYSTERESIS_DP = 12f;
 
     private final NestedScrollingParentHelper mParentHelper = new NestedScrollingParentHelper(this);
     private final int mTouchSlop;
@@ -73,6 +80,8 @@ public class CommentsPanelLayout extends FrameLayout implements NestedScrollingP
     private MaterialBottomContainerBackHelper mBackHelper;
 
     private boolean mOpen;
+    /** NEWTUBE(haptics): the dragged sheet is past the line where letting go closes it. */
+    private boolean mDismissArmed;
     @Nullable
     private ValueAnimator mSheetAnimator;
 
@@ -281,11 +290,32 @@ public class CommentsPanelLayout extends FrameLayout implements NestedScrollingP
         }
     }
 
+    /**
+     * NEWTUBE(haptics): a finger moved the sheet to {@code y}: click as it crosses the line where
+     * letting go closes it, either way.
+     */
+    private void dragTo(float y) {
+        setOffset(y);
+        // Back above the line by a margin before it disarms, so a finger resting on it never chatters.
+        float line = sheetRange() * DISMISS_SHARE;
+        boolean armed = mDismissArmed ? y > line - HAPTIC_HYSTERESIS_DP * mDensity : y > line;
+        if (armed != mDismissArmed) {
+            mDismissArmed = armed;
+            Haptics.threshold(this, armed);
+        }
+    }
+
     /** A drag let go at {@code y} px moving down at {@code velocity} px/s: leave or settle back. */
     private void release(float y, float velocity) {
         float range = sheetRange();
         boolean flick = velocity > FLICK_DP_PER_S * mDensity && y > FLICK_MIN_DP * mDensity;
-        if (y > range * DISMISS_SHARE || flick) {
+        boolean armed = mDismissArmed;
+        mDismissArmed = false;
+        // Armed = what the finger last felt (the click), dead zone included: that is what it does.
+        if (armed || y > range * DISMISS_SHARE || flick) {
+            if (!armed) {
+                Haptics.threshold(this, true); // flicked away before the line: the click it skipped
+            }
             // Carry the finger's speed: the rest of the way at its pace, within 120-200ms.
             long ms = CLOSE_MS;
             if (velocity > 0) {
@@ -352,6 +382,7 @@ public class CommentsPanelLayout extends FrameLayout implements NestedScrollingP
         mHeaderDragging = true;
         mDownY = ev.getY(index);
         mDragStartOffset = offset();
+        mDismissArmed = false;
         mVelocityTracker = VelocityTracker.obtain();
         mVelocityTracker.addMovement(ev);
         getParent().requestDisallowInterceptTouchEvent(true);
@@ -372,7 +403,7 @@ public class CommentsPanelLayout extends FrameLayout implements NestedScrollingP
                 int index = ev.findPointerIndex(mActivePointerId);
                 if (index >= 0) {
                     float y = mDragStartOffset + ev.getY(index) - mDownY;
-                    setOffset(Math.max(0f, y));
+                    dragTo(Math.max(0f, y));
                 }
                 return true;
             }
@@ -403,6 +434,7 @@ public class CommentsPanelLayout extends FrameLayout implements NestedScrollingP
             case MotionEvent.ACTION_CANCEL:
                 // Taken away from us (not let go): no decision was made, so the sheet goes back up.
                 endHeaderDrag();
+                mDismissArmed = false;
                 if (offset() > 0f) {
                     animateOffset(0f, SETTLE_MS, STANDARD, null);
                 }
@@ -435,6 +467,7 @@ public class CommentsPanelLayout extends FrameLayout implements NestedScrollingP
     public void onNestedScrollAccepted(@NonNull View child, @NonNull View target, int axes, int type) {
         mParentHelper.onNestedScrollAccepted(child, target, axes, type);
         mNestedFlingDown = 0f;
+        mDismissArmed = false;
     }
 
     @Override
@@ -444,7 +477,7 @@ public class CommentsPanelLayout extends FrameLayout implements NestedScrollingP
             return;
         }
         float taken = Math.min(dy, offset());
-        setOffset(offset() - taken);
+        dragTo(offset() - taken);
         consumed[1] = Math.round(taken);
     }
 
@@ -455,7 +488,7 @@ public class CommentsPanelLayout extends FrameLayout implements NestedScrollingP
         if (type != ViewCompat.TYPE_TOUCH || dyUnconsumed >= 0 || mSheetAnimator != null) {
             return;
         }
-        setOffset(Math.min(sheetRange(), offset() - dyUnconsumed));
+        dragTo(Math.min(sheetRange(), offset() - dyUnconsumed));
         consumed[1] += dyUnconsumed;
     }
 
@@ -484,6 +517,7 @@ public class CommentsPanelLayout extends FrameLayout implements NestedScrollingP
         if (offset() > 0f && mSheetAnimator == null && mOpen) {
             release(offset(), mNestedFlingDown);
         }
+        mDismissArmed = false;
         mNestedFlingDown = 0f;
     }
 
