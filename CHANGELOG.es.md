@@ -3,7 +3,13 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
-## Sin publicar
+## 1.13.0 — 30-09-2026 — Edición Faemino y Cansado
+
+«Tú dices una cosa, yo te contesto otra, y cada uno a su capítulo…» Homenaje
+ficticio a Faemino y Cansado y a sus diálogos imposibles, para una versión en
+la que por fin se puede contestar. Escribe comentarios y respuestas, encuentra
+los capítulos de cada vídeo, mantén pulsado para ir a 2x y estrena una barra de
+progreso como la de YouTube.
 
 ### Nuevo
 

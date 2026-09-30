@@ -2,7 +2,12 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
-## Unreleased
+## 1.13.0 — 2026-09-30 — Faemino y Cansado Edition
+
+"You say one thing, I answer another, and each of us gets a chapter…" A
+fictional homage to Faemino y Cansado and their deadpan back-and-forth, for a
+release where you can finally answer back. Write comments and replies, find a
+video's chapters, hold the video for 2x, and a seek bar like YouTube's.
 
 ### New
 

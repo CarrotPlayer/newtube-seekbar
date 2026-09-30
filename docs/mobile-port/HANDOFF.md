@@ -2341,3 +2341,37 @@ touches these next:
   connection not available!". Emulator test: `setprop debug.arc.update_manifest
   http://10.0.2.2:8765/newtube.json` (debug builds), a local manifest one version higher,
   `adb root` + `date` two hours ahead with the process kept alive, then back to the app.
+
+## 37. Writing comments; chapters, the YouTube seek bar and hold for 2x (2026-09-30, 1.13.0)
+
+**Writing comments works with the TV sign-in** (proved on a test account; the owner's account
+must never be used for a real post). MediaServiceCore `CommentsService`:
+`createCommentObserve(videoId, text)` and `createReplyObserve(videoId, parentId, text)` return
+the new `CommentItem` parsed from YouTube's answer (`CommentWriteAnswers`), and
+`deleteCommentObserve(videoId, commentId)` succeeds only when YouTube's `removeCommentAction`
+names that comment. All three use the TVHTML5 context:
+- `comment/create_comment` with `createCommentParams` = protobuf `{2: videoId, 5: {}, 10: 7}`,
+  standard base64, URL-encoded (upstream MediaServiceCore PR #40 posts the same way).
+- `comment/create_comment_reply` with `createReplyParams` = `{2: videoId, 4: parentId,
+  5: {1: 0}, 10: 7}` (YouTube.js v1's layout). The TV replies view has no reply params to reuse,
+  so they are built locally. Never send parent fields to `create_comment`: it silently posts a
+  top-level comment.
+- Delete: `comment/perform_comment_action` with `{1: 6, 2: 2, 3: commentId, 5: videoId}`.
+- A request sent before the account's auth header is restored goes out `auth=n` and gets 403
+  "Comment failed to post"; the service restores the sign-in first and refuses without one.
+
+App side: `CommentComposer` (a window docked above the keyboard, so the video never moves),
+`CommentsPanel`/`CommentsAdapter` ("Add a comment…" / "Add a reply…" rows, Reply prefill,
+⋮ Delete only on the account's own comments: its stored handle matches the comment's @handle,
+or it was posted this session). `debug.arc.comments_ui_test=1` (debug builds, signed out only)
+opens the composer and ⋮ for emulator checks with Post and Delete failing locally. Real-account
+test recipe: a benchmark `.check` build on the Mi 8 (test account), a long video (autoplay moved
+past "Me at the zoo" before a tap), and a signed-out yt-dlp read of the newest comments to
+confirm deletes. The sort and ⋮ menus are PopupWindows: `guard.sh app` refuses them, so check
+the popup's package before tapping.
+
+**Chapters (#13), seek bar, hold for 2x** (feat/player-feel): `ChaptersSheet` for the list; the
+seek bar was rebuilt the way YouTube draws it, with a touch band as wide as YouTube's (measured
+on YouTube 21.18) that `WatchRootLayout` hit-tests because half of it lies over the page; press
+and hold for 2x keeps the pitch and ends with its video. Details and measurements are in the
+commit messages `8ef63af9`..`d406874a`.
