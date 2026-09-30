@@ -13,7 +13,7 @@ vendored ExoPlayer, and TV UI can still be read with `git show`).
 Current state, open backlog, and deep context: **`docs/mobile-port/STATUS.md`**
 and **`docs/mobile-port/HANDOFF.md`** (read HANDOFF before touching the player
 or network stack). `docs/mobile-port/{ARCHITECTURE,ROADMAP}.md` predate the
-phone-only slice — treat as historical. GTM/launch assets: `docs/gtm/`.
+phone-only slice — treat as historical. GTM: `docs/gtm/` is the archived July plan (its copy breaks the current rules); the live launch plan lives outside the repo.
 
 ## Repos & commit order
 - Main: `origin` = github.com/aleixrodriala/newtube, branch `main`.
