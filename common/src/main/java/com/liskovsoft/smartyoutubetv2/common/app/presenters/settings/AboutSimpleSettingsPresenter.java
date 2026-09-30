@@ -16,7 +16,24 @@ import com.liskovsoft.smartyoutubetv2.common.misc.DiagnosticLog;
 import com.liskovsoft.smartyoutubetv2.common.misc.PhoneUi;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 
+import java.util.List;
+
 public class AboutSimpleSettingsPresenter extends BasePresenter<Void> {
+    /**
+     * NEWTUBE(about-growth): rows the phone adds at the end of its About ("Star NewTube on
+     * GitHub", "Share NewTube"). They live in the phone flavor with its own strings;
+     * the TV flavors never set this.
+     */
+    public interface PhoneExtraRows {
+        List<OptionItem> create(Context context);
+    }
+
+    private static volatile PhoneExtraRows sPhoneExtraRows;
+
+    public static void setPhoneExtraRows(PhoneExtraRows extraRows) {
+        sPhoneExtraRows = extraRows;
+    }
+
     private final AppUpdateChecker mUpdateChecker;
 
     public AboutSimpleSettingsPresenter(Context context) {
@@ -81,6 +98,13 @@ public class AboutSimpleSettingsPresenter extends BasePresenter<Void> {
                 getContext().getString(R.string.diagnostic_log_send),
                 getContext().getString(R.string.diagnostic_log_send_desc),
                 option -> DiagnosticLog.share(getContext())));
+
+        PhoneExtraRows extraRows = sPhoneExtraRows;
+        if (extraRows != null) {
+            for (OptionItem row : extraRows.create(getContext())) {
+                settingsPresenter.appendSingleButton(row);
+            }
+        }
 
         settingsPresenter.showDialog(mainTitle);
     }
