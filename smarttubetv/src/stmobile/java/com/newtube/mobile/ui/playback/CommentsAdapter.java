@@ -117,8 +117,8 @@ final class CommentsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 return item.getReplyCount();
             }
             int posted = postedReplies.size();
-            return posted == 0 ? null : posted == 1 ? context.getString(R.string.mobile_comments_one_reply)
-                    : context.getString(R.string.mobile_comments_n_replies, posted);
+            return posted == 0 ? null
+                    : context.getResources().getQuantityString(R.plurals.mobile_comments_replies, posted, posted);
         }
 
         private boolean hasCountedReplies() {

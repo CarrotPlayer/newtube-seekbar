@@ -8,7 +8,7 @@
     <string name="mobile_player_pause">Pause</string>
     <string name="mobile_player_replay">Replay</string>
     <string name="mobile_player_fullscreen">Toggle fullscreen</string>
-    <string name="mobile_player_time_default">0:00</string>
+    <string name="mobile_player_time_default" translatable="false">0:00</string>
     <string name="mobile_player_live" translatable="false">LIVE</string>
     <string name="mobile_player_quality">Quality</string>
     <!-- Gear-sheet row and sheet title for choosing the audio language (dubbed videos only). -->
@@ -70,11 +70,11 @@
     <string name="mobile_watch_offline">You\'re offline</string>
     <!-- Queue card. "%1$s" is the playlist/queue name; the position line is "3 / 48". -->
     <string name="mobile_watch_queue_from">Playing from %1$s</string>
-    <string name="mobile_watch_queue_position">%1$d / %2$d</string>
+    <string name="mobile_watch_queue_position" translatable="false">%1$d / %2$d</string>
     <string name="mobile_watch_queue_fallback">queue</string>
     <string name="mobile_watch_queue_now_playing">Now playing</string>
     <string name="mobile_watch_description">Description</string>
-    <string name="mobile_watch_count_placeholder">&#8211;</string>
+    <string name="mobile_watch_count_placeholder" translatable="false">&#8211;</string>
     <string name="mobile_watch_share_subject">Watch this video</string>
 
     <!-- Comments panel (under the video: CommentsPanel) -->
@@ -120,8 +120,10 @@
     <string name="mobile_comments_delete_cancel">Cancel</string>
     <string name="mobile_comments_deleted">Comment deleted</string>
     <string name="mobile_comments_delete_failed">Couldn\'t delete the comment</string>
-    <string name="mobile_comments_one_reply">1 reply</string>
-    <string name="mobile_comments_n_replies">%1$d replies</string>
+    <plurals name="mobile_comments_replies">
+        <item quantity="one">%1$d reply</item>
+        <item quantity="other">%1$d replies</item>
+    </plurals>
 
     <!-- Live chat panel (bottom sheet) -->
     <string name="mobile_live_chat_entry">Live chat</string>
@@ -134,6 +136,7 @@
     <!-- Read-only fallback shown for dialog categories not yet rendered on mobile (chat / comments). -->
     <string name="mobile_dialog_unavailable">Not available on mobile yet.</string>
     <string name="mobile_back">Back</string>
+    <string name="mobile_search_hint">Search for videos</string>
     <string name="mobile_search_button">Search</string>
     <string name="mobile_search_voice">Voice search</string>
     <!-- The NW arrow on a suggestion row: puts the text into the field without searching. -->
@@ -301,9 +304,9 @@
     <string name="mobile_cast_code_open_smarttube">In SmartTube on your TV, open:</string>
     <string name="mobile_cast_code_open_youtube">In YouTube on your TV, open:</string>
     <string name="mobile_cast_code_find">Find the code in either TV app:</string>
-    <string name="mobile_cast_code_youtube">YouTube</string>
+    <string name="mobile_cast_code_youtube" translatable="false">YouTube</string>
     <string name="mobile_cast_code_youtube_path">Settings → Link with TV code</string>
-    <string name="mobile_cast_code_smarttube">SmartTube</string>
+    <string name="mobile_cast_code_smarttube" translatable="false">SmartTube</string>
     <string name="mobile_cast_code_smarttube_path">Settings → Remote control</string>
     <string name="mobile_cast_code_helper">Dashes and spaces are okay</string>
     <string name="mobile_cast_code_smarttube_benefit">Tip: with SmartTube you get quality and subtitle controls on the TV.</string>
@@ -344,7 +347,7 @@
     <string name="mobile_cast_direct_summary">Direct cast · quality from this phone · subtitles need the TV app</string>
     <string name="mobile_cast_app_summary">TV app · subtitles from this phone · quality from the TV remote</string>
     <string name="mobile_cast_quality_auto_1080">Auto (up to 1080p)</string>
-    <string name="mobile_cast_quality_cap">Up to %1$sp</string>
+    <string name="mobile_cast_quality_cap">Up to %1$dp</string>
     <string name="mobile_cast_quality_tv_remote">Use TV remote</string>
     <string name="mobile_cast_subtitles_need_tv_app">Switch to TV app</string>
     <string name="mobile_cast_quality_receiver_help">Choose quality from the player settings on your TV.</string>
@@ -454,4 +457,7 @@
     <string name="mobile_about_share_text">NewTube — a YouTube client for phones, built on SmartTube: %1$s</string>
     <string name="mobile_about_repo_url" translatable="false">https://github.com/aleixrodriala/newtube</string>
     <string name="mobile_about_site_url" translatable="false">https://newtube-app.github.io/</string>
+    <!-- Experimental SABR playback (was strings_sabr.xml) -->
+    <string name="sabr_vod_option">Prefer SABR even when links work (experimental; next VOD)</string>
+    <string name="sabr_vod_stopped">Experimental SABR playback stopped. Tap play to retry, or disable SABR in Settings.</string>
 </resources>
