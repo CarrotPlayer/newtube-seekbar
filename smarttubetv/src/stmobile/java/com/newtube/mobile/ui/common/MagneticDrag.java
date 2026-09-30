@@ -11,10 +11,10 @@ import androidx.dynamicanimation.animation.SpringForce;
  * NEWTUBE(haptics): a drag that sticks before it lets go - the Pixel's notification swipe
  * (SystemUI's MagneticNotificationRowManagerImpl, Android 16 QPR2; the owner's Pixel 9 on
  * Android 17 clicked at exactly 72 dp of finger travel). Until the finger has travelled
- * {@link #DETACH_DP} the object follows at half the distance, with a faint grain; there it springs
- * onto the finger with one click and follows 1:1 - past that point, letting go acts. Coming back
- * under {@link #ATTACH_DP} sticks it again, with the same click, so the finger always knows which
- * side of the line it is on.
+ * {@link #DETACH_DP} the object follows at half the distance (or its own share), with a faint
+ * grain; there it springs onto the finger with one click and follows 1:1 - past that point,
+ * letting go acts. Coming back under {@link #ATTACH_DP} sticks it again, with the same click, so
+ * the finger always knows which side of the line it is on.
  *
  * <p>One axis, signed, in pixels of finger travel from where the drag began. The caller maps
  * {@link Target#onMagneticPosition} onto its own motion and decides what a release does
@@ -28,8 +28,8 @@ public final class MagneticDrag {
 
     public static final float DETACH_DP = 72f;
     public static final float ATTACH_DP = 56f;
-    /** How far the object follows while it is still stuck. */
-    private static final float PULL = 0.5f;
+    /** How far the object follows while it is still stuck: the Pixel's notification rows. */
+    public static final float PIXEL_PULL = 0.5f;
     // SystemUI's springs: a quick, barely-overshooting catch-up onto the finger, and back.
     private static final float DETACH_STIFFNESS = 800f;
     private static final float DETACH_DAMPING = 0.95f;
@@ -38,6 +38,7 @@ public final class MagneticDrag {
 
     private final View mView;
     private final Target mTarget;
+    private final float mPull;
     private final float mDetachPx;
     private final float mAttachPx;
     private final SpringAnimation mSpring;
@@ -49,7 +50,13 @@ public final class MagneticDrag {
     private long mLastMoveAt;
 
     public MagneticDrag(View hapticView, Target target) {
+        this(hapticView, PIXEL_PULL, target);
+    }
+
+    /** {@code pull}: the share of the finger's travel the object follows while it is still stuck. */
+    public MagneticDrag(View hapticView, float pull, Target target) {
         mView = hapticView;
+        mPull = pull;
         mTarget = target;
         float density = hapticView.getResources().getDisplayMetrics().density;
         mDetachPx = DETACH_DP * density;
@@ -86,10 +93,10 @@ public final class MagneticDrag {
             Haptics.threshold(mView, true);
         } else if (mDetached && distance <= mAttachPx) {
             mDetached = false;
-            springTo(finger * PULL, ATTACH_STIFFNESS, ATTACH_DAMPING);
+            springTo(finger * mPull, ATTACH_STIFFNESS, ATTACH_DAMPING);
             Haptics.threshold(mView, false);
         } else {
-            float goal = mDetached ? finger : finger * PULL;
+            float goal = mDetached ? finger : finger * mPull;
             if (mSpring.isRunning()) {
                 mSpring.animateToFinalPosition(goal);
             } else {

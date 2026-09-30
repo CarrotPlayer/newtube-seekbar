@@ -4783,6 +4783,11 @@ public class MobilePlaybackActivity extends MobileActivity
     private boolean mMagnetDragging;
     /** NEWTUBE(haptics): a flick this fast (dp/s) minimizes even before the drag lets go. */
     private static final float MINIMIZE_FLICK_DP = 800f;
+    /**
+     * NEWTUBE(haptics): the video follows 75% of the finger until the click - lighter than the
+     * notification's half (owner, on the Pixel: at half it trailed the finger).
+     */
+    private static final float MINIMIZE_PULL = 0.75f;
     private static final long SETTLE_MIN_MS = 90;
     private static final long SETTLE_MAX_MS = 280;
     /**
@@ -5086,7 +5091,7 @@ public class MobilePlaybackActivity extends MobileActivity
     /** NEWTUBE(haptics): the magnet moves the morph; its position is finger travel in px. */
     private MagneticDrag minimizeMagnet() {
         if (mMinimizeMagnet == null) {
-            mMinimizeMagnet = new MagneticDrag(mContainer,
+            mMinimizeMagnet = new MagneticDrag(mContainer, MINIMIZE_PULL,
                     position -> applyMorph(Math.max(0f, Math.min(1f, position / mDragTravelPx))));
         }
         return mMinimizeMagnet;
