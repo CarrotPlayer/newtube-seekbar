@@ -64,7 +64,7 @@ with no connection, and they show up in your gallery.
 #### Measured speed
 The first screen appears in about 0.24 s, and a related video shows its first frame about half
 a second after you tap it ([Pixel 9 medians](#how-fast)). The interface is plain Material Design,
-in a dark theme (a light one is on the way).
+in light or dark.
 
 </td>
 </tr>
@@ -73,8 +73,7 @@ in a dark theme (a light one is on the way).
 
 #### Less noise
 **SponsorBlock** skips sponsor segments, **DeArrow** swaps clickbait titles and thumbnails,
-and **Return YouTube Dislike** shows estimated dislike counts. Shorts are hidden in Home and
-Subscriptions.
+and **Return YouTube Dislike** shows estimated dislike counts. There are no Shorts.
 
 </td>
 <td valign="top">

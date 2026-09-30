@@ -1,15 +1,37 @@
 # NewTube — Status
 
-**v1.11.0 (versionCode 11100), Tony Leblanc Edition, 2026-09-29.** Release scope,
-validation and distribution are in [the release record](../releases/1.11.0.md);
-the design and evidence of its main change are in
-[LANES.md](../player-sources/LANES.md). 1.10.1 to 1.10.4 are in their own
-records under `docs/releases/`. Older dated sections below remain historical
-evidence, not the current release verdict.
+**v1.12.0 (versionCode 11200), Paco Martínez Soria Edition, 2026-09-30.** Release
+scope, validation and distribution are in [the release record](../releases/1.12.0.md).
+1.10.1 to 1.11.0 are in their own records under `docs/releases/`. Older dated
+sections below remain historical evidence, not the current release verdict.
 
 Phone-only: the TV flavors, vendored ExoPlayer fork and Leanback modules were
 deleted. Playback uses Media3 1.10.1 with embedded Cronet and an OkHttp fallback.
 Toolchain: AGP 9.2.1 / Gradle 9.6.1 / compileSdk 37 / targetSdk 37 / minSdk 24.
+
+## 1.12.0: the post-launch round (2026-09-30)
+
+Reddit and GitHub reports after 1.11.0 went public, with the owner's calls, plus
+two rounds started the same day. Details per item in HANDOFF §35-§36 and the
+release record.
+
+- **Shorts removed** from every phone list, with no setting (ShortsFilter, no
+  channel Shorts tab, autoplay skips them); Shorts-thinned lists top up.
+- **Audio track** has its own row and sheet under Quality; **Rotate lock removed**;
+  the fullscreen button hands rotation back to the sensor.
+- **Picture-in-picture:** "Only audio" never enters PiP; a menu PiP stays pinned;
+  a tap on the playing video's card expands its PiP or mini player.
+- **Feeds keep loading** (below); **Notifications removed** (YouTube refuses the
+  inbox to the TV sign-in).
+- **Not interested / Don't recommend channel** (#1) on Home cards, signed in.
+- **Comments** in a panel under the video; **light theme** (#8); **motion polish**
+  (Back minimizes, instant controls, shimmer skeletons, mini swipe-away).
+- **Update check:** quiet, whenever Home comes back to the front, at most once an
+  hour (it ran only on a new launch task, at most every 12 h).
+
+Left: Search IME + docked mini spare space; the launch splash on Android 11 and
+older follows the system theme; a Shorts shelf's continuation is still fetched on
+Home (its page lands empty).
 
 ## Feeds that keep loading (2026-09-30, branch fix/feed-continuation, emulator)
 

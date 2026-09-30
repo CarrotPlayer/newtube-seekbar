@@ -2,6 +2,96 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.12.0 — 2026-09-30 — Paco Martínez Soria Edition
+
+"Everything in its place, and the lights on…" A fictional homage to Paco
+Martínez Soria and the spirit of his country folk finding their way around
+the big city, for a release that puts things where you'd look for them. A
+light theme, comments under the video, Back that minimizes, a Home that keeps
+loading, and no more Shorts.
+
+### New
+
+- **Light theme** ([#8](https://github.com/aleixrodriala/newtube/issues/8)).
+  Settings → User interface → Theme: System default, Light or Dark. The
+  player stays dark in both, like YouTube's. New installs follow the system;
+  an update from an earlier version keeps the dark theme until you change it.
+  Switching doesn't stop the video.
+- **Comments, under the video.** Comments open in a panel that slides up
+  under the video while it keeps playing, sorted by Top or Newest. Replies
+  open on their own page and Back returns to your place; long comments fold
+  after four lines with "Read more"; timestamps and links can be tapped. Pull
+  the panel down or press Back to close it.
+- **"Not interested" and "Don't recommend channel"** are back in the menu of
+  Home cards when you're signed in
+  ([#1](https://github.com/aleixrodriala/newtube/issues/1)). The card leaves
+  Home once YouTube takes it; if YouTube doesn't, a message says so and the
+  card stays.
+- **Audio track, in its own row.** On videos in more than one language
+  (dubbed or auto-dubbed), the player settings show "Audio track" under
+  Quality, like YouTube, and Quality lists only resolutions. Videos start in
+  their original language; a language you pick carries over to the next video
+  that has it.
+
+### Changed
+
+- **Back minimizes the player** to the mini player, like YouTube. The back
+  gesture previews it, and in fullscreen Back leaves fullscreen first. The
+  top-left button is now a down arrow, "Minimize". Swipe the mini player
+  sideways to close it.
+- **Smoother, just as fast.** A video grows out of the card you tapped, the
+  controls answer the first tap, and the mini player opens without a blink.
+  Loading placeholders shimmer, also on a cold start (instead of last time's
+  cards, which then jumped) and in Search (instead of a spinner). Switching
+  tabs no longer shuffles the cards.
+- **No Shorts.** Shorts no longer appear anywhere: Home, Subscriptions,
+  History, search, channels, playlists and Up next. Channels have no Shorts
+  tab, autoplay skips Shorts, and the Shorts settings are gone. A Shorts link
+  someone shares still opens in the normal player.
+- **No Notifications section.** YouTube refuses its notifications inbox to
+  the TV-style sign-in NewTube uses, so the section could only stay empty. It
+  and its setting are gone.
+- **Rotate lock is gone** from the player settings. Instead, after you go
+  fullscreen with the button, rotation goes back to the phone (with
+  auto-rotate on): turn the phone upright and fullscreen ends, like YouTube.
+  Videos opened from another app rotate too.
+- **"Play in background" has two choices:** Picture in picture and Only
+  audio.
+
+### Fixed
+
+- **"Only audio" no longer shrinks the video into picture-in-picture** when
+  you go Home. The audio keeps playing, with its controls in the
+  notification.
+- **Home keeps loading.** Signed in, Home stopped after a while and only a
+  refresh brought more. Now each of Home's shelves carries on in turn as you
+  scroll, then Home is fetched again for new videos (signed out on an
+  emulator: 124 videos before the end, now 261). Subscriptions and History
+  carry on past pages that were all Shorts, Up next loads its second page (60
+  videos instead of 30), and search results load more as you scroll (they
+  stopped at the first page).
+- **Picture-in-picture from the player menu stays in picture-in-picture**
+  instead of jumping back to the full player.
+- **Tapping the video that's already playing** (in the mini player or in
+  picture-in-picture) brings it back where it was, instead of loading it
+  again.
+- **New versions show up by themselves.** The You tab's "Update available"
+  row and dot only appeared when NewTube started from scratch and its last
+  check was over 12 hours old, so a new version could go unnoticed for a day
+  or more unless you tapped Check for updates. NewTube now checks quietly
+  whenever you come back to it, at most once an hour. This helps from the
+  next version on: 1.11.0 finds this one the old way, or with Check for
+  updates.
+
+### Still limited
+
+- **Search with the keyboard open and the mini player showing** leaves some
+  empty space at the bottom.
+- **Light theme on Android 11 and older:** the launch screen follows the
+  system theme, not the one you picked.
+- **Some videos only play in YouTube's own app or after a purchase** (paid
+  movies, some music).
+
 ## 1.11.0 — 2026-09-29 — Tony Leblanc Edition
 
 "There's always a way in…" A fictional homage to Tony Leblanc and the spirit of

@@ -3,6 +3,100 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
+## 1.12.0 — 30-09-2026 — Edición Paco Martínez Soria
+
+«Cada cosa en su sitio, y con la luz encendida…» Homenaje ficticio a Paco
+Martínez Soria y al espíritu de sus hombres de pueblo abriéndose camino en la
+gran ciudad, para una versión que pone las cosas donde uno las busca. Tema
+claro, comentarios bajo el vídeo, Atrás que minimiza, un Inicio que no se
+acaba y adiós a los Shorts.
+
+### Nuevo
+
+- **Tema claro** ([#8](https://github.com/aleixrodriala/newtube/issues/8)).
+  Ajustes → Interfaz de usuario → Tema: Predeterminado del sistema, Claro u
+  Oscuro. El reproductor sigue oscuro en los dos, como el de YouTube. Las
+  instalaciones nuevas siguen al sistema; al actualizar desde una versión
+  anterior se mantiene el tema oscuro hasta que lo cambies. Cambiarlo no para
+  el vídeo.
+- **Los comentarios, bajo el vídeo.** Se abren en un panel que sube por
+  debajo del vídeo mientras sigue sonando, ordenados por Destacados o Más
+  recientes. Las respuestas se abren en su propia página y Atrás te devuelve a
+  donde estabas; los comentarios largos se pliegan a las cuatro líneas con
+  «Leer más»; las marcas de tiempo y los enlaces se pueden tocar. Para
+  cerrarlo, arrástralo hacia abajo o pulsa Atrás.
+- **«No me interesa» y «No recomendar canal»** vuelven al menú de las
+  tarjetas de Inicio con la sesión iniciada
+  ([#1](https://github.com/aleixrodriala/newtube/issues/1)). La tarjeta sale
+  de Inicio cuando YouTube lo acepta; si no, un mensaje lo dice y la tarjeta
+  se queda.
+- **La pista de audio, en su propia fila.** En los vídeos en más de un idioma
+  (doblados o doblados automáticamente), los ajustes del reproductor muestran
+  «Pista de audio» bajo Calidad, como YouTube, y Calidad solo lista
+  resoluciones. Los vídeos empiezan en su idioma original; el idioma que elijas
+  se mantiene en el siguiente vídeo que lo tenga.
+
+### Cambiado
+
+- **Atrás minimiza el reproductor** al minirreproductor, como YouTube. El
+  gesto de atrás lo previsualiza, y a pantalla completa Atrás primero sale de
+  ella. El botón de arriba a la izquierda es ahora una flecha hacia abajo,
+  «Minimizar». Desliza el minirreproductor hacia un lado para cerrarlo.
+- **Más suave, igual de rápido.** El vídeo crece desde la tarjeta que tocaste,
+  los controles responden al primer toque y el minirreproductor se abre sin
+  parpadeo. Las tarjetas de carga brillan, también al abrir la app en frío (en
+  vez de las tarjetas de la última vez, que luego saltaban) y en la búsqueda
+  (en vez de un círculo girando). Cambiar de pestaña ya no baraja las
+  tarjetas.
+- **Sin Shorts.** Los Shorts ya no aparecen en ningún sitio: Inicio,
+  Suscripciones, Historial, búsqueda, canales, listas y A continuación. Los
+  canales no tienen pestaña de Shorts, la reproducción automática se los salta
+  y los ajustes de Shorts ya no están. Un enlace a un Short que te pasen se
+  sigue abriendo en el reproductor normal.
+- **Sin sección de Notificaciones.** YouTube niega su bandeja de
+  notificaciones al inicio de sesión tipo TV que usa NewTube, así que la
+  sección solo podía quedarse vacía. Se van ella y su ajuste.
+- **Adiós al bloqueo de rotación** de los ajustes del reproductor. A cambio,
+  después de pasar a pantalla completa con el botón, la rotación vuelve al
+  móvil (con la rotación automática activada): pon el móvil en vertical y sale
+  de pantalla completa, como en YouTube. Los vídeos abiertos desde otra app
+  también giran.
+- **«Reproducir en segundo plano» tiene dos opciones:** Imagen en imagen y
+  Solo audio.
+
+### Arreglado
+
+- **«Solo audio» ya no encoge el vídeo en imagen en imagen** al ir a Inicio.
+  El audio sigue sonando, con sus controles en la notificación.
+- **Inicio sigue cargando.** Con la sesión iniciada, Inicio se paraba al rato
+  y solo al recargar salían más vídeos. Ahora cada estantería de Inicio va
+  continuando por turnos mientras bajas, y luego se vuelve a pedir Inicio para
+  traer vídeos nuevos (sin sesión en un emulador: 124 vídeos hasta el final,
+  ahora 261). Suscripciones e Historial siguen más allá de las páginas que eran
+  todo Shorts, A continuación carga su segunda página (60 vídeos en vez de 30)
+  y los resultados de búsqueda cargan más al bajar (se quedaban en la
+  primera página).
+- **La imagen en imagen desde el menú del reproductor se queda en imagen en
+  imagen** en vez de volver sola al reproductor completo.
+- **Tocar el vídeo que ya está sonando** (en el minirreproductor o en imagen
+  en imagen) lo devuelve tal como estaba, en vez de volver a cargarlo.
+- **Las versiones nuevas aparecen solas.** La fila «Actualización disponible»
+  y el punto de la pestaña Tú solo salían cuando NewTube arrancaba desde cero
+  y su última comprobación tenía más de 12 horas, así que una versión nueva
+  podía pasar un día o más sin avisar si no tocabas Buscar actualizaciones.
+  Ahora NewTube lo comprueba en silencio cada vez que vuelves a la app, como
+  mucho una vez por hora. Se nota a partir de la próxima versión: la 1.11.0
+  encuentra esta como antes, o con Buscar actualizaciones.
+
+### Sigue limitado
+
+- **Buscar con el teclado abierto y el minirreproductor a la vista** deja un
+  hueco vacío abajo.
+- **Tema claro en Android 11 y anteriores:** la pantalla de arranque sigue el
+  tema del sistema, no el que elegiste.
+- **Algunos vídeos solo se ven en la app de YouTube o tras pagar** (películas
+  de pago, algo de música).
+
 ## 1.11.0 — 29-09-2026 — Edición Tony Leblanc
 
 «Siempre hay una manera de entrar…» Homenaje ficticio a Tony Leblanc y al

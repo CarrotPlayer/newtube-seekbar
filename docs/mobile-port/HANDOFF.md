@@ -2279,3 +2279,65 @@ signed out; NetPath `feed-grid section= action= in= size=` (grid size per update
   stored boot to it opens Home, and "Hide watched videos from Notifications" is hidden
   (GeneralSettingsPresenter). Prefs and shared code stay; MSC keeps only the `notifications source=`
   log line (56bf9c08). To revisit: an inbox that accepts the TV sign-in, or a WEB sign-in.
+## 36. The post-launch round: Shorts, audio track, PiP, feedback, comments, light theme, motion, update check (2026-09-30, 1.12.0)
+
+Reports after 1.11.0 went public (Reddit, GitHub #1/#8) and the owner's calls. Each item's
+evidence is in its commit message; the release record lists the commits. Pointers for whoever
+touches these next:
+
+- **Shorts (`ShortsFilter`, `FilteredPageTopUp`, `ShortsAutoplay`).** Dropped unconditionally
+  from every phone list; no pref is read and the stored ones are untouched (TV paths unchanged,
+  `PhoneUi` gates). TVHTML5 sends Shorts as `lockupViewModel` items marked only by a
+  `reelWatchEndpoint` or `LOCKUP_CONTENT_TYPE_SHORT` (MSC `d72d1736` `52ffaf1b`): a new list
+  shape needs the same flag or Shorts leak back. A top-up needs a page of the CURRENT list to
+  have landed (no follow-up after a cancel), 5 pages per user action. A shared shorts link still
+  plays in the normal player. Home still fetches a Shorts shelf's continuation (the page lands
+  empty): skipping it in `ShelfTail` would save one request.
+- **Audio track (`AudioTrackChoices`, `Media3TrackAdapter.findAudioTrack`).** Language before
+  itag, always; an untagged stored track matches only an untagged track; with no original marked,
+  the same itag in any variant. Rotate lock is gone; `OrientationHandBack` returns a
+  button-forced orientation to the sensor after 0.6 s held that way (only with auto-rotate on),
+  and the player's rest orientation is "user" so link-opened videos rotate.
+- **PiP (`BackgroundModePolicy`, `SystemPipBridge`, `PlayingReturn`).** "Only audio" never arms
+  auto-enter or enters from onUserLeaveHint. A menu PiP with one of our screens started is
+  "in-app": Browse focus does not restore it; a configuration-change stop keeps that mark. A card
+  tap on the video playing in PiP or the mini player expands it (same id, playlist and
+  local/streamed copy) instead of `openVideo`.
+- **Not interested (#1).** TV Home cards carry no feedback tokens any more; the menu fetches
+  the card's engagement panel (upstream 8b4a884b, MSC `cd480267`) and `sendFeedbackObserve`
+  reports YouTube's answer (`feedback not-interested|dont-recommend ... code= processed=`). The
+  card leaves only on `processed=true`. Signed in only; Up next is unchanged.
+- **Comments (`CommentsPanel`, `CommentsPanelLayout`).** A panel under the video replaces the
+  sheet; first page best-effort 2 s after metadata binds; Top/Newest per video. Design and
+  Pixel timings: memory note "comments-redesign" of the session that built it.
+- **Light theme (#8, `ThemeMode`, `MobileActivity.checkTheme`, `ThemeRefresh`).** Palette in
+  `values/` (light) and `values-night/` (the old dark, unchanged). The player stays dark via a
+  theme overlay and fixed `mobile_player_*` colours. The choice is a night-mode configuration
+  override per screen (merged with UI scale in `MotherActivity`) plus AppCompatDelegate (sheets
+  are AppCompat dialogs) and, on Android 12+, `UiModeManager.setApplicationNightMode` for the
+  splash. Upgrades from the dark-only app keep Dark. Two rules learned the hard way:
+  `WatchBackdropDrawable.getOpacity()` must stay TRANSLUCENT (OPAQUE turns the translucent player
+  window opaque: white wash and trails on minimize), and the backdrop stays clear while a morph
+  start is pending (`mMorphStartPending`), or onResume paints blank frames before the morph.
+- **Motion (`ui/common/Motion`, `FrameGate`, `ShimmerLinearLayout`, `SkeletonReveal`,
+  `MiniCardSwipe`, `MiniPlayerBridge.setPendingCardFold`).** Never use EMPHASIZED_DECELERATE for
+  on-screen moves (it jumps a third of the way in the first 120 Hz frame). Back in portrait
+  minimizes (predictive back on the player, `enableOnBackInvokedCallback`). A cold start shows the
+  skeleton, not the disk snapshot (`FeedCache.isFromLastSession`; the snapshot is the fallback if
+  the first load fails). Presenter-driven finishes of `MobileAppDialogActivity` stay immediate
+  (a delayed finish buried the Share chooser under Home). Known gap: Search IME + docked mini
+  leaves spare space.
+- **Update check (`AppUpdates.checkIfDue`).** The launch check ran only when SplashActivity
+  started a task and the shared checker skips anything within 12 h of its last check, so a
+  release stayed invisible until Check for updates (owner, 1.11.0). Now the launch and every
+  Home resume (+3 s, cancelled in onPause) check quietly when the last manifest answer
+  (`checked_at_ms`) is over 1 h old, via `forceCheckForUpdates` (its user-asked mark only
+  matters to download-on-check, which the phone disables); at most one automatic check per
+  5 min per process. Codex review rules: automatic checks only in IDLE/UP_TO_DATE (with an update
+  on offer, a re-check answering another version mid-download made the shared checker validate
+  the APK against the wrong version and delete it); a user check joins an automatic one still in
+  flight (< 30 s) instead of a second request; offline (the same `NetworkInfo` test as
+  `DownloadManager`) there is no automatic check, because the shared checker toasts "Internet
+  connection not available!". Emulator test: `setprop debug.arc.update_manifest
+  http://10.0.2.2:8765/newtube.json` (debug builds), a local manifest one version higher,
+  `adb root` + `date` two hours ahead with the process kept alive, then back to the app.
