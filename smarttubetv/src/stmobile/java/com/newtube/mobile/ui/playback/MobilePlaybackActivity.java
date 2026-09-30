@@ -370,6 +370,21 @@ public class MobilePlaybackActivity extends MobileActivity
      * Pixel 9 (Android 16) as: fullscreen -&gt; home -&gt; the PiP window can no longer be opened.</p>
      */
     private int mPrePipOrientation = ORIENTATION_NONE;
+    /**
+     * The player's orientation request at rest: follow the phone, within the system auto-rotate
+     * setting. USER rather than UNSPECIFIED because the player window is translucent: an
+     * UNSPECIFIED translucent activity has no say, so the display took its orientation from
+     * whatever was behind it - fine over Browse, but a video opened from another app sits over
+     * that app or the launcher (portrait-only on Pixel), and never rotated. Same value as the
+     * manifest's screenOrientation.
+     */
+    private static final int FREE_ORIENTATION = ActivityInfo.SCREEN_ORIENTATION_USER;
+    /** Pending hand-back of the fullscreen button's forced orientation (see toggleFullscreen). */
+    private final OrientationHandBack mOrientationHandBack = new OrientationHandBack();
+    @Nullable
+    private android.view.OrientationEventListener mOrientationListener;
+    private int mLastPhoneDegrees = android.view.OrientationEventListener.ORIENTATION_UNKNOWN;
+    private final Runnable mOrientationSettleCheck = () -> onPhoneOrientation(mLastPhoneDegrees);
     /** True while in true background audio-only playback (video renderer dropped); see setBackgroundAudioMode. */
     private boolean mBackgroundAudioMode;
 
@@ -1261,6 +1276,7 @@ public class MobilePlaybackActivity extends MobileActivity
         }
 
         applySystemBarsForOrientation(getResources().getConfiguration().orientation);
+        updateOrientationHandBackListener();
     }
 
     @Override
@@ -1270,6 +1286,7 @@ public class MobilePlaybackActivity extends MobileActivity
         }
 
         mIsResumed = false;
+        updateOrientationHandBackListener();
 
         super.onPause();
     }
@@ -1357,6 +1374,8 @@ public class MobilePlaybackActivity extends MobileActivity
     protected void onDestroy() {
         DownloadRegistry.instance(this).removeListener(mDownloadsListener);
         cancelAutoHide();
+        mOrientationHandBack.disarm();
+        updateOrientationHandBackListener();
         hideRelatedSkeleton(); // cancels the pulse animator + pending timeout
         Utils.removeCallbacks(mReleaseImageRequests);
         Utils.removeCallbacks(mReleaseWatchMetadata);
@@ -2031,7 +2050,8 @@ public class MobilePlaybackActivity extends MobileActivity
      * Drop any forced orientation for the duration of a PiP stint. A PiP window is sized by its
      * aspect ratio, never by the activity's orientation request, so nothing is lost while pinned -
      * but leaving the request in place wedges the task in {@code mode=pinned} (see
-     * {@link #mPrePipOrientation}).
+     * {@link #mPrePipOrientation}). The resting {@link #FREE_ORIENTATION} is dropped and put back
+     * too, which keeps the pinned task exactly as it was when the rest state was UNSPECIFIED.
      */
     private void releaseOrientationLockForPip() {
         int requested = getRequestedOrientation();
@@ -2784,12 +2804,92 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     private void toggleFullscreen() {
-        if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        } else {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
-        }
+        boolean toLandscape =
+                getResources().getConfiguration().orientation != Configuration.ORIENTATION_LANDSCAPE;
+        setRequestedOrientation(toLandscape
+                ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        armOrientationHandBack(toLandscape
+                ? Configuration.ORIENTATION_LANDSCAPE : Configuration.ORIENTATION_PORTRAIT);
         armAutoHide();
+    }
+
+    /**
+     * NEWTUBE(fullscreen): the button's forced orientation goes back to the sensor once the phone
+     * is held that way ({@link OrientationHandBack}), YouTube-style: after the button entered
+     * fullscreen, turning the phone upright leaves it again, and after the button left it, laying
+     * the phone sideways enters it again. Until this existed the force stuck for the activity's
+     * whole life (the removed Rotate lock's "Off" was the only thing that reset it). With the
+     * system auto-rotate setting off the phone never rotates the player anyway, so the force
+     * simply stays, as before.
+     */
+    private void armOrientationHandBack(int target) {
+        if (isAutoRotateOn()) {
+            mOrientationHandBack.arm(target);
+        } else {
+            mOrientationHandBack.disarm();
+        }
+        updateOrientationHandBackListener();
+    }
+
+    /** Listen to the phone's angle only while a hand-back is pending and the player is in front. */
+    private void updateOrientationHandBackListener() {
+        boolean listen = mOrientationHandBack.isArmed() && mIsResumed && !mIsInPip;
+        if (listen) {
+            if (mOrientationListener == null) {
+                mOrientationListener = new android.view.OrientationEventListener(this) {
+                    @Override
+                    public void onOrientationChanged(int degrees) {
+                        onPhoneOrientation(degrees);
+                    }
+                };
+            }
+            if (mOrientationListener.canDetectOrientation()) {
+                mOrientationListener.enable();
+            }
+        } else {
+            Utils.removeCallbacks(mOrientationSettleCheck);
+            if (mOrientationListener != null) {
+                mOrientationListener.disable();
+            }
+        }
+    }
+
+    private void onPhoneOrientation(int degrees) {
+        mLastPhoneDegrees = degrees;
+        long now = android.os.SystemClock.uptimeMillis();
+        if (!mOrientationHandBack.onOrientation(degrees, now)) {
+            long remaining = mOrientationHandBack.remainingMs(now);
+            if (remaining >= 0) {
+                Utils.postDelayed(mOrientationSettleCheck, remaining + 1); // re-posts, one pending
+            } else {
+                Utils.removeCallbacks(mOrientationSettleCheck);
+            }
+            return;
+        }
+        Utils.removeCallbacks(mOrientationSettleCheck);
+        mOrientationHandBack.disarm();
+        updateOrientationHandBackListener();
+
+        // Only our own force goes back (a PiP stint may have replaced it meanwhile), and only
+        // while auto-rotate is still on - otherwise freeing it would snap the player to the
+        // phone's locked rotation.
+        int requested = getRequestedOrientation();
+        boolean ours = requested == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                || requested == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        if (ours && !mIsInPip && isAutoRotateOn()) {
+            setRequestedOrientation(FREE_ORIENTATION);
+        }
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d(com.liskovsoft.smartyoutubetv2.common.misc.NetPath.TAG,
+                    "orientation hand-back degrees=" + degrees + " requested=" + requested
+                            + " freed=" + (getRequestedOrientation() == FREE_ORIENTATION));
+        }
+    }
+
+    private boolean isAutoRotateOn() {
+        return android.provider.Settings.System.getInt(getContentResolver(),
+                android.provider.Settings.System.ACCELEROMETER_ROTATION, 0) == 1;
     }
 
     /**
@@ -2833,7 +2933,8 @@ public class MobilePlaybackActivity extends MobileActivity
     // actions (repeat/zoom/playlist/queue) show their AppDialog via the touch
     // MobileAppDialogActivity; simple toggles (stats/screen-off) flip and are reflected here.
     // Actions with no mobile meaning (AFR) are omitted. There is no rotate lock: rotation follows
-    // the phone, and the fullscreen button forces an orientation (toggleFullscreen).
+    // the phone; the fullscreen button forces an orientation until the phone is held that way
+    // (toggleFullscreen / OrientationHandBack).
     // ---------------------------------------------------------------------------------
 
     private void openPlayerMenu() {

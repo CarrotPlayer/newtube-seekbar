@@ -5,6 +5,7 @@ import android.content.Context;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 
 import java.util.Locale;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,16 +27,33 @@ final class AudioTrackLabel {
 
     static String format(Context context, String raw) {
         Locale uiLocale = context.getResources().getConfiguration().getLocales().get(0);
-        return format(raw, uiLocale,
+        return format(raw, uiLocale, icuNames(uiLocale),
                 context.getString(R.string.mobile_audio_role_original),
                 context.getString(R.string.mobile_audio_role_dubbed),
                 context.getString(R.string.mobile_audio_role_auto_dubbed),
                 context.getString(R.string.mobile_audio_role_descriptive));
     }
 
-    /** Pure form of {@link #format(Context, String)}; returns {@code raw} when it is not a tag. */
+    /**
+     * ICU's locale names, not {@link Locale#getDisplayName}: on Android the latter composes the
+     * script's stand-alone name, "Chinese (Simplified Han)", where ICU (like YouTube) says
+     * "Chinese (Simplified)".
+     */
+    static Function<Locale, String> icuNames(Locale uiLocale) {
+        android.icu.text.LocaleDisplayNames names = android.icu.text.LocaleDisplayNames.getInstance(uiLocale);
+        return names::localeDisplayName;
+    }
+
+    /** Pure form of {@link #format(Context, String)} with the JDK's locale names. */
     static String format(String raw, Locale uiLocale, String original, String dubbed,
                          String autoDubbed, String descriptive) {
+        return format(raw, uiLocale, locale -> locale.getDisplayName(uiLocale),
+                original, dubbed, autoDubbed, descriptive);
+    }
+
+    /** Returns {@code raw} when it is not a tag. */
+    static String format(String raw, Locale uiLocale, Function<Locale, String> displayName,
+                         String original, String dubbed, String autoDubbed, String descriptive) {
         if (raw == null) {
             return null;
         }
@@ -45,7 +63,10 @@ final class AudioTrackLabel {
         }
         String tag = m.group(1).replaceAll("[_‐‑]", "-");
         Locale language = Locale.forLanguageTag(tag);
-        String name = language.getDisplayName(uiLocale);
+        String name = displayName.apply(language);
+        if (name == null) {
+            return raw;
+        }
         if (name.isEmpty() || name.equalsIgnoreCase(tag)) {
             return raw; // unknown to this device: the raw tag is more honest than a guess
         }
