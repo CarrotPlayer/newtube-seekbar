@@ -1968,6 +1968,12 @@ public class MobilePlaybackActivity extends MobileActivity
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !Helpers.isPictureInPictureSupported(this)) {
             return;
         }
+        // A closed PiP finishes the player while play-state changes still arrive; the system
+        // refuses params for a finishing activity (IllegalStateException), and there is nothing
+        // left to arm.
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
         try {
             if (BuildConfig.DEBUG) {
                 // Fires on every play-state change - debug only. This is the line that showed the

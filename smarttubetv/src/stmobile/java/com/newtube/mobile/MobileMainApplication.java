@@ -167,6 +167,10 @@ public class MobileMainApplication extends MainApplication {
         // Counts our started screens from the first one on, so a PiP the user opened from the
         // player menu is not "restored" by Home gaining focus under it (SystemPipBridge).
         SystemPipBridge.install(this);
+        // A card tap on the video already playing in PiP or the mini player expands that player
+        // instead of opening (and re-preparing) the same video again.
+        com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.VideoActionPresenter.setPlayingReturn(
+                tapped -> com.newtube.mobile.ui.playback.PlayingReturn.bringToFront(this, tapped));
 
         // NETWORK FORENSICS (mobile-only): observe default-network replacements/capability changes
         // so a Wi-Fi -> 5G transition can be correlated with URL remints, media errors and ABR

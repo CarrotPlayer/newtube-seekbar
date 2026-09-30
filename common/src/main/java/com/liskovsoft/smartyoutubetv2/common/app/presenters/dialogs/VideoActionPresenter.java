@@ -14,6 +14,22 @@ import com.liskovsoft.smartyoutubetv2.common.utils.LoadingManager;
 public class VideoActionPresenter extends BasePresenter<Void> {
     private static final String TAG = VideoActionPresenter.class.getSimpleName();
 
+    /**
+     * NEWTUBE(same-video-tap): the phone's way back to a player that already plays the tapped
+     * video (PiP window or in-app mini player): expand it instead of opening the video again.
+     */
+    public interface PlayingReturn {
+        /** True when the tap was answered by bringing the playing player back. */
+        boolean bringToFront(Video tapped);
+    }
+
+    /** Set once from the phone's Application; the TV flavors never set it (every tap opens). */
+    private static volatile PlayingReturn sPlayingReturn;
+
+    public static void setPlayingReturn(PlayingReturn playingReturn) {
+        sPlayingReturn = playingReturn;
+    }
+
     private VideoActionPresenter(Context context) {
         super(context);
     }
@@ -29,6 +45,10 @@ public class VideoActionPresenter extends BasePresenter<Void> {
 
         // Show playlist contents in channel instead of instant playback
         if (item.hasVideo() && !item.isBadgePlaylistInChannel()) {
+            PlayingReturn playingReturn = sPlayingReturn;
+            if (playingReturn != null && playingReturn.bringToFront(item)) {
+                return;
+            }
             PlaybackPresenter.instance(getContext()).openVideo(item);
         } else if (item.hasChannel() || (item.belongsToChannelUploads() && item.hasNestedItems())) {
             MediaServiceManager.chooseChannelPresenter(getContext(), item);
