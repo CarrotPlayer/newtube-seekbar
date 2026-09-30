@@ -263,6 +263,15 @@ android {
         // media3 player APIs are @UnstableApi; release runs lintVital with abortOnError, so the
         // opt-in check must stay off (the code deliberately uses the unstable player surface).
         disable 'UnsafeOptInUsageError'
+        // -PtranslationLint: only the checks a translation can break (placeholders, plurals,
+        // strings missing from the base file), across the app and its library modules. Used by
+        // .github/workflows/translations.yml on Weblate pull requests; normal lint is unchanged.
+        if (project.hasProperty('translationLint')) {
+            checkOnly 'StringFormatInvalid', 'StringFormatMatches', 'StringFormatCount',
+                    'MissingQuantity', 'ImpliedQuantity', 'ExtraTranslation', 'StringEscaping'
+            checkDependencies = true
+            abortOnError = true
+        }
         //checkReleaseBuilds false // fix for ClassNotFoundException: com.android.tools.lint.client.api.Vendor
     }
 

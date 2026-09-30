@@ -17,7 +17,7 @@ and cast to SmartTube on your TV.
 [![Built on SmartTube](https://img.shields.io/badge/built_on-SmartTube-1E2A78?style=flat-square)](https://github.com/yuliskov/SmartTube)
 [![Discord](https://img.shields.io/badge/Discord-join-1E2A78?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/xu3v6euSHq)
 
-**[Download](#download) · [Features](#features) · [How sign-in works](#how-sign-in-works) · [FAQ](#faq) · [Credits](#built-on-smarttube)**
+**[Download](#download) · [Features](#features) · [How sign-in works](#how-sign-in-works) · [FAQ](#faq) · [Translate](#translate) · [Credits](#built-on-smarttube)**
 
 <br>
 
@@ -260,6 +260,15 @@ with the video link and your NewTube version.
 
 Full notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 SmartTube's original README is kept at [docs/UPSTREAM_README_SmartTube.md](docs/UPSTREAM_README_SmartTube.md).
+
+## Translate
+
+NewTube's phone screens are in English and Spanish so far. You can translate them in your browser
+on **[Weblate](https://hosted.weblate.org/projects/newtube/)** (WEBLATE-URL-PLACEHOLDER: the
+project page goes live once it is approved), with no coding and no GitHub account needed. The
+settings and messages inherited from SmartTube already exist in about 45 languages and just need
+their gaps filled. Weblate sends the translations here as pull requests, and each one ships in the
+next release. How it works and what to translate first: [TRANSLATING.md](TRANSLATING.md).
 
 ## Building and contributing
 

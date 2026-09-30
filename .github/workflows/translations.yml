@@ -1,0 +1,40 @@
+name: Translations
+
+# Weblate sends translations as pull requests. This checks that none of them breaks a placeholder,
+# a plural or the build before it is merged. It runs only when string resources change.
+on:
+  pull_request:
+    paths:
+      - '**/res/values*/strings*.xml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 21.0.6113669   # smarttubetv/build.gradle ndkVersion, as in release.yml
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Install the NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" > /dev/null
+
+      - name: Lint the translations
+        run: ./gradlew --no-daemon :smarttubetv:lintStmobileDebug -PtranslationLint
+
+      - name: Build
+        run: ./gradlew --no-daemon :smarttubetv:assembleStmobileDebug
