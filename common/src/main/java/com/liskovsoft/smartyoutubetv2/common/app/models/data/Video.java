@@ -21,6 +21,7 @@ import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.sharedutils.prefs.GlobalPreferences;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.service.VideoStateService;
+import com.liskovsoft.smartyoutubetv2.common.misc.PhoneUi;
 import com.liskovsoft.smartyoutubetv2.common.prefs.BlockedChannelData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerTweaksData;
 import com.liskovsoft.googlecommon.common.helpers.ServiceHelper;
@@ -899,6 +900,11 @@ public final class Video {
                                     && video.videoId != null && !blockedChannelData.containsChannel(video.channelId, video.getAuthor());
                         });
             }
+        }
+
+        // NEWTUBE(shorts): no Shorts on the phone - autoplay never lands on one (ShortsAutoplay).
+        if (PhoneUi.isEnabled()) {
+            nextVideo = ShortsAutoplay.pick(nextVideo, metadata.getSuggestions(), videoId);
         }
 
         return nextVideo;

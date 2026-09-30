@@ -25,7 +25,9 @@ import com.liskovsoft.smartyoutubetv2.common.app.views.ChannelUploadsView;
 import com.liskovsoft.smartyoutubetv2.common.utils.LoadFailure;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.newtube.mobile.ui.browse.VideoCardAdapter;
+import com.newtube.mobile.ui.common.FilteredPageTopUp;
 import com.newtube.mobile.ui.common.MobileActivity;
+import com.newtube.mobile.ui.common.ShortsFilter;
 import com.newtube.mobile.ui.playback.MiniPlayerBridge;
 import com.newtube.mobile.ui.playback.MobileMiniPlayerController;
 
@@ -89,6 +91,10 @@ public class MobileChannelUploadsActivity extends MobileActivity
 
     private final List<Video> mVideos = new ArrayList<>();
     private int mLastPaginationTriggerCount = -1;
+    /** NEWTUBE(shorts): pages this list fetches itself when its dropped Shorts left it short. */
+    private final FilteredPageTopUp mTopUp = new FilteredPageTopUp();
+    /** The group the last page came in (the anchor to continue when every card was a Short). */
+    private VideoGroup mLastGroup;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -239,7 +245,8 @@ public class MobileChannelUploadsActivity extends MobileActivity
         mGrid.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
-                maybeTriggerPagination();
+                // dy == 0: a layout pass changed the visible range, not the user.
+                maybeTriggerPagination(dy != 0);
                 applyToolbarTitleAlpha();
             }
         });
@@ -418,7 +425,7 @@ public class MobileChannelUploadsActivity extends MobileActivity
         return false;
     }
 
-    private void maybeTriggerPagination() {
+    private void maybeTriggerPagination(boolean userScroll) {
         // A failed next page waits for Try again instead of re-firing on every scroll frame.
         if (mVideos.isEmpty() || mPresenter == null || mLoadMoreFooter.isFailed()) {
             return;
@@ -435,8 +442,31 @@ public class MobileChannelUploadsActivity extends MobileActivity
 
         if (lastVisible >= itemCount - SCROLL_END_THRESHOLD_ITEMS && itemCount != mLastPaginationTriggerCount) {
             mLastPaginationTriggerCount = itemCount;
+            if (userScroll) {
+                mTopUp.onUserAction(); // NEWTUBE(shorts): the user asked for more
+            }
             mPresenter.onScrollEnd(mVideos.get(mVideos.size() - 1));
         }
+    }
+
+    /**
+     * NEWTUBE(shorts): with its Shorts dropped the list may be too short to scroll, and then
+     * nothing would ever ask for its next page: fetch it now, within {@link FilteredPageTopUp}'s
+     * budget. Called when a page has landed. Returns whether a page was asked for.
+     */
+    private boolean topUpIfShort() {
+        VideoGroup group = mLastGroup;
+        List<Video> anchor = group != null ? group.getVideos() : null;
+        if (mPresenter == null || mLoadMoreFooter.isFailed() || anchor == null || anchor.isEmpty()) {
+            return false;
+        }
+        if (!mTopUp.take(mVideos.size(), group.getNextPageKey() != null)) {
+            return false;
+        }
+        com.liskovsoft.smartyoutubetv2.common.misc.NetPath.log("uploads-topup page=" + mTopUp.pages()
+                + " items=" + mVideos.size());
+        mPresenter.onScrollEnd(anchor.get(anchor.size() - 1));
+        return true;
     }
 
     private int computeSpanCount() {
@@ -535,13 +565,19 @@ public class MobileChannelUploadsActivity extends MobileActivity
                 mTitleView.setText(group.getTitle());
             }
 
+            List<Video> shown = ShortsFilter.withoutShorts(group.getVideos()); // NEWTUBE(shorts)
+            if (group.getAction() != VideoGroup.ACTION_REMOVE && group.getAction() != VideoGroup.ACTION_SYNC) {
+                mLastGroup = group;
+                mTopUp.onDropped((group.getVideos() != null ? group.getVideos().size() : 0)
+                        - (shown != null ? shown.size() : 0));
+            }
             switch (group.getAction()) {
                 case VideoGroup.ACTION_REPLACE:
                     mVideos.clear();
-                    mVideos.addAll(group.getVideos());
+                    mVideos.addAll(shown);
                     break;
                 case VideoGroup.ACTION_PREPEND:
-                    mVideos.addAll(0, group.getVideos());
+                    mVideos.addAll(0, shown);
                     break;
                 case VideoGroup.ACTION_REMOVE:
                     mVideos.removeAll(group.getVideos());
@@ -551,7 +587,7 @@ public class MobileChannelUploadsActivity extends MobileActivity
                     break;
                 case VideoGroup.ACTION_APPEND:
                 default:
-                    appendNew(group.getVideos());
+                    appendNew(shown);
                     break;
             }
 
@@ -587,6 +623,8 @@ public class MobileChannelUploadsActivity extends MobileActivity
         runOnUiThread(() -> {
             mVideos.clear();
             mLastPaginationTriggerCount = -1;
+            mTopUp.clear();
+            mLastGroup = null;
             mLoadMoreFooter.setFailed(false);
             mAdapter.submitList(new ArrayList<>());
             updatePlayAllVisibility();
@@ -597,6 +635,9 @@ public class MobileChannelUploadsActivity extends MobileActivity
     @Override
     public void showProgressBar(boolean show) {
         runOnUiThread(() -> {
+            if (!show && topUpIfShort()) {
+                return; // NEWTUBE(shorts): another page is on its way - still loading
+            }
             // Pull-to-refresh draws its own spinner; don't stack the centered one over it.
             mProgressBar.setVisibility(show && !mSwipe.isRefreshing() ? View.VISIBLE : View.GONE);
             if (!show) {

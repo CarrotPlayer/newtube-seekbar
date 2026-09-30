@@ -5880,8 +5880,8 @@ public class MobilePlaybackActivity extends MobileActivity
                 continue;
             }
             for (Video v : vids) {
-                if (v == null) {
-                    continue;
+                if (v == null || com.newtube.mobile.ui.common.ShortsFilter.isShort(v)) {
+                    continue; // NEWTUBE(shorts): neither Up next nor the queue card lists Shorts
                 }
                 if (isQueueRow) {
                     mQueueVideos.add(v);
