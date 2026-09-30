@@ -2900,6 +2900,7 @@ public class MobilePlaybackActivity extends MobileActivity
             }
         } else {
             Utils.removeCallbacks(mOrientationSettleCheck);
+            mOrientationHandBack.pause(); // a pending target survives PiP/background, the hold not
             if (mOrientationListener != null) {
                 mOrientationListener.disable();
             }

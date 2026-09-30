@@ -34,6 +34,15 @@ final class OrientationHandBack {
         mMatchingSinceMs = -1;
     }
 
+    /**
+     * Readings stop (PiP, background): keep the target, forget the hold. Time without readings
+     * says nothing about how the phone was held, so after a pause the phone has to settle again
+     * from its next reading instead of handing back on it at once.
+     */
+    void pause() {
+        mMatchingSinceMs = -1;
+    }
+
     boolean isArmed() {
         return mTarget != NONE;
     }
