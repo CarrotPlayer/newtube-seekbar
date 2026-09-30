@@ -134,6 +134,12 @@ public final class SystemPipBridge {
         return sInAppPip;
     }
 
+    /** The one live player, if any. */
+    @Nullable
+    static MobilePlaybackActivity player() {
+        return sActivity.get();
+    }
+
     /** Decision half of {@link #restoreFromLauncher}, split out for tests. */
     static boolean shouldRestore(boolean playerPinned, boolean inAppPip) {
         return playerPinned && !inAppPip;
