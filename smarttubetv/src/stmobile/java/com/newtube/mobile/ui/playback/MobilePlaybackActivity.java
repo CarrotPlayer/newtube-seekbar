@@ -2090,6 +2090,8 @@ public class MobilePlaybackActivity extends MobileActivity
         setMargins(mScrubChapterView, 0, 0, 0,
                 getResources().getDimensionPixelSize(R.dimen.mobile_player_scrub_pill_margin) + bottom + lift);
         setMargins(mTopPill, 0, top + dp(12), 0, 0);
+        // The playback notice sits just over the row (60 dp in portrait, as in the layout).
+        setMargins(mNoticeView, 0, 0, 0, dp(60) + bottom + lift);
     }
 
     /**
