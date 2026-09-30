@@ -8,6 +8,7 @@ import com.liskovsoft.sharedutils.mylogger.Log;
 import com.liskovsoft.sharedutils.prefs.GlobalPreferences;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.service.VideoStateService;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.service.VideoStateService.State;
+import com.liskovsoft.smartyoutubetv2.common.misc.NetPath;
 import com.liskovsoft.smartyoutubetv2.common.prefs.BlockedChannelData;
 
 import java.util.ArrayList;
@@ -123,6 +124,8 @@ public class VideoGroup {
             videoGroup.add(video);
         }
 
+        logHomeFeedbackData(mediaGroup);
+
         return videoGroup;
     }
 
@@ -144,9 +147,41 @@ public class VideoGroup {
             baseGroup.add(video);
         }
 
+        logHomeFeedbackData(mediaGroup);
+
         baseGroup.mAction = ACTION_APPEND;
 
         return baseGroup;
+    }
+
+    /**
+     * NEWTUBE(not-interested): one NetPath line per Home shelf (and shelf page) - how many cards
+     * carry what "Not interested" / "Don't recommend channel" need: the old per-card feedback
+     * tokens, or the long-press panel endpoint that today's TV answers carry instead. No token or
+     * endpoint value is logged.
+     */
+    private static void logHomeFeedbackData(MediaGroup mediaGroup) {
+        if (mediaGroup.getType() != MediaGroup.TYPE_HOME) {
+            return;
+        }
+
+        int items = 0;
+        int tokens = 0;
+        int endpoints = 0;
+        for (MediaItem item : mediaGroup.getMediaItems()) {
+            if (item == null) {
+                continue;
+            }
+            items++;
+            if (item.getFeedbackToken() != null) {
+                tokens++;
+            }
+            if (item.getFeedbackEndpoint() != null) {
+                endpoints++;
+            }
+        }
+
+        NetPath.log("feedback home-shelf items=" + items + " token=" + tokens + " endpoint=" + endpoints);
     }
 
     public static VideoGroup from(VideoGroup baseGroup, VideoGroup newGroup) {

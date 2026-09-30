@@ -1,9 +1,12 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu;
 
 import android.content.Context;
+import android.os.SystemClock;
 import com.liskovsoft.mediaserviceinterfaces.MediaItemService;
 import com.liskovsoft.mediaserviceinterfaces.ServiceManager;
+import com.liskovsoft.mediaserviceinterfaces.data.FeedbackEndpoint;
 import com.liskovsoft.mediaserviceinterfaces.data.FeedbackReasons.FeedbackItem;
+import com.liskovsoft.mediaserviceinterfaces.data.MediaItem;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup;
 import com.liskovsoft.mediaserviceinterfaces.data.PlaylistInfo;
 import com.liskovsoft.sharedutils.helpers.Helpers;
@@ -27,6 +30,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.provide
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.providers.ContextMenuProvider;
 import com.liskovsoft.smartyoutubetv2.common.app.views.ChannelUploadsView;
 import com.liskovsoft.smartyoutubetv2.common.app.views.PlaybackView;
+import com.liskovsoft.smartyoutubetv2.common.misc.NetPath;
 import com.liskovsoft.smartyoutubetv2.common.misc.PhoneUi;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.VideoDownloads;
@@ -363,7 +367,9 @@ public class VideoMenuPresenter extends BaseMenuPresenter {
     }
 
     private void appendNotInterestedButton() {
-        if (mVideo == null || mVideo.mediaItem == null || mVideo.mediaItem.getFeedbackToken() == null) {
+        logFeedbackMenuData();
+
+        if (mVideo == null || mVideo.mediaItem == null || (mVideo.mediaItem.getFeedbackToken() == null && mVideo.mediaItem.getFeedbackEndpoint() == null)) {
             return;
         }
 
@@ -375,28 +381,49 @@ public class VideoMenuPresenter extends BaseMenuPresenter {
 
         mDialogPresenter.appendSingleButton(
                 UiOptionItem.from(getContext().getString(R.string.not_interested), optionItem -> {
-                    mNotInterestedAction = mMediaItemService.getFeedbackReasonsObserve(mVideo.mediaItem.getFeedbackToken())
-                            .subscribe(
-                                    reasons -> {
-                                        if (reasons.getItems() != null) {
-                                            for (FeedbackItem item : reasons.getItems()) {
-                                                mDialogPresenter.appendSingleButton(
-                                                        UiOptionItem.from(item.getTitle(),
-                                                                option -> {
-                                                                    RxHelper.execute(mMediaItemService.markAsNotInterestedObserve(item.getToken()));
-                                                                    removeSuggestedItemAndClose();
-                                                                }
-                                                        )
-                                                );
+                    if (PhoneUi.isEnabled()) {
+                        sendFeedbackPhone(false);
+                        return;
+                    }
+
+                    if (mVideo.mediaItem.getFeedbackEndpoint() == null) {
+                        markAsNotInterested(mVideo.mediaItem.getFeedbackToken());
+                    } else {
+                        mNotInterestedAction = mMediaItemService.getFeedbackTokensObserve(mVideo.mediaItem.getFeedbackEndpoint())
+                                .subscribe(
+                                        tokens -> {
+                                            if (tokens.size() == 2) {
+                                                markAsNotInterested(tokens.get(0));
                                             }
-                                            mDialogPresenter.showDialog(reasons.getTitle());
-                                        } else {
-                                            removeSuggestedItemAndClose();
-                                        }
-                                    },
-                                    error -> Log.e(TAG, "Mark as 'not interested' error: %s", error.getMessage())
-                            );
+                                        },
+                                        error -> Log.e(TAG, "Mark as 'not interested' error: %s", error.getMessage())
+                                );
+                    }
                 }));
+    }
+
+    private void markAsNotInterested(String feedbackToken) {
+        mNotInterestedAction = mMediaItemService.getFeedbackReasonsObserve(feedbackToken)
+                .subscribe(
+                        reasons -> {
+                            if (reasons.getItems() != null) {
+                                for (FeedbackItem item : reasons.getItems()) {
+                                    mDialogPresenter.appendSingleButton(
+                                            UiOptionItem.from(item.getTitle(),
+                                                    option -> {
+                                                        RxHelper.execute(mMediaItemService.markAsNotInterestedObserve(item.getToken()));
+                                                        removeSuggestedItemAndClose();
+                                                    }
+                                            )
+                                    );
+                                }
+                                mDialogPresenter.showDialog(reasons.getTitle());
+                            } else {
+                                removeSuggestedItemAndClose();
+                            }
+                        },
+                        error -> Log.e(TAG, "Mark as 'not interested' error: %s", error.getMessage())
+                );
     }
 
     private void removeSuggestedItemAndClose() {
@@ -409,7 +436,7 @@ public class VideoMenuPresenter extends BaseMenuPresenter {
     }
 
     private void appendNotRecommendChannelButton() {
-        if (mVideo == null || mVideo.mediaItem == null || mVideo.mediaItem.getFeedbackToken2() == null) {
+        if (mVideo == null || mVideo.mediaItem == null || (mVideo.mediaItem.getFeedbackToken2() == null && mVideo.mediaItem.getFeedbackEndpoint() == null)) {
             return;
         }
 
@@ -421,20 +448,117 @@ public class VideoMenuPresenter extends BaseMenuPresenter {
 
         mDialogPresenter.appendSingleButton(
                 UiOptionItem.from(getContext().getString(R.string.not_recommend_channel), optionItem -> {
-                    mNotInterestedAction = mMediaItemService.markAsNotInterestedObserve(mVideo.mediaItem.getFeedbackToken2())
-                            .subscribe(
-                                    var -> {},
-                                    error -> Log.e(TAG, "Mark as 'not interested' error: %s", error.getMessage()),
-                                    () -> {
-                                        if (mCallback != null) {
-                                            mCallback.onItemAction(mVideo, VideoMenuCallback.ACTION_REMOVE);
-                                        } else {
-                                            MessageHelpers.showMessage(getContext(), R.string.you_wont_see_this_video);
-                                        }
-                                    }
-                            );
-                    mDialogPresenter.closeDialog();
+                    if (PhoneUi.isEnabled()) {
+                        sendFeedbackPhone(true);
+                        return;
+                    }
+
+                    if (mVideo.mediaItem.getFeedbackEndpoint() == null) {
+                        markAsNotRecommendChannel(mVideo.mediaItem.getFeedbackToken2());
+                    } else {
+                        mNotInterestedAction = mMediaItemService.getFeedbackTokensObserve(mVideo.mediaItem.getFeedbackEndpoint())
+                                .subscribe(
+                                        tokens -> {
+                                            if (tokens.size() == 2) {
+                                                markAsNotRecommendChannel(tokens.get(1));
+                                            }
+                                        },
+                                        error -> Log.e(TAG, "Mark as 'not interested' error: %s", error.getMessage())
+                                );
+                    }
                 }));
+    }
+
+    private void markAsNotRecommendChannel(String feedbackToken2) {
+        mNotInterestedAction = mMediaItemService.markAsNotInterestedObserve(feedbackToken2)
+                .subscribe(
+                        var -> {},
+                        error -> Log.e(TAG, "Mark as 'not interested' error: %s", error.getMessage()),
+                        () -> {
+                            if (mCallback != null) {
+                                mCallback.onItemAction(mVideo, VideoMenuCallback.ACTION_REMOVE);
+                            } else {
+                                MessageHelpers.showMessage(getContext(), R.string.you_wont_see_this_video);
+                            }
+                        }
+                );
+        mDialogPresenter.closeDialog();
+    }
+
+    /**
+     * NEWTUBE(not-interested): the phone's "Not interested" and "Don't recommend channel". The menu
+     * closes on the tap, like every other phone menu action. The card leaves the feed once YouTube
+     * has taken the feedback, with a Snackbar saying so; when it has not, the card stays and the
+     * Snackbar says "Couldn't ...". There is no "Tell us why" step (the TV's reasons list): the
+     * first feedback call already records "Not interested".
+     *
+     * <p>Home cards from today's TV answers carry no feedback tokens, only a long-press panel
+     * endpoint; its two tokens ("Not interested" first, then the confirmation of "Don't recommend
+     * channel") are fetched on the tap. The NetPath line carries the answer's status, never a token.
+     */
+    private void sendFeedbackPhone(boolean channel) {
+        Video video = mVideo; // closeDialog() below may reset the presenter's state
+        VideoMenuCallback callback = mCallback;
+        closeDialog();
+
+        MediaItem item = video.mediaItem;
+        FeedbackEndpoint endpoint = item.getFeedbackEndpoint();
+        String line = "feedback " + (channel ? "dont-recommend" : "not-interested") + " video=" + video.videoId
+                + " source=" + (endpoint != null ? "panel" : "card");
+        long startMs = SystemClock.elapsedRealtime();
+
+        Observable<String> token = endpoint == null
+                ? Observable.just(channel ? item.getFeedbackToken2() : item.getFeedbackToken())
+                : mMediaItemService.getFeedbackTokensObserve(endpoint).map(tokens -> pickPanelToken(tokens, channel));
+
+        RxHelper.disposeActions(mNotInterestedAction);
+        mNotInterestedAction = token
+                .flatMap(mMediaItemService::sendFeedbackObserve)
+                .subscribe(
+                        result -> {
+                            boolean ok = result.getCode() >= 200 && result.getCode() < 300;
+                            NetPath.log(line + " code=" + result.getCode() + " ok=" + ok
+                                    + " processed=" + result.isProcessed() + " ms=" + (SystemClock.elapsedRealtime() - startMs));
+                            if (!ok) {
+                                confirm(getContext().getString(R.string.feedback_failed));
+                                return;
+                            }
+                            if (callback != null) {
+                                callback.onItemAction(video, VideoMenuCallback.ACTION_REMOVE);
+                            }
+                            confirm(getContext().getString(channel ? R.string.you_wont_see_this_channel : R.string.you_wont_see_this_video));
+                        },
+                        error -> {
+                            NetPath.log(line + " code=-1 ok=false ms=" + (SystemClock.elapsedRealtime() - startMs)
+                                    + " error=" + error.getClass().getSimpleName() + ":" + NetPath.trunc(error.getMessage(), 80));
+                            confirm(getContext().getString(R.string.feedback_failed));
+                        }
+                );
+    }
+
+    /** Upstream's order: the panel lists "Not interested" first, "Don't recommend channel" second. */
+    private static String pickPanelToken(List<String> tokens, boolean channel) {
+        if (tokens == null || tokens.size() != 2) {
+            throw new IllegalStateException("panel tokens=" + (tokens == null ? "none" : tokens.size()));
+        }
+
+        return tokens.get(channel ? 1 : 0);
+    }
+
+    /**
+     * NEWTUBE(not-interested): one NetPath line per Home card menu (built signed in only), saying
+     * which feedback data the card carries - the old tokens or the long-press panel endpoint.
+     */
+    private void logFeedbackMenuData() {
+        if (mVideo == null || !mVideo.belongsToHome()) {
+            return;
+        }
+
+        MediaItem item = mVideo.mediaItem;
+        NetPath.log("feedback menu video=" + mVideo.videoId
+                + " token=" + (item != null && item.getFeedbackToken() != null ? "y" : "n")
+                + " token2=" + (item != null && item.getFeedbackToken2() != null ? "y" : "n")
+                + " endpoint=" + (item != null && item.getFeedbackEndpoint() != null ? "y" : "n"));
     }
 
     private void appendBlockChannelButton() {

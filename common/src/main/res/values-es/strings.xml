@@ -114,6 +114,7 @@
   <string name="not_recommend_channel">No recomendar canal</string>
   <string name="you_wont_see_this_video">Vídeo eliminado de recomendaciones</string>
   <string name="you_wont_see_this_channel">No verás este canal en las recomendaciones.</string>
+  <string name="feedback_failed">No se pudo enviar a YouTube. Vuelve a intentarlo.</string>
   <string name="settings_search">Buscar</string>
   <string name="dialog_search">Buscar</string>
   <string name="instant_voice_search">Búsqueda instantánea de voz</string>
