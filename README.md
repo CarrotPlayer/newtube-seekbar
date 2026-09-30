@@ -15,6 +15,7 @@ and cast to SmartTube on your TV.
 [![Android 7.0+](https://img.shields.io/badge/Android-7.0%2B-1E2A78?style=flat-square)](#download)
 [![License: MIT](https://img.shields.io/badge/license-MIT-1E2A78?style=flat-square)](LICENSE)
 [![Built on SmartTube](https://img.shields.io/badge/built_on-SmartTube-1E2A78?style=flat-square)](https://github.com/yuliskov/SmartTube)
+[![Discord](https://img.shields.io/badge/Discord-join-1E2A78?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/xu3v6euSHq)
 
 **[Download](#download) · [Features](#features) · [How sign-in works](#how-sign-in-works) · [FAQ](#faq) · [Credits](#built-on-smarttube)**
 
@@ -262,6 +263,7 @@ SmartTube's original README is kept at [docs/UPSTREAM_README_SmartTube.md](docs/
 
 ## Building and contributing
 
+New releases, help and ideas are on the [NewTube Discord](https://discord.gg/xu3v6euSHq).
 Issues and pull requests are welcome. Build instructions are in [docs/BUILDING.md](docs/BUILDING.md).
 The [changelog](CHANGELOG.md) covers every release, with a
 [Spanish edition](CHANGELOG.es.md) for the testers.

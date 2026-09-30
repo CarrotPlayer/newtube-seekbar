@@ -1,0 +1,41 @@
+# Posts each published release to #announcements on the NewTube Discord server
+# (tools/discord_release.py: the release's "What's new" and where to get it). The webhook URL is
+# the DISCORD_RELEASES_WEBHOOK secret; without it the job posts nothing and says so.
+name: Discord
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Published release to announce'
+        required: true
+
+jobs:
+  announce:
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TAG_NAME: ${{ github.event.release.tag_name || inputs.release_tag }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      DISCORD_RELEASES_WEBHOOK: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools
+          persist-credentials: false
+
+      - name: Post to Discord
+        run: |
+          set -euo pipefail
+          if [ -z "$DISCORD_RELEASES_WEBHOOK" ]; then
+            echo "::notice::No DISCORD_RELEASES_WEBHOOK secret; nothing posted."
+            exit 0
+          fi
+          python3 tools/discord_release.py "$TAG_NAME"
