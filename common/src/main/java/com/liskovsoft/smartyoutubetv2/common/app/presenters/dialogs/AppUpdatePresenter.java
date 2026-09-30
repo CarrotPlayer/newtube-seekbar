@@ -69,7 +69,25 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
         sPhoneUpdates = phoneUpdates;
     }
 
+    private static boolean sInAppUpdatesDisabled;
+
+    /**
+     * NEWTUBE(fdroid): a store build (-Pfdroid) has no in-app updater - the store delivers the
+     * updates. Set once from MobileMainApplication; checks become no-ops and About hides them.
+     */
+    public static void setInAppUpdatesDisabled(boolean disabled) {
+        sInAppUpdatesDisabled = disabled;
+    }
+
+    public static boolean isInAppUpdatesDisabled() {
+        return sInAppUpdatesDisabled;
+    }
+
     public void start(boolean forceCheck) {
+        if (sInAppUpdatesDisabled) {
+            return;
+        }
+
         if (sPhoneUpdates != null) {
             if (forceCheck) {
                 sPhoneUpdates.showUpdateScreen(getContext());

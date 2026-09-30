@@ -60,5 +60,28 @@ allprojects {
         // NEWTUBE(phone-only): the androidx.leanback/androidx.fragment global excludes that
         // shadowed the modded :leanback-1.0.0/:fragment-1.1.0 modules are gone with the TV UI.
         // Stock androidx.fragment 1.1.0 resolves transitively (same version as the mod was).
+
+        // NEWTUBE(fdroid): -Pfdroid (F-Droid's `gradleprops: [fdroid]`) takes J2V8 from Maven
+        // Central instead of the :j2v8 module, whose src/main/jniLibs are prebuilt .so files
+        // F-Droid's scanner rejects (its build deletes them). Same J2V8 6.2.1 Java API and the same
+        // V8 9.3.345.11; this is the route upstream SmartTube's stfdroid flavor uses on F-Droid.
+        // Without the property nothing changes.
+        if (rootProject.hasProperty('fdroid')) {
+            resolutionStrategy.dependencySubstitution {
+                substitute project(':j2v8') using module('com.eclipsesource.j2v8:j2v8:6.2.1') because 'F-Droid build: no prebuilt jniLibs in the tree'
+            }
+        }
+    }
+    if (rootProject.hasProperty('fdroid')) {
+        // j2v8 6.2.1's POM says <packaging>aar.asc</packaging> (a broken upload), so Gradle would
+        // look for a .jar that doesn't exist; point the module at its .aar (what "@aar" did).
+        dependencies.components.withModule('com.eclipsesource.j2v8:j2v8') {
+            allVariants {
+                withFiles {
+                    removeAllFiles()
+                    addFile('j2v8-6.2.1.aar')
+                }
+            }
+        }
     }
 }

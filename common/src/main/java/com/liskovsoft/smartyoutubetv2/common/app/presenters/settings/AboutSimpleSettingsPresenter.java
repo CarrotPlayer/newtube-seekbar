@@ -78,13 +78,20 @@ public class AboutSimpleSettingsPresenter extends BasePresenter<Void> {
 
         AppDialogPresenter settingsPresenter = AppDialogPresenter.instance(getContext());
 
-        settingsPresenter.appendSingleButton(UiOptionItem.from(
-                getContext().getString(R.string.check_for_updates),
-                String.format("%s %s", getContext().getString(R.string.app_name),
-                        AppInfoHelpers.getAppVersionName(getContext())),
-                option -> AppUpdatePresenter.instance(getContext()).start(true)));
+        String versionLine = String.format("%s %s", getContext().getString(R.string.app_name),
+                AppInfoHelpers.getAppVersionName(getContext()));
 
-        appendAutoUpdateSwitch(settingsPresenter);
+        if (AppUpdatePresenter.isInAppUpdatesDisabled()) {
+            // Store build (-Pfdroid): the version stays, the update row and switch go.
+            settingsPresenter.appendSingleButton(UiOptionItem.from(versionLine, option -> {}));
+        } else {
+            settingsPresenter.appendSingleButton(UiOptionItem.from(
+                    getContext().getString(R.string.check_for_updates),
+                    versionLine,
+                    option -> AppUpdatePresenter.instance(getContext()).start(true)));
+
+            appendAutoUpdateSwitch(settingsPresenter);
+        }
 
         settingsPresenter.appendSingleButton(UiOptionItem.from(
                 getContext().getString(R.string.about_source_code),

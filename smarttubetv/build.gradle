@@ -30,6 +30,10 @@ abstract class CopyRenamedApks extends DefaultTask {
     @Internal
     abstract Property<BuiltArtifactsLoader> getBuiltArtifactsLoader()
 
+    /** Goes between the version and the ABI: "" normally, "fdroid_" for -Pfdroid builds. */
+    @Input
+    abstract Property<String> getNameTag()
+
     @TaskAction
     void copyApks() {
         def outputDirectory = output.get().asFile
@@ -44,7 +48,7 @@ abstract class CopyRenamedApks extends DefaultTask {
         builtArtifacts.elements.each { artifact ->
             def abi = artifact.filters.find { it.filterType.toString() == 'ABI' }?.identifier ?: 'universal'
             def version = artifact.versionName ?: 'unknown'
-            def outputFile = new File(outputDirectory, "NewTube_${version}_${abi}.apk")
+            def outputFile = new File(outputDirectory, "NewTube_${version}_${nameTag.get()}${abi}.apk")
             Files.copy(new File(artifact.outputFile).toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
     }
@@ -151,8 +155,15 @@ android {
         versionCode 2387
         versionName "31.97"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
+        // NEWTUBE(fdroid): reproducible builds - with SOURCE_DATE_EPOCH set (F-Droid's build server
+        // sets it to the commit time) the stamp is that, not the wall clock, so two builds of one
+        // commit get the same dex. Nothing reads TIMESTAMP today; unset = the wall clock as before.
+        def sourceDateEpoch = System.getenv('SOURCE_DATE_EPOCH')
+        buildConfigField "long", "TIMESTAMP", (sourceDateEpoch ? (sourceDateEpoch as long) * 1000L : System.currentTimeMillis()) + "L"
         buildConfigField "boolean", "BENCHMARK", "false"
+        // NEWTUBE(fdroid): -Pfdroid turns the in-app updater off - F-Droid delivers the updates, and
+        // its inclusion policy forbids self-updates that aren't an explicit opt-in.
+        buildConfigField "boolean", "IN_APP_UPDATES", project.hasProperty('fdroid') ? "false" : "true"
 
         // The content of Universal apk
         ndk {
@@ -308,6 +319,9 @@ androidComponents {
         def copyTask = tasks.register("copyRenamedApksFor${variant.name.capitalize()}", CopyRenamedApks) {
             output.set(layout.buildDirectory.dir("outputs/renamed_apks/${variant.name}"))
             builtArtifactsLoader.set(variant.artifacts.getBuiltArtifactsLoader())
+            // A -Pfdroid build is a different APK (updater off, Maven J2V8): its files must not
+            // overwrite the regular release files when both are built in one checkout.
+            nameTag.set(project.hasProperty('fdroid') ? 'fdroid_' : '')
         }
         variant.artifacts.use(copyTask).wiredWith { it.input }.toListenTo(SingleArtifact.APK.INSTANCE)
     }
@@ -386,10 +400,10 @@ dependencies {
     stmobileImplementation 'androidx.media3:media3-ui:' + media3Version
     // Cronet leaf transport for the media path (H2/QUIC, like the legacy engine had). The
     // engine is the embedded org.chromium.net:cronet-embedded already shipped by :sharedutils
-    // (CronetManager); the GMS provider is useless weight here.
-    stmobileImplementation('androidx.media3:media3-datasource-cronet:' + media3Version) {
-        exclude group: 'com.google.android.gms', module: 'play-services-cronet'
-    }
+    // (CronetManager); the GMS provider is useless weight here. The exclude stays on the SAME line:
+    // F-Droid's scanner reads build files line by line, and its pending rule (fdroid-suss !55) only
+    // clears this coordinate when the play-services-cronet exclude sits next to it.
+    stmobileImplementation('androidx.media3:media3-datasource-cronet:' + media3Version) { exclude group: 'com.google.android.gms', module: 'play-services-cronet' }
     stmobileImplementation dependencies.project(':doubletapplayerview-media3')
     stmobileImplementation dependencies.project(':sabr-media3')
     // NEWTUBE(update-flow): the phone's update sheet drives the updater directly (AppUpdates)

@@ -688,7 +688,9 @@ public class MobileMainApplication extends MainApplication {
         // UPDATES (mobile-only): the launch check and Settings > About > Check for updates go to the
         // phone's update sheet - notes first, download on Update with progress, then the installer -
         // instead of the TV flow that downloaded the APK in silence and pinned an "Update" section.
-        // TV never calls this (AppUpdatePresenter).
+        // TV never calls this (AppUpdatePresenter). A -Pfdroid build has no updater at all.
+        com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AppUpdatePresenter.setInAppUpdatesDisabled(
+                !com.liskovsoft.smartyoutubetv2.tv.BuildConfig.IN_APP_UPDATES);
         com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AppUpdatePresenter.setPhoneUpdates(
                 new com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AppUpdatePresenter.PhoneUpdates() {
                     @Override
