@@ -11,6 +11,18 @@ All notable user-facing changes to NewTube, the phone app built on SmartTube.
   phone's share sheet with a line about the app and its website link. Nothing
   asks you to do either.
 
+### Changed
+
+- **The seek bar follows your finger.** The dot moves by as much as your
+  finger does instead of jumping under it, and a drag to the start now reaches
+  0:00 (the end is reached just before the edge of the screen). A plain tap on
+  the bar no longer seeks, the same as YouTube, and "Release to cancel" no
+  longer sticks.
+- **Drags you can feel.** Swiping the video down to minimize, swiping the mini
+  player away and pulling to refresh click under your finger when they cross
+  the point of no return, and the video follows the finger more closely on the
+  way there. When you let go it lands with a small spring.
+
 ## 1.13.0 — 2026-09-30 — Faemino y Cansado Edition
 
 "You say one thing, I answer another, and each of us gets a chapter…" A
