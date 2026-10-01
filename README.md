@@ -104,14 +104,10 @@ YouTube app.
 </details>
 
 <p align="center">
-<img src=".github/assets/screens/channel.webp" width="23%" alt="Blender Studio channel page">
+<img src=".github/assets/demo.webp" width="23%" alt="NewTube in motion: Blender Studio's channel, a video with chapters, the comments panel, a seek and the mini-player">
 <img src=".github/assets/screens/comments.webp" width="23%" alt="Comments panel under the video">
 <img src=".github/assets/screens/mini.webp" width="23%" alt="Mini-player over a channel page">
 <img src=".github/assets/screens/light.webp" width="23%" alt="The watch page in the light theme">
-</p>
-
-<p align="center">
-<img src=".github/assets/demo.webp" width="270" alt="NewTube in motion: Blender Studio's channel, a video with chapters, the comments panel, a seek and the mini-player">
 </p>
 
 ## Download
