@@ -17,7 +17,7 @@ and cast to SmartTube on your TV.
 [![Built on SmartTube](https://img.shields.io/badge/built_on-SmartTube-1E2A78?style=flat-square)](https://github.com/yuliskov/SmartTube)
 [![Discord](https://img.shields.io/badge/Discord-join-1E2A78?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/xu3v6euSHq)
 
-**[Website](https://newtube-app.github.io/) · [Download](#download) · [Features](#features) · [How sign-in works](#how-sign-in-works) · [FAQ](#faq) · [Translate](#translate) · [Credits](#built-on-smarttube)**
+**[Website](https://newtube.org/) · [Download](#download) · [Features](#features) · [How sign-in works](#how-sign-in-works) · [FAQ](#faq) · [Translate](#translate) · [Credits](#built-on-smarttube)**
 
 <br>
 
@@ -230,7 +230,7 @@ The app has no analytics, no crash reporting and no ad SDKs, and the developer r
 It talks to YouTube (which sees what you watch, as it would anywhere), to the community services
 you can switch off (SponsorBlock, DeArrow, Return YouTube Dislike), and to GitHub. Details are
 in [PRIVACY.md](PRIVACY.md). Every check, with links, is also on the website under
-[Trust and verification](https://newtube-app.github.io/#trust).
+[Trust and verification](https://newtube.org/#trust).
 
 </details>
 

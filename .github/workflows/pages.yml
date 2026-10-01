@@ -1,6 +1,6 @@
 name: Deploy website
 
-# The site lives at https://newtube-app.github.io/, served from the
+# The site lives at https://newtube.org/, served from the
 # newtube-app/newtube-app.github.io repo. This workflow copies website/ there,
 # using a deploy key that can write to that one repo only (SITE_DEPLOY_KEY), and
 # turns this repo's own Pages site, aleixrodriala.github.io/newtube/, into a
@@ -75,13 +75,13 @@ jobs:
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>NewTube has moved</title>
-            <link rel="canonical" href="https://newtube-app.github.io/">
+            <link rel="canonical" href="https://newtube.org/">
             <meta name="robots" content="noindex">
-            <meta http-equiv="refresh" content="0; url=https://newtube-app.github.io/">
-            <script>location.replace("https://newtube-app.github.io/" + location.hash);</script>
+            <meta http-equiv="refresh" content="0; url=https://newtube.org/">
+            <script>location.replace("https://newtube.org/" + location.hash);</script>
           </head>
           <body>
-            <p>NewTube's site is now at <a href="https://newtube-app.github.io/">newtube-app.github.io</a>.</p>
+            <p>NewTube's site is now at <a href="https://newtube.org/">newtube.org</a>.</p>
           </body>
           </html>
           HTML

@@ -1,6 +1,6 @@
 # NewTube website
 
-The landing page for NewTube, served at <https://newtube-app.github.io/>.
+The landing page for NewTube, served at <https://newtube.org/> (custom domain on GitHub Pages; `website/CNAME` must stay, or the deploy drops the domain).
 `.github/workflows/pages.yml` copies this folder to the
 [newtube-app/newtube-app.github.io](https://github.com/newtube-app/newtube-app.github.io) repo,
 which GitHub Pages serves, and turns the old address
@@ -63,7 +63,7 @@ A `*.github.io` address can't use a Domain property (that needs DNS), so use a
 URL-prefix property:
 
 1. Sign in at <https://search.google.com/search-console>, choose **Add property**,
-   then **URL prefix**, and enter `https://newtube-app.github.io/`.
+   then **URL prefix**, and enter `https://newtube.org/`.
 2. Pick one verification method:
    - **HTML file:** download the `google<token>.html` file Google offers, put it
      in this folder unchanged (`website/google<token>.html`), commit and push to
