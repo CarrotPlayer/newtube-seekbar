@@ -3,6 +3,20 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
+
+## 1.14.1 — 2026-10-01 — Edición Pepe Viyuela
+
+«¿Subirlo? —Si nunca estuvo bajo, era la app.» Un homenaje inventado a Pepe
+Viyuela y sus peleas con los objetos de casa, para una versión que por fin le
+gana una al botón del volumen.
+
+### Arreglado
+
+- **Los vídeos suenan tan alto como en la app de YouTube.** El «Ajuste
+  automático del volumen» bajaba casi todos los vídeos a la mitad (6 dB).
+  Ahora hace lo mismo que YouTube: solo baja un vídeo que suena más fuerte que
+  el nivel de YouTube, y justo lo que le sobra. El volumen general llega como
+  máximo al 100 %, porque los valores más altos no subían nada.
 ## 1.14.0 — 01-10-2026 — Edición Cruz y Raya
 
 «¿Y esto qué es, una raya? —Una raya que te sigue el dedo.» Homenaje ficticio

@@ -2,7 +2,11 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
-## Unreleased
+## 1.14.1 — 2026-10-01 — Pepe Viyuela Edition
+
+"Turn it up? — It was never down, it was the app." A fictional homage to
+Pepe Viyuela and his fights with everyday objects, for a release that wins one
+against the volume knob.
 
 ### Fixed
 
