@@ -21,7 +21,7 @@ and cast to SmartTube on your TV.
 
 <br>
 
-<img src=".github/assets/hero.webp" width="100%" alt="Three NewTube screens: the sign-in code, the watch page with SponsorBlock segments, and the Downloads tab">
+<img src=".github/assets/hero.webp" width="100%" alt="Three NewTube screens: the sign-in code, the watch page playing Sintel, and the Downloads tab">
 
 </div>
 
@@ -105,9 +105,9 @@ YouTube app.
 
 <p align="center">
 <img src=".github/assets/screens/channel.webp" width="23%" alt="Blender Studio channel page">
-<img src=".github/assets/screens/mini.webp" width="23%" alt="Mini-player over search results">
-<img src=".github/assets/screens/quality.webp" width="23%" alt="Quality picker up to 2160p60">
-<img src=".github/assets/screens/picker.webp" width="23%" alt="Save-for-offline quality picker with file sizes">
+<img src=".github/assets/screens/comments.webp" width="23%" alt="Comments panel under the video">
+<img src=".github/assets/screens/mini.webp" width="23%" alt="Mini-player over a channel page">
+<img src=".github/assets/screens/light.webp" width="23%" alt="The watch page in the light theme">
 </p>
 
 ## Download
