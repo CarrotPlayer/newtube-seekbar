@@ -512,20 +512,18 @@ public class AppDialogUtil {
 
         List<OptionItem> options = new ArrayList<>();
 
-        for (int scalePercent : Helpers.range(0, 300, 5)) {
+        // NEWTUBE(loudness): up to 100%. The player's volume stops at 1.0, so the 105-300% "boost"
+        // rows changed nothing; a value saved by one of them plays, and shows, as 100%.
+        float current = Math.min(playerData.getPlayerVolume(), 1f);
+        for (int scalePercent : Helpers.range(0, 100, 5)) {
             float scale = scalePercent / 100f;
             options.add(UiOptionItem.from(String.format("%s%%", scalePercent),
                     optionItem -> {
                         playerData.setPlayerVolume(scale);
                         //playerTweaksData.setPlayerAutoVolumeEnabled(scalePercent == 100);
-
-                        if (scalePercent > 100) {
-                            MessageHelpers.showLongMessage(context, R.string.volume_boost_warning);
-                        }
-
                         onSetCallback.run();
                     },
-                    Helpers.floatEquals(scale, playerData.getPlayerVolume())));
+                    Helpers.floatEquals(scale, current)));
         }
 
         return OptionCategory.from(AUDIO_VOLUME_ID, OptionCategory.TYPE_RADIO_LIST, title, options);

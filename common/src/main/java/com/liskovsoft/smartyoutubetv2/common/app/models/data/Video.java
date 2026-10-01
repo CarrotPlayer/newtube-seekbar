@@ -93,7 +93,7 @@ public final class Video {
     public String likeCount;
     public String dislikeCount;
     public String subscriberCount;
-    public float volume = 1.0f;
+    public AudioLoudness loudness; // NEWTUBE(loudness): null = unknown, played at unity
     public boolean deArrowProcessed;
     public boolean isLiveEnd;
     public boolean isShuffled;
@@ -826,7 +826,7 @@ public final class Video {
             startSegmentNum = formatInfo.getStartSegmentNum();
         }
 
-        volume = formatInfo.getVolumeLevel();
+        loudness = AudioLoudness.from(formatInfo);
         isUnplayable = formatInfo.isUnplayable();
     }
 

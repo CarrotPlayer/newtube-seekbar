@@ -627,23 +627,11 @@ public class VideoStateController extends BasePlayerController {
             return;
         }
 
-        float newVolume = getPlayerData().getPlayerVolume();
-
-        if (getPlayerTweaksData().isPlayerAutoVolumeEnabled()) {
-            //newVolume *= getVideo().volume;
-            //newVolume = getVideo().volume;
-            if (newVolume < 1f) {
-                newVolume *= getVideo().volume;
-            } else {
-                newVolume = getVideo().volume;
-            }
-        }
-
-        if (getVideo().isShorts) {
-            newVolume /= 2;
-        }
-
-        getPlayer().setVolume(newVolume);
+        // NEWTUBE(loudness): only the master volume. "Auto volume adjustment" is YouTube's loudness
+        // normalization now, applied by the engine on top of this so it can follow audio track
+        // switches (Media3PlayerController). The inherited formula halved every track, and the
+        // Shorts halving on top had no YouTube counterpart (issue #15).
+        getPlayer().setVolume(Math.min(getPlayerData().getPlayerVolume(), 1f));
     }
 
     private void restorePitch() {

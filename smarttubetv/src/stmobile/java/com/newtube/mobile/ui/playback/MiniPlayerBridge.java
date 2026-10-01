@@ -294,6 +294,22 @@ public final class MiniPlayerBridge {
         }
     }
 
+    /**
+     * NEWTUBE(loudness): the session's volume as its player controller keeps it, apart from loudness
+     * normalization (a direct ExoPlayer write would be undone by the next normalization update);
+     * -1 when no mini session is active.
+     */
+    public static float getVolume() {
+        return isActive() ? sActivity.get().getVolume() : -1;
+    }
+
+    /** NEWTUBE(loudness): see {@link #getVolume()}. No-op when no mini session is active. */
+    public static void setVolume(float volume) {
+        if (isActive()) {
+            sActivity.get().setVolume(volume);
+        }
+    }
+
     /** Metadata of the playing video (title/author for the bar), or null. */
     @Nullable
     public static Video getVideo() {

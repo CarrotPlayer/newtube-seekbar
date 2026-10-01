@@ -429,10 +429,9 @@ public class MobileBrowseActivity extends MobileActivity
             return;
         }
         mMiniClosing = true;
-        ExoPlayer player = MiniPlayerBridge.getPlayer();
-        if (player != null) {
-            mMiniVolumeBeforeClose = player.getVolume();
-            player.setVolume(0f); // released with the session right after
+        if (MiniPlayerBridge.isActive()) {
+            mMiniVolumeBeforeClose = MiniPlayerBridge.getVolume();
+            MiniPlayerBridge.setVolume(0f); // released with the session right after
         }
         MiniPlayerBridge.setClosing(this::abortMiniClose);
         MiniPlayerBridge.clearPendingCardFold(mMiniCardFold);
@@ -470,10 +469,7 @@ public class MobileBrowseActivity extends MobileActivity
             return;
         }
         mMiniClosing = false;
-        ExoPlayer player = MiniPlayerBridge.getPlayer();
-        if (player != null) {
-            player.setVolume(mMiniVolumeBeforeClose);
-        }
+        MiniPlayerBridge.setVolume(mMiniVolumeBeforeClose);
     }
 
     /** Show the card and adopt the live session texture if a mini session is active. */

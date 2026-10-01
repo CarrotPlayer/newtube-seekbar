@@ -1916,8 +1916,10 @@ public class MobilePlaybackActivity extends MobileActivity
     private void animateCloseThenFinish() {
         mClosing = true;
         if (mPlayer != null) {
-            mVolumeBeforeClose = mPlayer.getVolume();
-            mPlayer.setVolume(0f);
+            // NEWTUBE(loudness): through the controller, which keeps this apart from loudness
+            // normalization - a direct ExoPlayer mute would be undone by a gain update mid-fade.
+            mVolumeBeforeClose = mExoPlayerController.getVolume();
+            mExoPlayerController.setVolume(0f);
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
         mVideoArea.setLayerType(View.LAYER_TYPE_HARDWARE, null);
@@ -1992,7 +1994,7 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
         if (mPlayer != null) {
-            mPlayer.setVolume(mVolumeBeforeClose);
+            mExoPlayerController.setVolume(mVolumeBeforeClose);
         }
         mVideoArea.setLayerType(View.LAYER_TYPE_NONE, null);
         mVideoArea.setAlpha(1f);

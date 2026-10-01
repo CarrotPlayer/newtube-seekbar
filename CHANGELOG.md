@@ -2,6 +2,16 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## Unreleased
+
+### Fixed
+
+- **Videos are as loud as in YouTube's app.** "Auto volume adjustment" turned
+  almost every video down by about half (6 dB). It now does what YouTube does:
+  a video louder than YouTube's level is lowered by exactly that much, and
+  nothing else is touched. Master volume stops at 100%, since the higher
+  values never made anything louder.
+
 ## 1.14.0 — 2026-10-01 — Cruz y Raya Edition
 
 "Is that a line? — It's a line that follows your finger." A fictional homage

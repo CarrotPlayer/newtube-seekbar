@@ -113,10 +113,9 @@ public final class MobileMiniPlayerController {
             return;
         }
         mClosing = true;
-        ExoPlayer player = MiniPlayerBridge.getPlayer();
-        if (player != null) {
-            mVolumeBeforeClose = player.getVolume();
-            player.setVolume(0f); // released with the session right after
+        if (MiniPlayerBridge.isActive()) {
+            mVolumeBeforeClose = MiniPlayerBridge.getVolume();
+            MiniPlayerBridge.setVolume(0f); // released with the session right after
         }
         MiniPlayerBridge.setClosing(this::abortClose);
         MiniPlayerBridge.clearPendingCardFold(mCardFold);
@@ -158,10 +157,7 @@ public final class MobileMiniPlayerController {
             return;
         }
         mClosing = false;
-        ExoPlayer player = MiniPlayerBridge.getPlayer();
-        if (player != null) {
-            player.setVolume(mVolumeBeforeClose);
-        }
+        MiniPlayerBridge.setVolume(mVolumeBeforeClose);
     }
 
     /**

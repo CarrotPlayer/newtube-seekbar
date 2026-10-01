@@ -5,6 +5,7 @@ import android.net.Uri;
 
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
+import androidx.media3.common.Format;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
@@ -18,6 +19,7 @@ import androidx.media3.datasource.HttpDataSource;
 
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItemFormatInfo;
 import com.liskovsoft.sharedutils.mylogger.Log;
+import com.liskovsoft.smartyoutubetv2.common.app.models.data.AudioLoudness;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.listener.PlayerEventListener;
 import com.liskovsoft.smartyoutubetv2.common.exoplayer.selector.FormatItem;
@@ -134,6 +136,27 @@ public class Media3PlayerController implements Player.Listener {
     private final OpenPhaseLog mOpenPhaseLog = new OpenPhaseLog();
     /** NEWTUBE(keep-codec): foreground mode was dropped by {@link #onBackgroundAudio} and is owed back. */
     private boolean mKeepCodecSuspended;
+    /**
+     * NEWTUBE(loudness): the volume callers set (master volume, mute, the close fades) and what
+     * {@link #getVolume()} reports, kept apart from {@link #mLoudnessGain}, YouTube's normalization of
+     * the playing audio track ("Auto volume adjustment"). The player gets the product. Separate so a
+     * caller that saves and restores the volume never bakes one track's normalization into the next.
+     */
+    private float mUserVolume = 1f;
+    private float mLoudnessGain = 1f;
+    /**
+     * NEWTUBE(loudness): follows the format the audio renderer is actually fed. Not
+     * onTracksChanged: an adaptive audio selection holds several formats of a group (the stable-
+     * volume variant shares the group of its itag) and switches between them without a tracks event.
+     */
+    private final androidx.media3.exoplayer.analytics.AnalyticsListener mLoudnessListener =
+            new androidx.media3.exoplayer.analytics.AnalyticsListener() {
+                @Override
+                public void onAudioInputFormatChanged(EventTime eventTime, Format format,
+                        @Nullable androidx.media3.exoplayer.DecoderReuseEvaluation decoderReuseEvaluation) {
+                    updateLoudnessGain(format);
+                }
+            };
     /**
      * NEWTUBE(resume-seek): the snap seek. PREVIOUS_SYNC can only resolve to a real sync point (a
      * DASH segment start from the loaded index) at or before the target - never to an arbitrary
@@ -761,10 +784,13 @@ public class Media3PlayerController implements Player.Listener {
     public void setPlayer(ExoPlayer player) {
         mPlayer = player;
         mKeepCodecSuspended = false; // a new player starts with its builder's foreground mode
+        mUserVolume = 1f; // a new player starts at full volume
+        mLoudnessGain = 1f;
         player.addListener(this);
         player.addAnalyticsListener(mOpenPhaseLog);
         player.addAnalyticsListener(mResumeListener);
         player.addAnalyticsListener(mFirstFrameListener);
+        player.addAnalyticsListener(mLoudnessListener);
     }
 
     public void setTrackSelector(DefaultTrackSelector trackSelector) {
@@ -816,6 +842,7 @@ public class Media3PlayerController implements Player.Listener {
             mPlayer.removeAnalyticsListener(mOpenPhaseLog);
             mPlayer.removeAnalyticsListener(mResumeListener);
             mPlayer.removeAnalyticsListener(mFirstFrameListener);
+            mPlayer.removeAnalyticsListener(mLoudnessListener);
             mPlayer.stop();
             mPlayer.clearMediaItems();
             mPlayer.clearVideoSurface();
@@ -1104,12 +1131,38 @@ public class Media3PlayerController implements Player.Listener {
 
     public void setVolume(float volume) {
         if (mPlayer != null && volume >= 0) {
-            mPlayer.setVolume(Math.min(volume, 1f));
+            mUserVolume = Math.min(volume, 1f);
+            mPlayer.setVolume(mUserVolume * mLoudnessGain);
         }
     }
 
     public float getVolume() {
-        return mPlayer != null ? mPlayer.getVolume() : 1;
+        return mPlayer != null ? mUserVolume : 1;
+    }
+
+    /**
+     * NEWTUBE(loudness): re-derive the normalization from the audio format now playing, so a new
+     * video, a dub or a stable-volume variant each get their own value.
+     */
+    private void updateLoudnessGain(Format audio) {
+        if (mPlayer == null) {
+            return;
+        }
+
+        Video video = getVideo();
+        AudioLoudness loudness = video != null ? video.loudness : null;
+        Float db = null;
+        float gain = 1f;
+        if (loudness != null && PlayerTweaksData.instance(mContext).isPlayerAutoVolumeEnabled()) {
+            db = loudness.dbFor(audio.id, audio.label, audio.language);
+            gain = AudioLoudness.gain(db);
+        }
+        if (gain != mLoudnessGain) {
+            mLoudnessGain = gain;
+            mPlayer.setVolume(mUserVolume * mLoudnessGain);
+            NetPath.log("loudness video=" + getVideoId() + " format=" + audio.id + " db=" + db
+                    + " gain=" + gain);
+        }
     }
 
     // ---------------------------------------------------------------------------------
