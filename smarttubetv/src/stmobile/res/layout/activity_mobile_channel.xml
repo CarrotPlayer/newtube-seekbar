@@ -54,7 +54,10 @@
 
     </LinearLayout>
 
-    <!-- One tab per channel section, in delivery order. Hidden until sections arrive. -->
+    <!-- One tab per channel section, in delivery order. Hidden until sections arrive.
+         tabMaxWidth=0 lifts Material's 264dp cap (it wrapped long section names such as
+         "WING IT! Production Logs (Pet Projects)" onto two lines); with 0 a scrollable tab
+         takes its text's width, up to the screen width minus 56dp, like YouTube's tabs. -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/mobile_channel_tabs"
         android:layout_width="match_parent"
@@ -62,6 +65,7 @@
         android:background="@color/mobile_color_background"
         android:visibility="gone"
         app:tabIndicatorColor="@color/mobile_color_on_surface"
+        app:tabMaxWidth="0dp"
         app:tabMode="scrollable"
         app:tabSelectedTextColor="@color/mobile_color_on_surface"
         app:tabTextColor="@color/mobile_color_on_surface_secondary"
