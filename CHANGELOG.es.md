@@ -3,6 +3,41 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
+## 1.14.0 — 01-10-2026 — Edición Cruz y Raya
+
+«¿Y esto qué es, una raya? —Una raya que te sigue el dedo.» Homenaje ficticio
+a Cruz y Raya y a sus sketches de pareja, para una versión de rayas bien
+trazadas: la barra de progreso sigue tu dedo, los arrastres se notan bajo el
+dedo, los nombres de las pestañas de un canal caben en una sola raya y Acerca
+de estrena una estrella y un botón para compartir.
+
+### Nuevo
+
+- **Dale una estrella y comparte NewTube.** Ajustes → Acerca de termina con
+  dos filas: «Dale una estrella a NewTube en GitHub» abre la página del
+  proyecto, y «Compartir NewTube» abre el menú de compartir del teléfono con
+  una frase sobre la app y el enlace a su web. Nada te pide hacer ninguna de
+  las dos cosas.
+
+### Cambiado
+
+- **La barra de progreso sigue tu dedo.** El punto se mueve tanto como tu
+  dedo en vez de saltar debajo de él, y un arrastre hasta el principio ahora
+  llega a 0:00 (el final se alcanza justo antes del borde de la pantalla). Un
+  toque simple en la barra ya no salta, igual que en YouTube, y «Suelta para
+  cancelar» ya no se queda pegado.
+- **Arrastres que se notan.** Deslizar el vídeo hacia abajo para minimizarlo,
+  deslizar el mini reproductor para cerrarlo y tirar para actualizar hacen
+  clic bajo el dedo cuando pasan el punto sin retorno, y el vídeo sigue más de
+  cerca al dedo hasta ahí. Al soltar, aterriza con un pequeño rebote.
+
+### Arreglado
+
+- **Los nombres de las pestañas de un canal caben en una línea.** Los nombres
+  largos de secciones en la página de un canal (como «WING IT! Production Logs
+  (Pet Projects)») ya no se parten en dos líneas; la pestaña toma el ancho de
+  su nombre, como en YouTube.
+
 ## 1.13.0 — 30-09-2026 — Edición Faemino y Cansado
 
 «Tú dices una cosa, yo te contesto otra, y cada uno a su capítulo…» Homenaje

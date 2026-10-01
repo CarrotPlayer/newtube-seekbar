@@ -2,7 +2,12 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
-## Unreleased
+## 1.14.0 — 2026-10-01 — Cruz y Raya Edition
+
+"Is that a line? — It's a line that follows your finger." A fictional homage
+to Cruz y Raya and their double-act sketches, for a release that draws its
+lines straight: the seek bar follows your finger, drags click under it, a
+channel's tab names stay on one line, and About gets a star and a Share row.
 
 ### New
 
@@ -22,6 +27,12 @@ All notable user-facing changes to NewTube, the phone app built on SmartTube.
   player away and pulling to refresh click under your finger when they cross
   the point of no return, and the video follows the finger more closely on the
   way there. When you let go it lands with a small spring.
+
+### Fixed
+
+- **Channel tab names stay on one line.** Long section names on a channel
+  page (such as "WING IT! Production Logs (Pet Projects)") no longer wrap onto
+  two lines; the tab takes the width of its name, like YouTube's.
 
 ## 1.13.0 — 2026-09-30 — Faemino y Cansado Edition
 

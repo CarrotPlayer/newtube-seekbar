@@ -1,13 +1,24 @@
 # NewTube — Status
 
-**v1.13.0 (versionCode 11300), Faemino y Cansado Edition, 2026-09-30.** Release
-scope, validation and distribution are in [the release record](../releases/1.13.0.md).
-1.10.1 to 1.12.0 are in their own records under `docs/releases/`. Older dated
+**v1.14.0 (versionCode 11400), Cruz y Raya Edition, 2026-10-01.** Release
+scope, validation and distribution are in [the release record](../releases/1.14.0.md).
+1.10.1 to 1.13.0 are in their own records under `docs/releases/`. Older dated
 sections below remain historical evidence, not the current release verdict.
 
 Phone-only: the TV flavors, vendored ExoPlayer fork and Leanback modules were
 deleted. Playback uses Media3 1.10.1 with embedded Cronet and an OkHttp fallback.
 Toolchain: AGP 9.2.1 / Gradle 9.6.1 / compileSdk 37 / targetSdk 37 / minSdk 24.
+
+## 1.14.0: seek drag, drag haptics, About rows (2026-10-01)
+
+- **Seek bar follows the finger** (relative drag, YouTube-measured; a tap no longer seeks; the
+  start is reachable from the edge).
+- **Drag haptics:** minimize, mini swipe-away and pull to refresh click at the commit point and
+  land on a spring.
+- **About:** "Star NewTube on GitHub" and "Share NewTube" rows. **Channel tabs** keep long names
+  on one line.
+- Not user-facing: phone strings ready for Weblate (`TRANSLATING.md`, translation lint), F-Droid
+  build switch (`-Pfdroid`), the 1.13 screenshot set, site and README demo clip.
 
 ## 1.13.0: writing comments, chapters, player feel (2026-09-30)
 
