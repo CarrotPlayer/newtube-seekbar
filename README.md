@@ -152,8 +152,10 @@ stored on your phone and never sent to the developer. You can revoke it at any t
 
 ## How fast
 
-Medians measured on a Pixel 9 with release builds: small samples, one phone, one carrier, and the
-mobile-data runs were on different days. The method and the full table are in
+Medians measured on a Pixel 9 on 25 and 26 September 2026, with release builds of the code that
+became 1.10.1, 2 to 8 runs per cell: small samples, one phone, one carrier, and the mobile-data runs
+were on different days. Later versions haven't been re-timed this way, and 1.12.0 changed how the
+app opens (Home shows loading placeholders first). The method and the full table are in
 [STATUS.md](docs/mobile-port/STATUS.md).
 
 | | Wi-Fi | Mobile data |
