@@ -110,6 +110,10 @@ YouTube app.
 <img src=".github/assets/screens/light.webp" width="23%" alt="The watch page in the light theme">
 </p>
 
+<p align="center">
+<img src=".github/assets/demo.webp" width="270" alt="NewTube in motion: Blender Studio's channel, a video with chapters, the comments panel, a seek and the mini-player">
+</p>
+
 ## Download
 
 <a href="https://github.com/aleixrodriala/newtube/releases/latest"><img src="images/badge_github.png" height="64" alt="Get it on GitHub"></a>
