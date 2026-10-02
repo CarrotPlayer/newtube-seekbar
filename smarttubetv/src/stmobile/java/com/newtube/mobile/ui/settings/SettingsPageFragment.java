@@ -106,7 +106,7 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
     /** Opens another page of the tree on top of this one. */
     public void openPage(@NonNull String pageId) {
         if (getActivity() instanceof MobileSettingsActivity) {
-            ((MobileSettingsActivity) getActivity()).openPage(pageId);
+            ((MobileSettingsActivity) getActivity()).openPage(this, pageId);
         }
     }
 

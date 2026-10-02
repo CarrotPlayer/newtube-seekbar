@@ -54,21 +54,31 @@ public class MobileSettingsActivity extends MobileActivity {
                     .commitNow();
             String page = getIntent().getStringExtra(EXTRA_PAGE);
             if (page != null && !SettingsPages.ROOT.equals(page)) {
-                openPage(page, false);
+                openPage(null, page, false);
             }
         }
     }
 
-    public void openPage(@NonNull String pageId) {
-        openPage(pageId, true);
+    /** Opens a page of the tree on top of {@code from}, the page whose row was tapped. */
+    public void openPage(@NonNull Fragment from, @NonNull String pageId) {
+        openPage(from, pageId, true);
     }
 
-    private void openPage(@NonNull String pageId, boolean animate) {
+    /**
+     * {@code from}: the page asking, or null. A second tap that lands before the first one's page
+     * replaced it, or while that page slides in over it, finds {@code from} no longer on top and is
+     * dropped: a double tap opens one page, not two.
+     */
+    private void openPage(@Nullable Fragment from, @NonNull String pageId, boolean animate) {
         FragmentManager fragments = getSupportFragmentManager();
         if (fragments.isStateSaved()) {
             return;
         }
+        fragments.executePendingTransactions();
         Fragment current = fragments.findFragmentById(R.id.settings_container);
+        if (from != null && current != from) {
+            return;
+        }
         Fragment next = SettingsPageFragment.newInstance(pageId);
         if (animate) {
             next.setEnterTransition(new MaterialSharedAxis(MaterialSharedAxis.X, true));
