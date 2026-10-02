@@ -182,6 +182,10 @@ public class PlayerTimeBar extends View implements TimeBar {
     private boolean mTouchPending;
     /** The scrub is this touch's drag (not an arrow key's): only then do its moves drive it. */
     private boolean mDragByTouch;
+    /** NEWTUBE(gestures): the scrub is a sideways swipe on the video ({@link #startSwipeScrub}). */
+    private boolean mDragBySwipe;
+    /** ...and where its finger was when it began, in screen px. */
+    private float mSwipeAnchorRawX;
     /** The finger the touch follows: a second finger neither takes over nor makes the drag jump. */
     private int mActivePointerId = MotionEvent.INVALID_POINTER_ID;
     private float mDownX;
@@ -748,7 +752,14 @@ public class PlayerTimeBar extends View implements TimeBar {
         long position = dragPositionAt(x);
         float left = trackLeft();
         float right = trackRight();
-        float fromOrigin = Math.abs(xFor(position, left, right) - xFor(mScrubOrigin, left, right));
+        scrubTo(position, Math.abs(xFor(position, left, right) - xFor(mScrubOrigin, left, right)));
+    }
+
+    /**
+     * The drag now points at {@code position}, {@code fromOrigin} px from where it began - the dot's
+     * distance on the track for a drag on the bar, the finger's for a swipe on the video.
+     */
+    private void scrubTo(long position, float fromOrigin) {
         if ((position <= 0 || position >= mDuration) && position != mScrubOrigin) {
             // The start or the end is where the finger meant to go, never "back": it does not cancel
             // from a dot a second or two away, and arming again waits for the drag to leave the
@@ -813,6 +824,7 @@ public class PlayerTimeBar extends View implements TimeBar {
         }
         mScrubbing = false;
         mDragByTouch = false;
+        mDragBySwipe = false;
         if (mCancelArmed && mCancelListener != null) {
             mCancelListener.onReleaseToCancel(false);
         }
@@ -826,6 +838,69 @@ public class PlayerTimeBar extends View implements TimeBar {
         invalidate();
         for (OnScrubListener listener : mListeners) {
             listener.onScrubStop(this, position, canceled);
+        }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // NEWTUBE(gestures): a sideways swipe anywhere on the video
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * A sideways swipe on the video scrubs with the bar's pill, ticks and "Release to cancel", from
+     * where the swipe was recognized ({@code rawX}, screen px). Unlike a drag on the bar, the time
+     * follows the finger's travel, not the track ({@link #swipeOffsetMs}): fine for a short swipe,
+     * fast for a long one, the same on any length of video. False when there is nothing to seek
+     * (the bar is disabled or has no duration yet) or a finger is already on the bar.
+     */
+    public boolean startSwipeScrub(float rawX) {
+        if (!isEnabled() || mDuration <= 0 || mDuration == C.TIME_UNSET || mTouchPending || mDragByTouch) {
+            return false;
+        }
+        if (mScrubbing) {
+            stopScrubbing(false); // a keyboard scrub still waiting to land
+        }
+        mSwipeAnchorRawX = rawX;
+        beginScrub(mPosition);
+        mDragBySwipe = true;
+        return true;
+    }
+
+    public void moveSwipeScrub(float rawX) {
+        if (mDragBySwipe) {
+            float dx = rawX - mSwipeAnchorRawX;
+            long position = Math.max(0, Math.min(mDuration, mScrubOrigin + swipeOffsetMs(dx / mTouchDensity)));
+            scrubTo(position, Math.abs(dx));
+        }
+    }
+
+    /** A swipe's seek per dp at first: 72 dp (about a centimetre) is about a double tap's 10 s. */
+    private static final float SWIPE_MS_PER_DP = 100f;
+    /** ...plus this much per (100 dp)^3: 3 min at 250 dp, 10 min across a portrait screen. */
+    private static final float SWIPE_CUBIC_MS = 10_000f;
+
+    /**
+     * How far a sideways swipe of {@code dp} (signed, physical dp) seeks: linear while it is short,
+     * then a cube, VLC's shape - a little swipe nudges, a long one crosses a film.
+     */
+    @VisibleForTesting
+    static long swipeOffsetMs(float dp) {
+        double d = Math.abs(dp);
+        double ms = d * SWIPE_MS_PER_DP + Math.pow(d / 100d, 3) * SWIPE_CUBIC_MS;
+        return Math.round(Math.signum(dp) * ms);
+    }
+
+    /**
+     * The video under a scrub changed (autoplay while the finger held the bar, or a swipe): the
+     * scrub ends where it is, seeking nothing; the rest of that touch drives nothing.
+     */
+    public void cancelScrub() {
+        endTouch(true);
+    }
+
+    /** The swipe ended: seeks where the dot is, unless {@code canceled} or it rests on "Release to cancel". */
+    public void stopSwipeScrub(boolean canceled) {
+        if (mDragBySwipe) {
+            stopScrubbing(canceled || mCancelArmed);
         }
     }
 

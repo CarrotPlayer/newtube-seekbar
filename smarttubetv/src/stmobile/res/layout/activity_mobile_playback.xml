@@ -363,6 +363,39 @@
                 android:visibility="gone"
                 tools:text="Release to cancel" />
 
+            <!-- NEWTUBE(gestures): brightness or volume while a swipe on the side of the fullscreen
+                 video sets it (SwipeLevels), in the top pill's place - the finger is on the side. -->
+            <LinearLayout
+                android:id="@+id/mobile_player_level_pill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|center_horizontal"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_mobile_player_pill"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="8dp"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <ImageView
+                    android:id="@+id/mobile_player_level_icon"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:importantForAccessibility="no"
+                    tools:src="@drawable/ic_player_volume_up" />
+
+                <com.newtube.mobile.ui.playback.LevelBar
+                    android:id="@+id/mobile_player_level_bar"
+                    android:layout_width="120dp"
+                    android:layout_height="4dp"
+                    android:layout_marginStart="12dp" />
+
+            </LinearLayout>
+
             <!-- Center loading stack: the spinner plus (fresh installs only) the one-time-setup
                  hint shown while the first YouTube session is still being established. Both are
                  toggled from showProgressBar(); the wrapper collapses when they're gone. -->

@@ -166,7 +166,7 @@ import java.util.Map;
  * is wired straight to {@link Media3PlayerController}.
  */
 public class MobilePlaybackActivity extends MobileActivity
-        implements PlaybackView, PlayerContainerLayout.DragListener, LiveChatSheet.Host {
+        implements PlaybackView, PlayerContainerLayout.SwipeListener, LiveChatSheet.Host {
 
     private static final long AUTO_HIDE_MS = 3_500;
     private static final long PROGRESS_UPDATE_MS = 500;
@@ -206,6 +206,10 @@ public class MobilePlaybackActivity extends MobileActivity
     @Nullable private View mOptionsRow;
     /** Over the top of the video: "Release to cancel" (seek bar). */
     @Nullable private TextView mTopPill;
+    /** NEWTUBE(gestures): brightness / volume while a side swipe sets it (SwipeLevels). */
+    @Nullable private View mLevelPill;
+    @Nullable private ImageView mLevelIcon;
+    @Nullable private LevelBar mLevelBar;
     /** The controls faded aside for a seek-bar drag (setScrubChrome). */
     private boolean mScrubChromeHidden;
     private ProgressBar mProgressBar;
@@ -685,6 +689,9 @@ public class MobilePlaybackActivity extends MobileActivity
         mTransport = findViewById(R.id.mobile_player_transport);
         mOptionsRow = findViewById(R.id.mobile_player_options);
         mTopPill = findViewById(R.id.mobile_player_top_pill);
+        mLevelPill = findViewById(R.id.mobile_player_level_pill);
+        mLevelIcon = findViewById(R.id.mobile_player_level_icon);
+        mLevelBar = findViewById(R.id.mobile_player_level_bar);
         mProgressBar = findViewById(R.id.mobile_player_progress);
         mSpinnerShown = mProgressBar != null && mProgressBar.getVisibility() == View.VISIBLE;
         syncPlayPauseWithSpinner();
@@ -750,9 +757,24 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     private void setupControls() {
-        mContainer.setDragListener(this);
-        // Only let a swipe-to-dismiss begin over the video box, so the watch content scrolls freely.
+        mContainer.setSwipeListener(this);
+        // Only let a swipe begin over the video box, so the watch content scrolls freely.
         mContainer.setDragStartBoundView(mVideoArea);
+        mSwipeLevels = new SwipeLevels(this, getWindow(), mContainer, new SwipeLevels.Pill() {
+            @Override
+            public void showLevel(int iconRes, float level) {
+                if (mLevelIcon != null && mLevelBar != null) {
+                    mLevelIcon.setImageResource(iconRes);
+                    mLevelBar.setLevel(level);
+                }
+                fadePill(mLevelPill, true);
+            }
+
+            @Override
+            public void hideLevel() {
+                fadePill(mLevelPill, false);
+            }
+        });
 
         // Pinch on the video = YouTube's zoom-to-fill toggle. Enabled in landscape/fullscreen only
         // (applyWatchLayoutForOrientation), like the official app.
@@ -777,6 +799,16 @@ public class MobilePlaybackActivity extends MobileActivity
                 applyControlsInsets();
             }
             fitChapterButton();
+        });
+        // ...and on the video box's, which the controls fill: hidden controls are GONE, never laid
+        // out, so a rotation while they were away (the phone turned; a fullscreen swipe puts them
+        // away first) reached neither pass with the new size. The seek bar kept the other
+        // orientation's place - inset and lifted inside the portrait video, or a fullscreen strip
+        // measured on the portrait box (seen on the emulator 2026-10-02, swipe or not).
+        mVideoArea.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or_, ob) -> {
+            if ((r - l) != (or_ - ol) || (b - t) != (ob - ot)) {
+                applyControlsInsets();
+            }
         });
 
         // No extra system-bar padding on the watch page itself: in portrait the Activity content
@@ -1385,6 +1417,7 @@ public class MobilePlaybackActivity extends MobileActivity
             SystemPipBridge.onPipEnded();
         }
         mPipEnterPending = false;
+        updateSwipeBrightness(); // NEWTUBE(gestures): after an undone PiP entry is cleared above
         if (!mIsInPip && mTimeBar != null && mTimeBar.getVisibility() != View.VISIBLE) {
             // NEWTUBE(seek bar): PiP hid the bar (applyPipVideoOnlyLayout); an entry undone before
             // any mode callback (above) came back without it.
@@ -1745,6 +1778,7 @@ public class MobilePlaybackActivity extends MobileActivity
         applyWatchLayoutForOrientation(newConfig.orientation);
         applySystemBarsForOrientation(newConfig.orientation);
         updateFullscreenIcon(newConfig.orientation);
+        onFullscreenSwipeConfigured();
         // The standing auto-enter params carry a sourceRectHint captured from the video box; after
         // a rotation that rect is stale (portrait box vs fullscreen), which degrades the
         // home-gesture shrink animation. Re-push with the post-rotation geometry.
@@ -2063,10 +2097,12 @@ public class MobilePlaybackActivity extends MobileActivity
             Insets bars = rootInsets != null
                     ? rootInsets.getInsets(WindowInsetsCompat.Type.systemBars()
                             | WindowInsetsCompat.Type.displayCutout()) : Insets.NONE;
-            int width = mControlsRoot.getWidth() > 0
-                    ? mControlsRoot.getWidth() : getResources().getDisplayMetrics().widthPixels;
-            int height = mControlsRoot.getHeight() > 0
-                    ? mControlsRoot.getHeight() : getResources().getDisplayMetrics().heightPixels;
+            // The video box's size: the controls fill it, but keep a stale one while they are GONE.
+            View box = mVideoArea != null && mVideoArea.getWidth() > 0 ? mVideoArea : mControlsRoot;
+            int width = box.getWidth() > 0
+                    ? box.getWidth() : getResources().getDisplayMetrics().widthPixels;
+            int height = box.getHeight() > 0
+                    ? box.getHeight() : getResources().getDisplayMetrics().heightPixels;
             int strip = controlsStrip(width, height, mVideoAspect, getResizeMode());
             left = Math.max(bars.left, strip);
             right = Math.max(bars.right, strip);
@@ -2104,6 +2140,7 @@ public class MobilePlaybackActivity extends MobileActivity
         setMargins(mScrubChapterView, 0, 0, 0,
                 getResources().getDimensionPixelSize(R.dimen.mobile_player_scrub_pill_margin) + bottom + lift);
         setMargins(mTopPill, 0, top + dp(12), 0, 0);
+        setMargins(mLevelPill, 0, top + dp(12), 0, 0);
         // The playback notice sits just over the row (60 dp in portrait, as in the layout).
         setMargins(mNoticeView, 0, 0, 0, dp(60) + bottom + lift);
     }
@@ -2649,6 +2686,12 @@ public class MobilePlaybackActivity extends MobileActivity
             Utils.removeCallbacks(mRoutedInRestore);
         }
 
+        if (mSwipeLevels != null) {
+            if (isInPictureInPictureMode) {
+                mSwipeLevels.cancel();
+            }
+            updateSwipeBrightness(); // NEWTUBE(gestures): only fullscreen in front keeps it
+        }
         if (isInPictureInPictureMode) {
             mPipDismissPending = false;
             // A forced orientation must not survive into the pinned task - it wedges the window
@@ -4751,7 +4794,362 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     // ---------------------------------------------------------------------------------
-    // Swipe-down-to-dismiss (PlayerContainerLayout.DragListener)
+    // NEWTUBE(gestures): the player's swipes (PlayerContainerLayout.SwipeListener, issue #12).
+    // Portrait: down minimizes, up goes fullscreen. Fullscreen: down comes back out, and up/down on
+    // the left or right 3/8 sets the brightness or the volume. Sideways anywhere seeks, like a
+    // drag on the seek bar. Nothing starts while the finger holds 2x, a seek bar drag or a morph
+    // is under way, or the player is in PiP.
+    // ---------------------------------------------------------------------------------
+
+    private static final int SWIPE_MINIMIZE = 1;
+    private static final int SWIPE_ENTER_FULLSCREEN = 2;
+    private static final int SWIPE_EXIT_FULLSCREEN = 3;
+    private static final int SWIPE_BRIGHTNESS = 4;
+    private static final int SWIPE_VOLUME = 5;
+    private static final int SWIPE_SEEK = 6;
+    /**
+     * Fullscreen: this share of the screen on the left (brightness) and the right (volume) - the
+     * zones of ReVanced's swipe controls, which most people who swipe on YouTube learned them from.
+     * The quarter between them keeps YouTube's swipe down out of fullscreen.
+     */
+    private static final float LEVEL_ZONE = 3f / 8f;
+    /** The fullscreen swipes stick and click like the minimize one; a flick this fast (dp/s) goes at once. */
+    private static final float FULLSCREEN_FLICK_DP = 800f;
+    private static final long FULLSCREEN_ROTATION_WAIT_MS = 700;
+    /**
+     * YouTube 21.18, measured: dragged down, the fullscreen video shrinks to 95% within ~38 dp and
+     * slides down until 30% of its height, where it stops dead.
+     */
+    private static final float FULLSCREEN_PULL_SCALE = 0.95f;
+    private static final float FULLSCREEN_PULL_SCALE_DP = 38f;
+    private static final float FULLSCREEN_PULL_MAX = 0.3f;
+
+    private SwipeLevels mSwipeLevels;
+    private float mSwipeDownRawX;
+    /** Finger travel when a level swipe was recognized: the level starts moving from there. */
+    private float mSwipeStartDy;
+    @Nullable
+    private MagneticDrag mFullscreenMagnet;
+    /** SWIPE_ENTER_FULLSCREEN / SWIPE_EXIT_FULLSCREEN while one is under the finger or settling. */
+    private int mFullscreenSwipe;
+    @Nullable
+    private ValueAnimator mFullscreenSettle;
+
+    @Override
+    public int onSwipeStart(int direction, float downRawX, float downRawY, float dx, float dy) {
+        if (mClosing || mIsInPip || mPipEnterPending || mScrubbing || mBackPreview
+                || mFullscreenSwipe != 0 || mVideoArea == null
+                || (mExoPlayerController != null && mExoPlayerController.isHoldSpeedOn())) {
+            return PlayerContainerLayout.SWIPE_NONE;
+        }
+        mSwipeDownRawX = downRawX;
+        boolean vertical = direction == PlayerContainerLayout.UP || direction == PlayerContainerLayout.DOWN;
+        if (!vertical) {
+            return beginSeekSwipe(downRawX + dx);
+        }
+        if (!isLandscape()) {
+            if (direction == PlayerContainerLayout.DOWN) {
+                return canStartDismissDrag() ? SWIPE_MINIMIZE : PlayerContainerLayout.SWIPE_NONE;
+            }
+            return beginFullscreenSwipe(SWIPE_ENTER_FULLSCREEN);
+        }
+        int level = levelSwipeAt(downRawX);
+        if (level != PlayerContainerLayout.SWIPE_NONE) {
+            mSwipeStartDy = dy;
+            hideControls();
+            mSwipeLevels.begin(level == SWIPE_VOLUME ? SwipeLevels.VOLUME : SwipeLevels.BRIGHTNESS,
+                    mVideoArea.getHeight());
+            return level;
+        }
+        return direction == PlayerContainerLayout.DOWN
+                ? beginFullscreenSwipe(SWIPE_EXIT_FULLSCREEN) : PlayerContainerLayout.SWIPE_NONE;
+    }
+
+    @Override
+    public void onSwipeMove(int swipe, float dx, float dy) {
+        switch (swipe) {
+            case SWIPE_MINIMIZE:
+                onDismissDrag(Math.max(0f, dy));
+                break;
+            case SWIPE_ENTER_FULLSCREEN:
+            case SWIPE_EXIT_FULLSCREEN:
+                if (mFullscreenSwipe == swipe) { // else a configuration change ended it under the finger
+                    fullscreenMagnet().move(Math.max(0f, swipe == SWIPE_ENTER_FULLSCREEN ? -dy : dy));
+                }
+                break;
+            case SWIPE_BRIGHTNESS:
+            case SWIPE_VOLUME:
+                mSwipeLevels.move(mSwipeStartDy - dy);
+                break;
+            case SWIPE_SEEK:
+                mTimeBar.moveSwipeScrub(mSwipeDownRawX + dx);
+                break;
+            default:
+                break;
+        }
+    }
+
+    @Override
+    public void onSwipeReleased(int swipe, float dx, float dy, float xVelocity, float yVelocity) {
+        switch (swipe) {
+            case SWIPE_MINIMIZE:
+                onDismissDragReleased(Math.max(0f, dy), yVelocity);
+                break;
+            case SWIPE_ENTER_FULLSCREEN:
+            case SWIPE_EXIT_FULLSCREEN:
+                if (mFullscreenSwipe == swipe) {
+                    boolean up = swipe == SWIPE_ENTER_FULLSCREEN;
+                    fullscreenMagnet().move(Math.max(0f, up ? -dy : dy));
+                    endFullscreenSwipe(up ? -yVelocity : yVelocity);
+                }
+                break;
+            case SWIPE_BRIGHTNESS:
+            case SWIPE_VOLUME:
+                mSwipeLevels.move(mSwipeStartDy - dy);
+                mSwipeLevels.end();
+                break;
+            case SWIPE_SEEK:
+                mTimeBar.moveSwipeScrub(mSwipeDownRawX + dx);
+                mTimeBar.stopSwipeScrub(false);
+                break;
+            default:
+                break;
+        }
+    }
+
+    @Override
+    public void onSwipeCancelled(int swipe) {
+        switch (swipe) {
+            case SWIPE_MINIMIZE:
+                onDismissDragCancelled();
+                break;
+            case SWIPE_ENTER_FULLSCREEN:
+            case SWIPE_EXIT_FULLSCREEN:
+                if (mFullscreenSwipe == swipe) {
+                    fullscreenMagnet().finish();
+                    settleFullscreenPull();
+                }
+                break;
+            case SWIPE_BRIGHTNESS:
+            case SWIPE_VOLUME:
+                mSwipeLevels.end();
+                break;
+            case SWIPE_SEEK:
+                mTimeBar.stopSwipeScrub(true);
+                break;
+            default:
+                break;
+        }
+    }
+
+    /** Fullscreen: SWIPE_BRIGHTNESS / SWIPE_VOLUME for a swipe that began at {@code rawX}, if any. */
+    private int levelSwipeAt(float rawX) {
+        if (!PlayerGesturePrefs.isLevelSwipesOn(this) || isCastOverlayShown()) {
+            return PlayerContainerLayout.SWIPE_NONE;
+        }
+        int[] at = new int[2];
+        mContainer.getLocationOnScreen(at);
+        float width = Math.max(1, mContainer.getWidth());
+        float x = (rawX - at[0]) / width;
+        if (x < LEVEL_ZONE && mSwipeLevels.canSwipe(SwipeLevels.BRIGHTNESS)) {
+            return SWIPE_BRIGHTNESS;
+        }
+        if (x > 1f - LEVEL_ZONE && mSwipeLevels.canSwipe(SwipeLevels.VOLUME)) {
+            return SWIPE_VOLUME;
+        }
+        return PlayerContainerLayout.SWIPE_NONE;
+    }
+
+    private boolean isCastOverlayShown() {
+        return mCastOverlay != null && mCastOverlay.getVisibility() == View.VISIBLE;
+    }
+
+    /**
+     * Sideways: the seek bar's own drag, from anywhere on the video - the controls come up, step
+     * aside for the bar, and the time and chapter under the dot show in the pill, as when the bar
+     * is dragged. Not from the screen's side edges, where gesture navigation's Back begins.
+     */
+    private int beginSeekSwipe(float rawX) {
+        if (!PlayerGesturePrefs.isSeekSwipeOn(this) || mPlayer == null || mExoPlayerController == null
+                || mTimeBar == null || isCastOverlayShown() || mMorphAnimator != null || mMorphFraction != 0f
+                || mContainer.isInSideSystemGestureBand(mSwipeDownRawX)) {
+            return PlayerContainerLayout.SWIPE_NONE;
+        }
+        long duration = getDurationMs();
+        if (duration <= 0) {
+            return PlayerContainerLayout.SWIPE_NONE;
+        }
+        if (!mControlsVisible) {
+            showControlsInternal(true);
+        }
+        // The bar only follows playback while the controls are up: bring it to now first.
+        mTimeBar.setDuration(duration);
+        mTimeBar.setPosition(Math.max(mExoPlayerController.getPositionMs(), 0));
+        return mTimeBar.startSwipeScrub(rawX) ? SWIPE_SEEK : PlayerContainerLayout.SWIPE_NONE;
+    }
+
+    /**
+     * Up into fullscreen from the portrait page, or down out of it. Coming down moves the way
+     * YouTube 21.18's does (measured): the video shrinks a little and slides down with the finger,
+     * stopping at 30% of its height. Going up, YouTube shows nothing until the rotation; here the
+     * page slides up beneath the video as far, so the finger sees where it is going. Both stick and
+     * let go with the minimize drag's click at the same 72 dp (YouTube: ~70 dp up, ~150 dp down,
+     * no haptics); past it, letting go rotates - the fullscreen button's own toggle.
+     */
+    private int beginFullscreenSwipe(int swipe) {
+        if (mPlayer == null || mMorphAnimator != null || mMorphFraction != 0f) {
+            return PlayerContainerLayout.SWIPE_NONE;
+        }
+        if (mFullscreenSettle != null) {
+            mFullscreenSettle.cancel();
+            mFullscreenSettle = null;
+        }
+        mFullscreenSwipe = swipe;
+        hideControls();
+        fullscreenMagnet().start();
+        return swipe;
+    }
+
+    private MagneticDrag fullscreenMagnet() {
+        if (mFullscreenMagnet == null) {
+            mFullscreenMagnet = new MagneticDrag(mContainer, MINIMIZE_PULL, this::applyFullscreenPull);
+        }
+        return mFullscreenMagnet;
+    }
+
+    /** {@code px} along the finger's way (up to enter, down to leave); 0 = at rest. */
+    private void applyFullscreenPull(float px) {
+        if (mVideoArea == null || mFullscreenSwipe == 0) {
+            return;
+        }
+        float pulled = Math.min(Math.max(0f, px), mVideoArea.getHeight() * FULLSCREEN_PULL_MAX);
+        if (mFullscreenSwipe == SWIPE_ENTER_FULLSCREEN) {
+            // The page passes under the video box: the watch column draws that box last.
+            View page = findViewById(R.id.mobile_watch_area);
+            if (page != null) {
+                page.setTranslationY(-pulled);
+            }
+            return;
+        }
+        float shrink = Math.min(1f, pulled / (FULLSCREEN_PULL_SCALE_DP * getResources().getDisplayMetrics().density));
+        float scale = 1f - (1f - FULLSCREEN_PULL_SCALE) * shrink;
+        mVideoArea.setPivotX(mVideoArea.getWidth() / 2f);
+        mVideoArea.setPivotY(0f);
+        mVideoArea.setScaleX(scale);
+        mVideoArea.setScaleY(scale);
+        mVideoArea.setTranslationY(pulled);
+    }
+
+    /** {@code velocity}: px/s toward the swipe's goal (negative = flicked back). */
+    private void endFullscreenSwipe(float velocity) {
+        MagneticDrag magnet = fullscreenMagnet();
+        boolean detached = magnet.isDetached();
+        magnet.finish();
+        boolean go;
+        if (detached) {
+            go = velocity >= -1200f; // past the click it goes, unless flicked back
+        } else {
+            go = velocity > FULLSCREEN_FLICK_DP * getResources().getDisplayMetrics().density;
+            if (go) {
+                Haptics.threshold(mContainer, true);
+            }
+        }
+        if (!go) {
+            settleFullscreenPull();
+            return;
+        }
+        // The pull stays as it is through the rotation (its snapshot is the first frame), and the
+        // new orientation's layout puts the video back at rest (onFullscreenSwipeConfigured).
+        if (BuildConfig.DEBUG) {
+            NetPath.log("gesture fullscreen " + (mFullscreenSwipe == SWIPE_ENTER_FULLSCREEN ? "enter" : "exit")
+                    + " detached=" + detached);
+        }
+        boolean landscapeNow = isLandscape();
+        toggleFullscreen();
+        // The rotation's configuration change arrives a few frames later. If none comes (a window
+        // whose orientation requests are ignored - large screens on Android 16), rest here.
+        mContainer.postDelayed(() -> {
+            if (mFullscreenSwipe != 0 && isLandscape() == landscapeNow) {
+                settleFullscreenPull();
+            }
+        }, FULLSCREEN_ROTATION_WAIT_MS);
+    }
+
+    /** Back to rest, at the decelerating pace a released minimize drag returns with. */
+    private void settleFullscreenPull() {
+        if (mVideoArea == null) {
+            mFullscreenSwipe = 0;
+            return;
+        }
+        if (mFullscreenSettle != null) {
+            mFullscreenSettle.cancel();
+        }
+        float from = fullscreenMagnet().position();
+        ValueAnimator settle = ValueAnimator.ofFloat(from, 0f);
+        settle.setDuration(180);
+        settle.setInterpolator(new android.view.animation.DecelerateInterpolator());
+        settle.addUpdateListener(a -> applyFullscreenPull((float) a.getAnimatedValue()));
+        settle.addListener(new AnimatorListenerAdapter() {
+            private boolean mCancelled;
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+                mCancelled = true;
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (mFullscreenSettle == animation) {
+                    mFullscreenSettle = null;
+                }
+                if (!mCancelled) {
+                    resetFullscreenPull();
+                }
+            }
+        });
+        mFullscreenSettle = settle;
+        settle.start();
+    }
+
+    private void resetFullscreenPull() {
+        if (mFullscreenSettle != null) {
+            mFullscreenSettle.cancel();
+            mFullscreenSettle = null;
+        }
+        if (mFullscreenMagnet != null) {
+            mFullscreenMagnet.finish(); // a configuration change mid-drag: its catch-up spring stops too
+        }
+        if (mFullscreenSwipe != 0) {
+            View page = findViewById(R.id.mobile_watch_area);
+            if (page != null) {
+                page.setTranslationY(0f);
+            }
+            if (mVideoArea != null) {
+                mVideoArea.setScaleX(1f);
+                mVideoArea.setScaleY(1f);
+                mVideoArea.setTranslationY(0f);
+            }
+        }
+        mFullscreenSwipe = 0;
+    }
+
+    /**
+     * The orientation changed (or the player came back to the front): a fullscreen swipe's pull
+     * comes off, and the swiped brightness holds only while the player is fullscreen in front.
+     */
+    private void onFullscreenSwipeConfigured() {
+        resetFullscreenPull();
+        updateSwipeBrightness();
+    }
+
+    private void updateSwipeBrightness() {
+        if (mSwipeLevels != null) {
+            mSwipeLevels.setBrightnessActive(isLandscape() && !mIsInPip && !mPipEnterPending);
+        }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Swipe-down-to-dismiss (SWIPE_MINIMIZE)
     // ---------------------------------------------------------------------------------
 
     /**
@@ -5083,13 +5481,11 @@ public class MobilePlaybackActivity extends MobileActivity
         animator.start();
     }
 
-    @Override
-    public boolean canStartDismissDrag() {
+    private boolean canStartDismissDrag() {
         return !mScrubbing && mPlayer != null && mMorphAnimator == null;
     }
 
-    @Override
-    public void onDismissDrag(float dy) {
+    private void onDismissDrag(float dy) {
         if (!mMagnetDragging) {
             if (dy <= 0f) {
                 return;
@@ -5144,8 +5540,7 @@ public class MobilePlaybackActivity extends MobileActivity
         return Math.max(travel, Math.max(1, mContainer.getHeight()) * 0.33f);
     }
 
-    @Override
-    public void onDismissDragCancelled() {
+    private void onDismissDragCancelled() {
         endMagnetDrag();
         settleMorph(0f, 0f, this::resetMorph);
     }
@@ -5198,8 +5593,7 @@ public class MobilePlaybackActivity extends MobileActivity
         updatePipActions();
     }
 
-    @Override
-    public void onDismissDragReleased(float dy, float yVelocity) {
+    private void onDismissDragReleased(float dy, float yVelocity) {
         if (mMagnetDragging) {
             minimizeMagnet().move(dy); // where the finger lifted, which a last MOVE may not have said
         }
@@ -8058,6 +8452,11 @@ public class MobilePlaybackActivity extends MobileActivity
         if (!sameVideo) {
             showPlaybackNotice(null);
             cancelHoldSpeed();
+            // NEWTUBE(gestures): a drag held across an autoplay would have seeked the new video to
+            // the old one's spot (the bar's and a swipe's alike): it ends here, seeking nothing.
+            if (mTimeBar != null) {
+                mTimeBar.cancelScrub();
+            }
         }
         if (!sameVideo || (item != null && !TextUtils.isEmpty(item.getTitleFull()))) {
             setTitle(item != null ? item.getTitleFull() : null);
