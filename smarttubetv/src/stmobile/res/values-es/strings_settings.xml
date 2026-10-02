@@ -99,7 +99,6 @@
     <string name="mobile_settings_menu_playlists">Listas de reproducción</string>
     <string name="mobile_settings_menu_tabs">Menú de pestaña</string>
     <string name="mobile_settings_menu_move_section">Subir y bajar</string>
-    <string name="mobile_settings_menu_switch_account">Cambiar de cuenta</string>
     <string name="mobile_settings_menu_usual_order">Orden habitual</string>
     <string name="mobile_settings_menu_usual_order_summary">Devuelve los elementos del menú a su sitio habitual</string>
     <string name="mobile_settings_menu_usual_order_done">Orden del menú restaurado</string>
@@ -139,10 +138,6 @@
     <string name="mobile_settings_clear_search_history_summary">Borra las búsquedas guardadas en este teléfono</string>
     <string name="mobile_settings_clear_search_history_confirm">¿Borrar el historial de búsqueda?</string>
     <string name="mobile_settings_clear_search_history_body">Se borran las búsquedas que NewTube guardó en este teléfono. No se puede deshacer.</string>
-    <string name="mobile_settings_remove_password">Quitar la contraseña de inicio</string>
-    <string name="mobile_settings_remove_password_summary">NewTube deja de pedirla al abrirse</string>
-    <string name="mobile_settings_child_mode_off">Desactivar el modo infantil</string>
-    <string name="mobile_settings_child_mode_off_summary">Vuelven las sugerencias bajo el vídeo y la reproducción automática</string>
 
     <!-- Backup -->
     <string name="mobile_settings_backup_now">Hacer copia ahora</string>
@@ -276,14 +271,17 @@
     <string name="mobile_settings_chapter_popup_summary">Muestra el nombre de cada capítulo al empezar. Tócalo para pasar al siguiente</string>
     <string name="mobile_settings_network">Red</string>
     <string name="mobile_settings_proxy">Proxy web</string>
-    <string name="mobile_settings_conscrypt">Conscrypt</string>
     <string name="mobile_settings_proxy_summary">Envía el tráfico de NewTube a través de un proxy HTTP o SOCKS</string>
     <string name="mobile_settings_dns">Cómo encontrar los servidores de YouTube</string>
     <string name="mobile_settings_dns_ipv4">IPv4 primero</string>
     <string name="mobile_settings_dns_ipv4_desc">La opción predeterminada. Arregla redes con IPv6 roto</string>
     <string name="mobile_settings_dns_system">El DNS del teléfono</string>
     <string name="mobile_settings_dns_google">DNS de Google</string>
-    <string name="mobile_settings_conscrypt_summary">Una biblioteca de seguridad propia para las conexiones. Puede ayudar en teléfonos antiguos y con algunas VPN</string>
+    <string name="mobile_settings_conscrypt">Conscrypt</string>
+    <string name="mobile_settings_conscrypt_summary">Una biblioteca de seguridad propia para las conexiones. Puede ayudar donde YouTube está bloqueado, con apps como ByeByeDPI</string>
+    <string name="mobile_settings_accounts">Cuentas</string>
+    <string name="mobile_settings_multi_profiles">Ajustes distintos para cada cuenta</string>
+    <string name="mobile_settings_multi_profiles_summary">Cada cuenta guarda los suyos, empezando por los predeterminados</string>
     <string name="mobile_settings_legacy_feeds">Feeds antiguos</string>
     <string name="mobile_settings_legacy_feeds_summary">Carga Suscripciones, canales y listas como la app de YouTube para TV. Pruébalo si salen vacíos</string>
 

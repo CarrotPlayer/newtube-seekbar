@@ -12,10 +12,12 @@ import androidx.core.content.ContextCompat;
 import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.okhttp.OkHttpManager;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.manager.PlayerConstants;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
 import com.liskovsoft.smartyoutubetv2.common.exoplayer.selector.FormatItem;
 import com.liskovsoft.smartyoutubetv2.common.exoplayer.selector.FormatItem.VideoPreset;
 import com.liskovsoft.smartyoutubetv2.common.misc.AppDataSourceManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.PhoneBackgroundMode;
+import com.liskovsoft.smartyoutubetv2.common.prefs.AppPrefs;
 import com.liskovsoft.smartyoutubetv2.common.prefs.DeArrowData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
@@ -632,9 +634,20 @@ final class PlayerPages {
                 .option(context.getString(R.string.mobile_settings_dns_system), PlayerTweaksData.DNS_TYPE_SYSTEM)
                 .option(context.getString(R.string.mobile_settings_dns_google), PlayerTweaksData.DNS_TYPE_GOOGLE)
                 .bind(tweaks::getPreferredDnsType, tweaks::setPreferredDnsType).needsRestart());
+        // Upstream's "Internet censorship" switch (ByeByeDPI and the like): not a TV leftover.
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_conscrypt),
                 context.getString(R.string.mobile_settings_conscrypt_summary),
                 networkData::isConscryptEnabled, networkData::setConscryptEnabled).needsRestart());
+
+        // From the TV's Account settings dialog, the one of its three rows the phone has a use for.
+        rows.add(SettingsRow.header(context.getString(R.string.mobile_settings_accounts)));
+        AppPrefs prefs = AppPrefs.instance(context);
+        rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_multi_profiles),
+                context.getString(R.string.mobile_settings_multi_profiles_summary),
+                prefs::isMultiProfilesEnabled, on -> {
+                    prefs.enableMultiProfiles(on);
+                    BrowsePresenter.instance(context).updateSections();
+                }).needsRestart());
 
         rows.add(SettingsRow.header(context.getString(R.string.mobile_settings_feeds)));
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_legacy_feeds),

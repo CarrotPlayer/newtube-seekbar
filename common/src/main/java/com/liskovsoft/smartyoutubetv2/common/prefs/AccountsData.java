@@ -87,6 +87,24 @@ public class AccountsData implements AccountChangeListener {
         return passwordItem != null ? passwordItem.password : null;
     }
 
+    /** NEWTUBE(settings): whether any account has a password (the phone has no row for one). */
+    public boolean hasAccountPasswords() {
+        for (PasswordItem item : mPasswords.values()) {
+            if (item.password != null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** NEWTUBE(settings): every account's password at once. */
+    public void clearAccountPasswords() {
+        mPasswords.clear();
+
+        persistState();
+    }
+
     public boolean isPasswordAccepted() {
         return mIsPasswordAccepted || getAccountPassword() == null;
     }

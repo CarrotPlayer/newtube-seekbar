@@ -43,7 +43,7 @@
     <string name="mobile_quality_auto_short">Auto</string>
     <string name="mobile_menu_repeat">Repeat mode</string>
     <string name="mobile_menu_shuffle">Shuffle</string>
-    <string name="mobile_menu_zoom">Zoom / aspect ratio</string>
+    <string name="mobile_menu_zoom">Zoom</string>
     <string name="mobile_menu_background">Play in background</string>
     <string name="mobile_menu_stats">Stats for nerds</string>
     <string name="mobile_menu_playlist_add">Save to playlist</string>
@@ -212,7 +212,6 @@
     <string name="mobile_accounts_sign_out">Sign out</string>
     <string name="mobile_accounts_sign_out_title">Sign out?</string>
     <string name="mobile_accounts_sign_out_confirm">%1$s will be removed from this device. You can sign in again anytime.</string>
-    <string name="mobile_accounts_more">Account settings</string>
 
     <!-- Empty / sign-in-gated / errored browse section placeholders (MobileBrowseActivity) -->
     <string name="mobile_empty_signin_section">Sign in to see your %1$s</string>

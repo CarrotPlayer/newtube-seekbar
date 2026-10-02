@@ -32,7 +32,7 @@ Settings
     Tabs and feeds              Tabs › · Hidden videos › · Video menu › · Thumbnails ·
                                 Original titles · Order of Channels in You
     History and privacy         Watch history · Clear watch history · Don't keep search history ·
-                                Clear search history (+ two turn-off-only rows, below)
+                                Clear search history
   Video and audio
     Playback                    When a video ends · When you leave the app · speed · sleep timer ·
                                 audio focus · Resume · Under the video
@@ -42,7 +42,7 @@ Settings
     DeArrow                     Better titles · Better thumbnails
   Other
     Backup and restore          Back up now · Restore · Automatic backup
-    Advanced                    Streaming · Live streams · Player · Network · Tabs and feeds
+    Advanced                    Streaming · Live streams · Player · Network · Accounts · Tabs and feeds
     About                       updates · diagnostic log · star / share · source · license
 ```
 
@@ -115,16 +115,26 @@ Per-row evidence (what each pref does on the phone, with file:line) is in
 - **Removed features:** Google Drive backup (broken on the phone: its sign-in step opens the YouTube
   sign-in screen and never reaches Google), the
   GrayJay/PocketTube/NewPipe import, "Protect all settings with password" (nothing enforced it),
-  turning on child mode and the start-up password (child mode does not block search or lock Settings
-  as it claimed; anyone in Settings could clear the password). People who already turned either on
-  get a turn-off row in History and privacy.
+  child mode and the start-up and account passwords (child mode does not block search or lock
+  Settings as it claimed; anyone in Settings could clear the start-up password, and the accounts
+  sheet switches account or signs out without the account's). A first version kept a turn-off row
+  for people who had them on; then the owner's call (2026-10-02): what only made sense on a TV goes,
+  rather than staying behind a row. `PhoneOnlyPrefs` turns them off (child mode the way it undoes
+  itself: the phone's card menu, Home, suggestions and autoplay back).
+- **Other TV leftovers removed** (same call): the accounts sheet's "Account settings" (a TV dialog: the password
+  lock, the TV's account picker on start, and "separate settings per account", which moved to
+  Advanced › Accounts), the video menu's QR code, Switch account (the TV's picker) and Check for
+  updates (it is in About), and in the player's More › Zoom the aspect-ratio and rotation lists and
+  the 50–300 % zoom steps, which did nothing on the phone (it keeps the five fit modes). Conscrypt
+  stays (Advanced › Network): upstream filed it under "Internet censorship" (ByeByeDPI), which
+  phones need as much as TVs.
 - **Duplicates merged:** history (General radio, Search switch, menu items) is one History and privacy
-  page; "separate settings per account" and the account password stay in the accounts sheet
-  (Account › Account settings) only.
+  page.
 - **Video menu:** the per-item position picker is gone. People whose order was customised get a
   "Usual order" row that puts back the phone's order. No switch for items whose flag the phone
   ignores (exit PiP; Open playlist always shows where it applies; Move up follows Move down) or that
-  `PhoneOnlyPrefs` keeps off (Open comments, Pause history).
+  `PhoneOnlyPrefs` keeps off (Open comments, Pause history, and the QR code, Switch account and
+  Check for updates above).
 - **Shorts** rows are gone with Shorts (1.12.0); **Hide Mixes** too (its filter only runs on the old v1
   lists; every phone feed is v2).
 

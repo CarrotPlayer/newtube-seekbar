@@ -101,7 +101,6 @@
     <string name="mobile_settings_menu_playlists">Playlists</string>
     <string name="mobile_settings_menu_tabs">Tab menu</string>
     <string name="mobile_settings_menu_move_section">Move up and down</string>
-    <string name="mobile_settings_menu_switch_account">Switch account</string>
     <string name="mobile_settings_menu_usual_order">Usual order</string>
     <string name="mobile_settings_menu_usual_order_summary">Put the menu items back in their usual places</string>
     <string name="mobile_settings_menu_usual_order_done">Menu order restored</string>
@@ -141,10 +140,6 @@
     <string name="mobile_settings_clear_search_history_summary">Deletes the searches saved on this phone</string>
     <string name="mobile_settings_clear_search_history_confirm">Clear search history?</string>
     <string name="mobile_settings_clear_search_history_body">The searches NewTube saved on this phone are deleted. This can\'t be undone.</string>
-    <string name="mobile_settings_remove_password">Remove the start-up password</string>
-    <string name="mobile_settings_remove_password_summary">NewTube stops asking for it when it opens</string>
-    <string name="mobile_settings_child_mode_off">Turn off child mode</string>
-    <string name="mobile_settings_child_mode_off_summary">Brings back suggestions under the video and autoplay</string>
 
     <!-- Backup -->
     <string name="mobile_settings_backup_now">Back up now</string>
@@ -278,14 +273,17 @@
     <string name="mobile_settings_chapter_popup_summary">Shows each chapter\'s name as it starts. Tap it to go to the next one</string>
     <string name="mobile_settings_network">Network</string>
     <string name="mobile_settings_proxy">Web proxy</string>
-    <string name="mobile_settings_conscrypt">Conscrypt</string>
     <string name="mobile_settings_proxy_summary">Sends NewTube\'s traffic through an HTTP or SOCKS proxy</string>
     <string name="mobile_settings_dns">Finding YouTube\'s servers</string>
     <string name="mobile_settings_dns_ipv4">IPv4 first</string>
     <string name="mobile_settings_dns_ipv4_desc">The default. Fixes networks with broken IPv6</string>
     <string name="mobile_settings_dns_system">The phone\'s DNS</string>
     <string name="mobile_settings_dns_google">Google DNS</string>
-    <string name="mobile_settings_conscrypt_summary">A built-in security library for connections. Can help on old phones and some VPNs</string>
+    <string name="mobile_settings_conscrypt">Conscrypt</string>
+    <string name="mobile_settings_conscrypt_summary">A built-in security library for connections. Can help where YouTube is blocked, with apps like ByeByeDPI</string>
+    <string name="mobile_settings_accounts">Accounts</string>
+    <string name="mobile_settings_multi_profiles">Separate settings for each account</string>
+    <string name="mobile_settings_multi_profiles_summary">Each account keeps its own, starting from the defaults</string>
     <string name="mobile_settings_legacy_feeds">Older feeds</string>
     <string name="mobile_settings_legacy_feeds_summary">Loads Subscriptions, channels and playlists the way YouTube\'s TV app does. Try it if they come back empty</string>
 

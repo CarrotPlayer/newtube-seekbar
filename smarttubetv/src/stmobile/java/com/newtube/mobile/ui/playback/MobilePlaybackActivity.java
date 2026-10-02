@@ -3718,7 +3718,7 @@ public class MobilePlaybackActivity extends MobileActivity
         // Dedicated Shuffle toggle (SHUFFLE <-> ALL) for quick access.
         addMenuRow(content, sheet, R.drawable.ic_player_shuffle, R.string.mobile_menu_shuffle,
                 stateLabel(shuffleOn), false, this::toggleShuffleMode);
-        // Video zoom / aspect ratio / rotate dialog.
+        // Video zoom: how the picture fills the player (PlayerUIController.onVideoZoom).
         addMenuRow(content, sheet, R.drawable.ic_player_zoom, R.string.mobile_menu_zoom,
                 null, true, () -> openPlayerOption(R.id.action_video_zoom, false));
         // Play as audio / background mode (PiP-on-home etc.).

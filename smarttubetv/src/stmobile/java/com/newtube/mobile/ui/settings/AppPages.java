@@ -7,7 +7,6 @@ import androidx.annotation.NonNull;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
-import com.liskovsoft.smartyoutubetv2.common.app.models.playback.manager.PlayerConstants;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.providers.ContextMenuManager;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.providers.ContextMenuProvider;
@@ -19,8 +18,6 @@ import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.VideoDownloads;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
-import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerData;
-import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerTweaksData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.SearchData;
 import com.liskovsoft.smartyoutubetv2.common.utils.ClickbaitRemover;
 import com.liskovsoft.smartyoutubetv2.tv.R;
@@ -318,8 +315,9 @@ final class AppPages {
      * The "⋮" menu on videos and the long-press menu on tabs: one switch per item, grouped by what
      * it does instead of the menu's order. Left out: items whose switch the phone ignores (Return to
      * background video and Open playlist always show when they apply; Move section up follows Move
-     * section down) and the two broken there, which PhoneOnlyPrefs keeps off (Open comments, Pause
-     * history). No per-item position picker: "Usual order" puts back the phone's order.
+     * section down), and the ones PhoneOnlyPrefs keeps off: two broken there (Open comments, Pause
+     * history) and three from the TV (QR code, the TV's account picker, Check for updates, in About).
+     * No per-item position picker: "Usual order" puts back the phone's order.
      */
     static SettingsPages.Page videoMenu(Context context) {
         List<SettingsRow> rows = new ArrayList<>();
@@ -358,7 +356,6 @@ final class AppPages {
         rows.add(SettingsRow.header(context.getString(R.string.mobile_settings_menu_share)));
         menuToggle(context, rows, data, MainUIData.MENU_ITEM_SHARE_LINK, R.string.share_link);
         menuToggle(context, rows, data, MainUIData.MENU_ITEM_SHARE_EMBED_LINK, R.string.share_embed_link);
-        menuToggle(context, rows, data, MainUIData.MENU_ITEM_SHARE_QR_LINK, R.string.share_qr_link);
         menuToggle(context, rows, data, MainUIData.MENU_ITEM_OPEN_DESCRIPTION, R.string.action_video_info);
 
         rows.add(SettingsRow.header(context.getString(R.string.mobile_settings_menu_playlists)));
@@ -371,8 +368,6 @@ final class AppPages {
         menuToggle(context, rows, data, MainUIData.MENU_ITEM_MOVE_SECTION_DOWN, R.string.mobile_settings_menu_move_section);
         menuToggle(context, rows, data, MainUIData.MENU_ITEM_RENAME_SECTION, R.string.rename_section);
         menuToggle(context, rows, data, MainUIData.MENU_ITEM_CLEAR_HISTORY, R.string.clear_history);
-        menuToggle(context, rows, data, MainUIData.MENU_ITEM_SELECT_ACCOUNT, R.string.mobile_settings_menu_switch_account);
-        menuToggle(context, rows, data, MainUIData.MENU_ITEM_UPDATE_CHECK, R.string.check_for_updates);
         for (ContextMenuProvider provider : new ContextMenuManager(context).getProviders()) {
             menuToggle(context, rows, data, provider.getId(), provider.getTitleResId());
         }
@@ -460,56 +455,7 @@ final class AppPages {
                             MobileSnackbar.show(context, R.string.mobile_settings_cleared);
                         })));
 
-        // Shown only to people who already turned these on, so they can turn them off: on the phone
-        // the start-up password can be cleared by anyone who reaches Settings, and child mode
-        // neither blocks search nor locks Settings as its description promised.
-        if (generalData.getMasterPassword() != null) {
-            rows.add(SettingsRow.divider());
-            rows.add(SettingsRow.action(context.getString(R.string.mobile_settings_remove_password),
-                    context.getString(R.string.mobile_settings_remove_password_summary),
-                    page -> {
-                        generalData.setMasterPassword(null);
-                        page.rebuild();
-                    }));
-        }
-        if (generalData.isChildModeEnabled()) {
-            if (generalData.getMasterPassword() == null) {
-                rows.add(SettingsRow.divider());
-            }
-            rows.add(SettingsRow.action(context.getString(R.string.mobile_settings_child_mode_off),
-                    context.getString(R.string.mobile_settings_child_mode_off_summary),
-                    page -> {
-                        turnOffChildMode(context);
-                        page.rebuild();
-                    }));
-        }
-
         return new SettingsPages.Page(context.getString(R.string.mobile_settings_privacy), rows);
-    }
-
-    /**
-     * Undoes what turning child mode on did (GeneralSettingsPresenter.enableChildMode), the phone's
-     * way: the card menu back to the phone's default, Home back on (the Explore tabs it switched off
-     * stay a choice on the Tabs page; Shorts don't exist on the phone), Up next and autoplay back,
-     * popular searches back.
-     */
-    private static void turnOffChildMode(Context context) {
-        GeneralData generalData = GeneralData.instance(context);
-        MainUIData mainUIData = MainUIData.instance(context);
-        generalData.setChildModeEnabled(false);
-        generalData.setSettingsPassword(null);
-        // The same bits turning it on cleared (context-menu providers sit above them), then the
-        // phone's menu: the stock items plus Share, in the phone's order.
-        mainUIData.setMenuItemDisabled(Integer.MAX_VALUE);
-        mainUIData.setMenuItemEnabled(MainUIData.MENU_ITEM_DEFAULT | MainUIData.MENU_ITEM_SHARE_LINK);
-        mainUIData.setMenuItemsOrder(CardMenuMigration.phoneOrder(mainUIData.getDefaultMenuItemsOrder()));
-        mainUIData.setTopButtonEnabled(MainUIData.TOP_BUTTON_DEFAULT);
-        PlayerTweaksData tweaks = PlayerTweaksData.instance(context);
-        tweaks.setPlayerButtonEnabled(PlayerTweaksData.PLAYER_BUTTON_DEFAULT);
-        tweaks.setSuggestionsDisabled(false);
-        PlayerData.instance(context).setPlaybackMode(PlayerConstants.PLAYBACK_MODE_ALL);
-        SearchData.instance(context).setPopularSearchesDisabled(false);
-        BrowsePresenter.instance(context).enableSection(MediaGroup.TYPE_HOME, true);
     }
 
     /** A confirmation whose button repeats the verb ("Clear"), red because it deletes something. */

@@ -20,12 +20,15 @@ choice is one row showing its value that opens a radio dialog.
 
 - **Gone from the screen:** rows nothing on the phone reads (TV layouts, clock, screensaver, D-pad,
   ATV, TV decoder fixes, the network-engine picker), Google Drive backup (its sign-in never reaches
-  Google), the import, the settings password, turning on child mode or the start-up password (a
-  turn-off row stays for people who use them), the video-menu position picker ("Usual order"
-  instead).
+  Google), the import, child mode and the settings, start-up and account passwords,
+  the accounts sheet's TV "Account settings" ("separate settings per account" is in Advanced now),
+  the video-menu QR code / Switch account / Check for updates, the player Zoom sheet's dead aspect,
+  rotation and percentage lists, and the video-menu position picker ("Usual order" instead).
 - **`PhoneOnlyPrefs`** pins the knobs the phone reads only to do harm (Oculus fix, TextureView,
   auto-hide timeout, likes counter, Channels' old look/auto-load, "Fullscreen mode", the broken Open
-  comments / Pause history menu items) at every start and on every profile change.
+  comments / Pause history menu items) and keeps the removed TV ones off (child mode, passwords,
+  account picker on start, the three menu items) at every start and on every profile
+  change.
 - **Shared code:** `MobileAppDialogActivity` lost its full-screen mode (sheets only);
   `MobileAlertDialog` no longer greys its surface (`elevationOverlayEnabled=false`, every dialog);
   local auto backup's "None" now really stops the worker (`LocalDriveBackupWorker.cancel`).
