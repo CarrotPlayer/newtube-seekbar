@@ -761,17 +761,28 @@ public class MobilePlaybackActivity extends MobileActivity
         // Only let a swipe begin over the video box, so the watch content scrolls freely.
         mContainer.setDragStartBoundView(mVideoArea);
         mSwipeLevels = new SwipeLevels(this, getWindow(), mContainer, new SwipeLevels.Pill() {
+            /**
+             * Shown or fading in. Every move of the finger updates the level, and a fade restarted
+             * that often never gets past its first frame: the pill stayed invisible until the
+             * finger stopped.
+             */
+            private boolean mShown;
+
             @Override
             public void showLevel(int iconRes, float level) {
                 if (mLevelIcon != null && mLevelBar != null) {
                     mLevelIcon.setImageResource(iconRes);
                     mLevelBar.setLevel(level);
                 }
-                fadePill(mLevelPill, true);
+                if (!mShown) {
+                    mShown = true;
+                    fadePill(mLevelPill, true);
+                }
             }
 
             @Override
             public void hideLevel() {
+                mShown = false;
                 fadePill(mLevelPill, false);
             }
         });
