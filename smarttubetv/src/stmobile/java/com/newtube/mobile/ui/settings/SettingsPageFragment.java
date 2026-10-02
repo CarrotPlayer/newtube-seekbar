@@ -1,10 +1,17 @@
 package com.newtube.mobile.ui.settings;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.Keyframe;
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
 import android.content.Context;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.BaseAdapter;
 import android.widget.RadioButton;
 import android.widget.TextView;
@@ -12,6 +19,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -31,17 +39,31 @@ import java.util.List;
  */
 public final class SettingsPageFragment extends Fragment implements SettingsAdapter.Listener {
     private static final String ARG_PAGE = "page";
+    /** A search result opened this page: scroll to this row and make it glow once. */
+    private static final String ARG_HIGHLIGHT = "highlight";
+    /** After the page's slide-in, so the glow is seen. */
+    private static final long HIGHLIGHT_DELAY_MS = 350;
 
     private String mPageId;
     private SettingsAdapter mAdapter;
     private RecyclerView mList;
     private TextView mTitle;
     @Nullable private AlertDialog mDialog;
+    @Nullable private String mHighlight;
+    /** The view was built before: this is a return, the search bar may be morphing back into it. */
+    private boolean mReturning;
 
     public static SettingsPageFragment newInstance(@NonNull String pageId) {
+        return newInstance(pageId, null);
+    }
+
+    public static SettingsPageFragment newInstance(@NonNull String pageId, @Nullable String highlight) {
         SettingsPageFragment fragment = new SettingsPageFragment();
         Bundle args = new Bundle();
         args.putString(ARG_PAGE, pageId);
+        if (highlight != null) {
+            args.putString(ARG_HIGHLIGHT, highlight);
+        }
         fragment.setArguments(args);
         return fragment;
     }
@@ -55,6 +77,9 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mPageId = requireArguments().getString(ARG_PAGE, SettingsPages.ROOT);
+        mHighlight = requireArguments().getString(ARG_HIGHLIGHT);
+        // Once: coming back to this page later (or after a recreation) shouldn't glow again.
+        requireArguments().remove(ARG_HIGHLIGHT);
     }
 
     @Nullable
@@ -74,7 +99,64 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
         // The rows go in before the first layout: the list's saved position (coming back from a
         // page opened over this one, or after a recreation) is dropped by a layout with no items.
         rebuild();
+        if (mHighlight != null) {
+            int index = mAdapter.indexOf(mHighlight);
+            if (index > 2) {
+                // Before the first layout, like the rows: the row lands a third of the way down.
+                ((LinearLayoutManager) mList.getLayoutManager()).scrollToPositionWithOffset(index,
+                        getResources().getDisplayMetrics().heightPixels / 4);
+            }
+        }
         return view;
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        if (mReturning && SettingsPages.ROOT.equals(mPageId)) {
+            // The search page shrinks back into the search bar: wait until the list has laid it out.
+            postponeEnterTransition();
+            mList.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+                @Override
+                public boolean onPreDraw() {
+                    mList.getViewTreeObserver().removeOnPreDrawListener(this);
+                    startPostponedEnterTransition();
+                    return true;
+                }
+            });
+        }
+        if (mHighlight != null) {
+            String title = mHighlight;
+            mHighlight = null;
+            mList.postDelayed(() -> glow(title), HIGHLIGHT_DELAY_MS);
+        }
+    }
+
+    /** Android Settings' way of showing where a search result is: the row lights up, then fades. */
+    private void glow(@NonNull String title) {
+        if (getContext() == null || mList == null) {
+            return;
+        }
+        RecyclerView.ViewHolder holder = mList.findViewHolderForAdapterPosition(mAdapter.indexOf(title));
+        if (holder == null) {
+            return;
+        }
+        View row = holder.itemView;
+        ColorDrawable light = new ColorDrawable(ContextCompat.getColor(requireContext(), R.color.mobile_settings_search_highlight));
+        light.setAlpha(0);
+        row.setForeground(light);
+        ObjectAnimator animator = ObjectAnimator.ofPropertyValuesHolder(light, PropertyValuesHolder.ofKeyframe("alpha",
+                Keyframe.ofInt(0f, 0), Keyframe.ofInt(0.15f, 255), Keyframe.ofInt(0.6f, 255), Keyframe.ofInt(1f, 0)));
+        animator.setDuration(1600);
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (row.getForeground() == light) {
+                    row.setForeground(null);
+                }
+            }
+        });
+        animator.start();
     }
 
     @Override
@@ -86,6 +168,7 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
 
     @Override
     public void onDestroyView() {
+        mReturning = true;
         if (mDialog != null) {
             mDialog.dismiss();
             mDialog = null;
@@ -107,6 +190,13 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
     public void openPage(@NonNull String pageId) {
         if (getActivity() instanceof MobileSettingsActivity) {
             ((MobileSettingsActivity) getActivity()).openPage(this, pageId);
+        }
+    }
+
+    @Override
+    public void onSearchClicked(@NonNull View bar) {
+        if (getActivity() instanceof MobileSettingsActivity) {
+            ((MobileSettingsActivity) getActivity()).openSearch(this, bar);
         }
     }
 

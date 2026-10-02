@@ -30,7 +30,8 @@ import java.util.function.Supplier;
  *     with the options, and picking one applies it and closes the dialog. This replaces the old
  *     inline radio lists that made a page twenty rows longer per setting;</li>
  *     <li>{@link #KIND_NOTE}: a small paragraph that explains the rows above it;</li>
- *     <li>{@link #KIND_DIVIDER}: the hairline between two groups.</li>
+ *     <li>{@link #KIND_DIVIDER}: the hairline between two groups;</li>
+ *     <li>{@link #KIND_SEARCH}: the "Search settings" bar at the top of the top level.</li>
  * </ul>
  */
 public final class SettingsRow {
@@ -40,6 +41,7 @@ public final class SettingsRow {
     public static final int KIND_CHOICE = 3;
     public static final int KIND_NOTE = 4;
     public static final int KIND_DIVIDER = 5;
+    public static final int KIND_SEARCH = 6;
 
     /** What a toggle or a choice does after it has been applied. */
     public interface Toggle {
@@ -96,6 +98,13 @@ public final class SettingsRow {
 
     public static SettingsRow divider() {
         return new SettingsRow(KIND_DIVIDER);
+    }
+
+    /** The search bar that opens {@link SettingsSearchFragment}. */
+    public static SettingsRow search(CharSequence hint) {
+        SettingsRow row = new SettingsRow(KIND_SEARCH);
+        row.title = hint;
+        return row;
     }
 
     public static SettingsRow note(CharSequence text) {

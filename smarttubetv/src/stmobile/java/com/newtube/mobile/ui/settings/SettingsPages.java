@@ -27,6 +27,7 @@ import java.util.List;
  *
  * <pre>
  * Settings
+ *   [ Search settings ]          (SettingsSearch: every row of every page)
  *   Account                      (the accounts sheet)
  *   App:    General · Tabs and feeds · History and privacy
  *   Video:  Playback · Video quality · Captions · SponsorBlock · DeArrow
@@ -106,6 +107,8 @@ public final class SettingsPages {
 
     private static Page root(Context context) {
         List<SettingsRow> rows = new ArrayList<>();
+
+        rows.add(SettingsRow.search(context.getString(R.string.mobile_settings_search_hint)));
 
         Account account = MediaServiceManager.instance().getSelectedAccount();
         boolean signedIn = account != null && !account.isEmpty();

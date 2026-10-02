@@ -49,6 +49,35 @@ Settings
 Things that are per video stay in the player, not here: quality for this video, audio track,
 speed, captions on/off, zoom (gear › More › Zoom / aspect ratio, or pinch).
 
+## Search
+
+A "Search settings" bar at the top of the top level, like Android's own Settings
+(`SettingsSearch`, `SettingsSearchFragment`). It lives in its own commit so it can be dropped
+without touching the rest.
+
+- **Index:** every page is built (the same rows the pages show, in the current state) on a
+  background thread each time the search opens: 164 rows, ~130 ms warm and ~900 ms on the first open
+  after a cold start (the language and country lists, the caption styles) on an x86_64 emulator, so
+  never on the main thread. The lazily created singletons the pages read are created on the main
+  thread first (`warmUp`), so the worker never races a screen to create its own. Each switch, choice and link is an entry with its page, a path ("Tabs and
+  feeds › Hidden videos › Live streams") and its section's icon. A page that fails to build is left
+  out, not fatal.
+- **Matching:** case- and accent-blind, by word start, every word must match. Weight: title, then
+  `strings_settings_search.xml` keywords (words people type that aren't in the title: "subtitles"
+  for Captions, "autoplay" for When a video ends; translated as words, not sentences), option labels
+  ("dark" finds Theme), summary, path. Rows also answer weakly to their section's keywords. The
+  matched part of the title is bold.
+- **Results:** a page link opens that page; the account row opens the accounts sheet; any other row
+  opens its page scrolled to the row, which glows once (`SettingsPageFragment` `ARG_HIGHLIGHT`).
+  Everything opens on top of the search, so Back returns to the results with the query and the
+  scroll position; the keyboard comes up only on the first open.
+- **Motion:** the bar grows into the search page (`MaterialContainerTransform`, the top level on
+  `Hold`) and Back shrinks it into the bar again. For that return the top level postpones its enter
+  transition until the list has laid the bar out. Programmatic transitions are not saved, so after a
+  recreation (theme switch) the way back is a plain cut, not the morph.
+- **Keyboard:** edge to edge the window doesn't shrink for it, so the results list pads itself by the
+  IME inset; dragging the list hides the keyboard.
+
 ## How it is built
 
 `smarttubetv/src/stmobile/java/com/newtube/mobile/ui/settings/`:
