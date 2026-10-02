@@ -1,6 +1,5 @@
 package com.newtube.mobile.ui.settings;
 
-import com.newtube.mobile.ui.playback.PlayerGesturePrefs;
 import android.content.Context;
 import android.content.Intent;
 import android.provider.Settings;
@@ -32,6 +31,7 @@ import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.liskovsoft.youtubeapi.service.internal.MediaServiceData;
 import com.newtube.mobile.player.SabrSourcePreference;
+import com.newtube.mobile.ui.playback.PlayerGesturePrefs;
 import com.newtube.mobile.ui.common.MobileSnackbar;
 
 import java.util.ArrayList;
