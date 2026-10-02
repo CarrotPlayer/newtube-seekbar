@@ -74,6 +74,7 @@ import com.newtube.mobile.ui.common.SkeletonReveal;
 import com.newtube.mobile.ui.update.MobileUpdateActivity;
 import com.newtube.mobile.update.AppUpdates;
 import com.newtube.mobile.ui.playback.MiniPlayerBridge;
+import com.newtube.mobile.ui.playback.PlayerGesturePrefs;
 import com.newtube.mobile.ui.playback.SystemPipBridge;
 
 import java.util.ArrayList;

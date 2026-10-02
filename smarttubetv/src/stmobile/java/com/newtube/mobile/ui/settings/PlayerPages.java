@@ -1,5 +1,6 @@
 package com.newtube.mobile.ui.settings;
 
+import com.newtube.mobile.ui.playback.PlayerGesturePrefs;
 import android.content.Context;
 import android.content.Intent;
 import android.provider.Settings;
@@ -146,6 +147,18 @@ final class PlayerPages {
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_resume_live),
                 context.getString(R.string.mobile_settings_resume_live_summary),
                 tweaks::isRememberPositionOfLiveVideosEnabled, tweaks::setRememberPositionOfLiveVideosEnabled));
+
+        // NEWTUBE(gestures): the optional player swipes (#12), on by default (PlayerGesturePrefs);
+        // the fullscreen and minimize swipes are always on.
+        rows.add(SettingsRow.header(context.getString(R.string.mobile_settings_gestures)));
+        rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_gesture_levels),
+                context.getString(R.string.mobile_settings_gesture_levels_summary),
+                () -> PlayerGesturePrefs.isLevelSwipesOn(context),
+                on -> PlayerGesturePrefs.setLevelSwipesOn(context, on)));
+        rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_gesture_seek),
+                context.getString(R.string.mobile_settings_gesture_seek_summary),
+                () -> PlayerGesturePrefs.isSeekSwipeOn(context),
+                on -> PlayerGesturePrefs.setSeekSwipeOn(context, on)));
 
         rows.add(SettingsRow.header(context.getString(R.string.mobile_settings_watch_page)));
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_hide_related),

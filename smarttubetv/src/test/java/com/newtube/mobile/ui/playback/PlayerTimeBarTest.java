@@ -388,6 +388,87 @@ public class PlayerTimeBarTest {
         assertEquals("0:00", PlayerTimeBar.formatTime(builder, formatter, -1_000));
     }
 
+    // NEWTUBE(gestures): a sideways swipe on the video scrubs by the finger's travel.
+
+    @Test
+    public void aSwipeSeeksByTheFingersTravel() {
+        assertTrue(mBar.startSwipeScrub(300));
+        mBar.moveSwipeScrub(400); // 100 dp: 10 s + 10 s
+        mBar.stopSwipeScrub(false);
+        assertEquals(Arrays.asList("start 50000", "move 70000", "stop 70000"), mEvents);
+    }
+
+    @Test
+    public void aSwipeIsFineWhenShortAndFastWhenLong() {
+        assertEquals(1_010, PlayerTimeBar.swipeOffsetMs(10f));
+        assertEquals(10_932, PlayerTimeBar.swipeOffsetMs(72f)); // about a centimetre: a double tap
+        assertEquals(-181_250, PlayerTimeBar.swipeOffsetMs(-250f));
+        assertEquals(0, PlayerTimeBar.swipeOffsetMs(0f));
+    }
+
+    @Test
+    public void aSwipeStopsAtTheEnds() {
+        mBar.startSwipeScrub(300);
+        mBar.moveSwipeScrub(900);
+        assertEquals("move 100000", last());
+        mBar.moveSwipeScrub(-300);
+        assertEquals("move 0", last());
+    }
+
+    @Test
+    public void aSwipeBackOntoPlaybackCancelsLikeTheBar() {
+        mBar.startSwipeScrub(300);
+        mBar.moveSwipeScrub(400);
+        mBar.moveSwipeScrub(301);
+        assertEquals(Arrays.asList(true), mCancelArmed);
+        mBar.stopSwipeScrub(false);
+        assertEquals("cancel 50000", last());
+    }
+
+    @Test
+    public void aTakenSwipeSeeksNothing() {
+        mBar.startSwipeScrub(300);
+        mBar.moveSwipeScrub(450);
+        mBar.stopSwipeScrub(true);
+        assertEquals("cancel 50000", last());
+        mBar.moveSwipeScrub(600); // over: later moves drive nothing
+        mBar.stopSwipeScrub(false);
+        assertEquals("cancel 50000", last());
+    }
+
+    @Test
+    public void aNewVideoEndsTheScrubSeekingNothing() {
+        mBar.startSwipeScrub(300);
+        mBar.moveSwipeScrub(450);
+        mBar.cancelScrub();
+        assertEquals("cancel 50000", last());
+        mBar.moveSwipeScrub(600);
+        mBar.stopSwipeScrub(false);
+        assertEquals("cancel 50000", last());
+
+        touch(MotionEvent.ACTION_DOWN, 300); // the bar's own drag too
+        touch(MotionEvent.ACTION_MOVE, 400);
+        mBar.cancelScrub();
+        assertEquals("cancel 50000", last());
+        touch(MotionEvent.ACTION_UP, 450);
+        assertEquals("cancel 50000", last());
+    }
+
+    @Test
+    public void noSwipeScrubWithoutAVideoLength() {
+        mBar.setDuration(0);
+        assertFalse(mBar.startSwipeScrub(300));
+        assertTrue(mEvents.isEmpty());
+    }
+
+    @Test
+    public void noSwipeScrubWhileAFingerIsOnTheBar() {
+        touch(MotionEvent.ACTION_DOWN, 300);
+        assertFalse(mBar.startSwipeScrub(300));
+        touch(MotionEvent.ACTION_UP, 300);
+        assertTrue(mEvents.isEmpty());
+    }
+
     private boolean touch(int action, float x) {
         MotionEvent event = event(action, x, 9);
         try {
