@@ -65,9 +65,14 @@ public class MobileSettingsActivity extends MobileActivity {
         openPage(from, pageId, true, null);
     }
 
+    /** The search page, on top of the top level like any other page. */
+    void openSearch(@NonNull Fragment from) {
+        push(from, new SettingsSearchFragment(), "search", true);
+    }
+
     /**
      * A search result: the page it opens, or the page it is on with the row lit up. Either way it
-     * goes on top of the top level, whose results are still there on Back.
+     * goes on top of the search page, so Back comes back to the results.
      */
     void openResult(@NonNull Fragment from, @NonNull SettingsSearch.Entry entry) {
         if (entry.account) {
@@ -79,12 +84,16 @@ public class MobileSettingsActivity extends MobileActivity {
         }
     }
 
+    private void openPage(@Nullable Fragment from, @NonNull String pageId, boolean animate, @Nullable String highlight) {
+        push(from, SettingsPageFragment.newInstance(pageId, highlight), pageId, animate);
+    }
+
     /**
      * {@code from}: the page asking, or null. A second tap that lands before the first one's page
      * replaced it, or while that page slides in over it, finds {@code from} no longer on top and is
      * dropped: a double tap opens one page, not two.
      */
-    private void openPage(@Nullable Fragment from, @NonNull String pageId, boolean animate, @Nullable String highlight) {
+    private void push(@Nullable Fragment from, @NonNull Fragment next, @NonNull String name, boolean animate) {
         FragmentManager fragments = getSupportFragmentManager();
         if (fragments.isStateSaved()) {
             return;
@@ -94,7 +103,6 @@ public class MobileSettingsActivity extends MobileActivity {
         if (from != null && current != from) {
             return;
         }
-        Fragment next = SettingsPageFragment.newInstance(pageId, highlight);
         if (animate) {
             next.setEnterTransition(new MaterialSharedAxis(MaterialSharedAxis.X, true));
             next.setReturnTransition(new MaterialSharedAxis(MaterialSharedAxis.X, false));
@@ -106,7 +114,7 @@ public class MobileSettingsActivity extends MobileActivity {
         fragments.beginTransaction()
                 .setReorderingAllowed(true)
                 .replace(R.id.settings_container, next)
-                .addToBackStack(pageId)
+                .addToBackStack(name)
                 .commit();
     }
 

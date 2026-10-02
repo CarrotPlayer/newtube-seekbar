@@ -51,8 +51,8 @@ speed, captions on/off, zoom (gear › More › Zoom / aspect ratio, or pinch).
 
 ## Search
 
-A "Search settings" field at the top of the top level (`SettingsSearch`, the index;
-`SettingsSearchController`, the field and results). It lives in its own commits so it can be dropped
+A "Search settings" bar at the top of the top level opens a search page (`SettingsSearch`, the index;
+`SettingsSearchFragment`, the page). It lives in its own commits so it can be dropped
 without touching the rest.
 
 - **Index:** every page is built (the same rows the pages show, in the current state) on a
@@ -69,13 +69,13 @@ without touching the rest.
   matched part of the title is bold.
 - **Results:** a page link opens that page; the account row opens the accounts sheet; any other row
   opens its page scrolled to the row, which glows once (`SettingsPageFragment` `ARG_HIGHLIGHT`).
-  Everything opens on top of the top level, so Back returns to the results with the query and the
-  scroll position.
-- **In place** (the owner's call, 2026-10-02): the field stays under the title and typing cross-fades
-  the results over the list, which keeps its scroll position underneath; clearing brings it back.
-  While there is a query, Back clears it before it leaves Settings. A first version grew the field
-  into a full-screen search page (Material container transform); it is the commit before
-  "Settings search: in place".
+  Everything opens on top of the search page, so Back returns to the results with the query and
+  the scroll position; Back from the search page returns to the top level.
+- **Motion** (the owner's call, 2026-10-02): the bar is pinned under the title, and the search page
+  slides in like any other page, field on top and keyboard up. Two versions came before: the bar
+  growing into the page (Material container transform, "Settings: search, like Android's own"),
+  and the results laid over the top level in place ("Settings search: in place"). The owner
+  disliked the first one's motion and wanted a page of its own back.
 - **Keyboard:** edge to edge the window doesn't shrink for it, so the results list pads itself by the
   IME inset; dragging the list hides the keyboard.
 

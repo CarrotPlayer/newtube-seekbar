@@ -27,7 +27,7 @@ import java.util.List;
  *
  * <pre>
  * Settings
- *   [ Search settings ]          (SettingsSearchController: every row of every page, in place)
+ *   [ Search settings ]          (SettingsSearchFragment: every row of every page)
  *   Account                      (the accounts sheet)
  *   App:    General · Tabs and feeds · History and privacy
  *   Video:  Playback · Video quality · Captions · SponsorBlock · DeArrow

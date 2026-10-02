@@ -36,14 +36,12 @@ import java.util.List;
  * back to the front (a sheet or another page may have changed a value), and their values are read
  * again after every change on the page.
  */
-public final class SettingsPageFragment extends Fragment implements SettingsAdapter.Listener,
-        SettingsSearchController.QueryHolder {
+public final class SettingsPageFragment extends Fragment implements SettingsAdapter.Listener {
     private static final String ARG_PAGE = "page";
     /** A search result opened this page: scroll to this row and make it glow once. */
     private static final String ARG_HIGHLIGHT = "highlight";
     /** After the page's slide-in, so the glow is seen. */
     private static final long HIGHLIGHT_DELAY_MS = 350;
-    private static final String STATE_QUERY = "search_query";
 
     private String mPageId;
     private SettingsAdapter mAdapter;
@@ -51,10 +49,6 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
     private TextView mTitle;
     @Nullable private AlertDialog mDialog;
     @Nullable private String mHighlight;
-    /** The top level's search: the query and the last index outlive its views. */
-    @Nullable private SettingsSearchController mSearch;
-    private String mQuery = "";
-    @Nullable private SettingsSearch mLastIndex;
 
     public static SettingsPageFragment newInstance(@NonNull String pageId) {
         return newInstance(pageId, null);
@@ -83,15 +77,6 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
         mHighlight = requireArguments().getString(ARG_HIGHLIGHT);
         // Once: coming back to this page later (or after a recreation) shouldn't glow again.
         requireArguments().remove(ARG_HIGHLIGHT);
-        if (savedInstanceState != null) {
-            mQuery = savedInstanceState.getString(STATE_QUERY, "");
-        }
-    }
-
-    @Override
-    public void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putString(STATE_QUERY, mQuery);
     }
 
     @Nullable
@@ -126,7 +111,13 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         if (SettingsPages.ROOT.equals(mPageId)) {
-            mSearch = new SettingsSearchController(this, view, this);
+            View search = view.findViewById(R.id.settings_search_field);
+            search.setVisibility(View.VISIBLE);
+            search.setOnClickListener(v -> {
+                if (getActivity() instanceof MobileSettingsActivity) {
+                    ((MobileSettingsActivity) getActivity()).openSearch(this);
+                }
+            });
         }
         if (mHighlight != null) {
             String title = mHighlight;
@@ -170,16 +161,7 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
     }
 
     @Override
-    public void onPause() {
-        if (mSearch != null) {
-            mSearch.hideKeyboard(); // never carry the keyboard to the next page
-        }
-        super.onPause();
-    }
-
-    @Override
     public void onDestroyView() {
-        mSearch = null;
         if (mDialog != null) {
             mDialog.dismiss();
             mDialog = null;
@@ -202,28 +184,6 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
         if (getActivity() instanceof MobileSettingsActivity) {
             ((MobileSettingsActivity) getActivity()).openPage(this, pageId);
         }
-    }
-
-    @NonNull
-    @Override
-    public String getQuery() {
-        return mQuery;
-    }
-
-    @Override
-    public void setQuery(@NonNull String query) {
-        mQuery = query;
-    }
-
-    @Nullable
-    @Override
-    public SettingsSearch getLastIndex() {
-        return mLastIndex;
-    }
-
-    @Override
-    public void setLastIndex(@NonNull SettingsSearch index) {
-        mLastIndex = index;
     }
 
     @Override
