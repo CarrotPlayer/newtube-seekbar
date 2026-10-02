@@ -38,14 +38,101 @@
 
     </LinearLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/settings_list"
+    <!-- The top level's search field (SettingsSearchController): it stays here, and typing swaps
+         the list below for the results. Gone on every other page. -->
+    <LinearLayout
+        android:id="@+id/settings_search_field"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/mobile_settings_search_field"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="4dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_mobile_search"
+            android:tint="@color/mobile_color_on_surface_secondary" />
+
+        <EditText
+            android:id="@+id/settings_search_input"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@null"
+            android:hint="@string/mobile_settings_search_hint"
+            android:imeOptions="actionSearch|flagNoExtractUi"
+            android:importantForAutofill="no"
+            android:inputType="text"
+            android:maxLines="1"
+            android:paddingStart="16dp"
+            android:paddingEnd="4dp"
+            android:singleLine="true"
+            android:textColor="@color/mobile_color_on_surface"
+            android:textColorHint="@color/mobile_color_on_surface_secondary"
+            android:textSize="16sp" />
+
+        <ImageButton
+            android:id="@+id/settings_search_clear"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/mobile_search_clear"
+            android:padding="10dp"
+            android:src="@drawable/ic_sheet_close"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+    </LinearLayout>
+
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingBottom="16dp"
-        android:scrollbars="vertical"
-        tools:listitem="@layout/item_mobile_settings_row" />
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/settings_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="16dp"
+            android:scrollbars="vertical"
+            tools:listitem="@layout/item_mobile_settings_row" />
+
+        <!-- Over the list while there is a query: the list underneath keeps its place. -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/settings_search_results"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/mobile_color_background"
+            android:clipToPadding="false"
+            android:paddingBottom="16dp"
+            android:scrollbars="vertical"
+            android:visibility="gone"
+            tools:listitem="@layout/item_mobile_settings_search_result" />
+
+        <TextView
+            android:id="@+id/settings_search_empty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:paddingStart="32dp"
+            android:paddingTop="48dp"
+            android:paddingEnd="32dp"
+            android:textColor="@color/mobile_color_on_surface_secondary"
+            android:textSize="14sp"
+            android:visibility="gone"
+            tools:text="No settings match “xyz”" />
+
+    </FrameLayout>
 
 </LinearLayout>

@@ -51,8 +51,8 @@ speed, captions on/off, zoom (gear › More › Zoom / aspect ratio, or pinch).
 
 ## Search
 
-A "Search settings" bar at the top of the top level, like Android's own Settings
-(`SettingsSearch`, `SettingsSearchFragment`). It lives in its own commit so it can be dropped
+A "Search settings" field at the top of the top level (`SettingsSearch`, the index;
+`SettingsSearchController`, the field and results). It lives in its own commits so it can be dropped
 without touching the rest.
 
 - **Index:** every page is built (the same rows the pages show, in the current state) on a
@@ -69,12 +69,13 @@ without touching the rest.
   matched part of the title is bold.
 - **Results:** a page link opens that page; the account row opens the accounts sheet; any other row
   opens its page scrolled to the row, which glows once (`SettingsPageFragment` `ARG_HIGHLIGHT`).
-  Everything opens on top of the search, so Back returns to the results with the query and the
-  scroll position; the keyboard comes up only on the first open.
-- **Motion:** the bar grows into the search page (`MaterialContainerTransform`, the top level on
-  `Hold`) and Back shrinks it into the bar again. For that return the top level postpones its enter
-  transition until the list has laid the bar out. Programmatic transitions are not saved, so after a
-  recreation (theme switch) the way back is a plain cut, not the morph.
+  Everything opens on top of the top level, so Back returns to the results with the query and the
+  scroll position.
+- **In place** (the owner's call, 2026-10-02): the field stays under the title and typing cross-fades
+  the results over the list, which keeps its scroll position underneath; clearing brings it back.
+  While there is a query, Back clears it before it leaves Settings. A first version grew the field
+  into a full-screen search page (Material container transform); it is the commit before
+  "Settings search: in place".
 - **Keyboard:** edge to edge the window doesn't shrink for it, so the results list pads itself by the
   IME inset; dragging the list hides the keyboard.
 

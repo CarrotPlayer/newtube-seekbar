@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Search in the phone Settings (SettingsSearch, SettingsSearchFragment). -->
+<!-- Search in the phone Settings (SettingsSearch, SettingsSearchController). -->
 <resources>
     <string name="mobile_settings_search_hint">Search settings</string>
     <string name="mobile_settings_search_none">No settings match “%1$s”</string>

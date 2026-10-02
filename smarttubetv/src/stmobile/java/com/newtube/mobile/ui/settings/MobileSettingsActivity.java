@@ -2,18 +2,13 @@ package com.newtube.mobile.ui.settings;
 
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Color;
 import android.os.Bundle;
-import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
-import com.google.android.material.transition.Hold;
-import com.google.android.material.transition.MaterialContainerTransform;
 import com.google.android.material.transition.MaterialSharedAxis;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.newtube.mobile.ui.browse.AccountsSheet;
@@ -37,8 +32,6 @@ import com.newtube.mobile.ui.common.MobileActivity;
 public class MobileSettingsActivity extends MobileActivity {
     /** Open straight on this page (e.g. Captions from the player), with the top level behind it. */
     public static final String EXTRA_PAGE = "newtube:settings_page";
-    /** The search bar growing into the search page, and back. */
-    private static final long SEARCH_MOTION_MS = 300;
 
     public static Intent intent(@NonNull Context context, @Nullable String pageId) {
         Intent intent = new Intent(context, MobileSettingsActivity.class);
@@ -73,43 +66,8 @@ public class MobileSettingsActivity extends MobileActivity {
     }
 
     /**
-     * The search page grows out of the search bar (Material's container transform), the top level
-     * holding still under it; Back shrinks it into the bar again.
-     */
-    void openSearch(@NonNull Fragment from, @NonNull View bar) {
-        FragmentManager fragments = getSupportFragmentManager();
-        if (fragments.isStateSaved()) {
-            return;
-        }
-        fragments.executePendingTransactions();
-        Fragment current = fragments.findFragmentById(R.id.settings_container);
-        if (from != null && current != from) {
-            return;
-        }
-        SettingsSearchFragment search = new SettingsSearchFragment();
-        MaterialContainerTransform transform = new MaterialContainerTransform();
-        transform.setDrawingViewId(R.id.settings_container);
-        transform.setDuration(SEARCH_MOTION_MS);
-        transform.setScrimColor(Color.TRANSPARENT);
-        transform.setAllContainerColors(ContextCompat.getColor(this, R.color.mobile_color_background));
-        search.setSharedElementEnterTransition(transform);
-        if (current != null) {
-            Hold hold = new Hold();
-            hold.setDuration(SEARCH_MOTION_MS);
-            current.setExitTransition(hold);
-            current.setReenterTransition(hold);
-        }
-        fragments.beginTransaction()
-                .setReorderingAllowed(true)
-                .addSharedElement(bar, SettingsSearchFragment.TRANSITION_NAME)
-                .replace(R.id.settings_container, search)
-                .addToBackStack("search")
-                .commit();
-    }
-
-    /**
      * A search result: the page it opens, or the page it is on with the row lit up. Either way it
-     * goes on top of the search, so Back comes back to the results.
+     * goes on top of the top level, whose results are still there on Back.
      */
     void openResult(@NonNull Fragment from, @NonNull SettingsSearch.Entry entry) {
         if (entry.account) {

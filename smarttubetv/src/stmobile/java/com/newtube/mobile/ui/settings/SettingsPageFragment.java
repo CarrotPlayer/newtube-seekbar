@@ -11,7 +11,6 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewTreeObserver;
 import android.widget.BaseAdapter;
 import android.widget.RadioButton;
 import android.widget.TextView;
@@ -37,12 +36,14 @@ import java.util.List;
  * back to the front (a sheet or another page may have changed a value), and their values are read
  * again after every change on the page.
  */
-public final class SettingsPageFragment extends Fragment implements SettingsAdapter.Listener {
+public final class SettingsPageFragment extends Fragment implements SettingsAdapter.Listener,
+        SettingsSearchController.QueryHolder {
     private static final String ARG_PAGE = "page";
     /** A search result opened this page: scroll to this row and make it glow once. */
     private static final String ARG_HIGHLIGHT = "highlight";
     /** After the page's slide-in, so the glow is seen. */
     private static final long HIGHLIGHT_DELAY_MS = 350;
+    private static final String STATE_QUERY = "search_query";
 
     private String mPageId;
     private SettingsAdapter mAdapter;
@@ -50,8 +51,10 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
     private TextView mTitle;
     @Nullable private AlertDialog mDialog;
     @Nullable private String mHighlight;
-    /** The view was built before: this is a return, the search bar may be morphing back into it. */
-    private boolean mReturning;
+    /** The top level's search: the query and the last index outlive its views. */
+    @Nullable private SettingsSearchController mSearch;
+    private String mQuery = "";
+    @Nullable private SettingsSearch mLastIndex;
 
     public static SettingsPageFragment newInstance(@NonNull String pageId) {
         return newInstance(pageId, null);
@@ -80,6 +83,15 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
         mHighlight = requireArguments().getString(ARG_HIGHLIGHT);
         // Once: coming back to this page later (or after a recreation) shouldn't glow again.
         requireArguments().remove(ARG_HIGHLIGHT);
+        if (savedInstanceState != null) {
+            mQuery = savedInstanceState.getString(STATE_QUERY, "");
+        }
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_QUERY, mQuery);
     }
 
     @Nullable
@@ -113,17 +125,8 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        if (mReturning && SettingsPages.ROOT.equals(mPageId)) {
-            // The search page shrinks back into the search bar: wait until the list has laid it out.
-            postponeEnterTransition();
-            mList.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
-                @Override
-                public boolean onPreDraw() {
-                    mList.getViewTreeObserver().removeOnPreDrawListener(this);
-                    startPostponedEnterTransition();
-                    return true;
-                }
-            });
+        if (SettingsPages.ROOT.equals(mPageId)) {
+            mSearch = new SettingsSearchController(this, view, this);
         }
         if (mHighlight != null) {
             String title = mHighlight;
@@ -167,8 +170,16 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
     }
 
     @Override
+    public void onPause() {
+        if (mSearch != null) {
+            mSearch.hideKeyboard(); // never carry the keyboard to the next page
+        }
+        super.onPause();
+    }
+
+    @Override
     public void onDestroyView() {
-        mReturning = true;
+        mSearch = null;
         if (mDialog != null) {
             mDialog.dismiss();
             mDialog = null;
@@ -193,11 +204,26 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
         }
     }
 
+    @NonNull
     @Override
-    public void onSearchClicked(@NonNull View bar) {
-        if (getActivity() instanceof MobileSettingsActivity) {
-            ((MobileSettingsActivity) getActivity()).openSearch(this, bar);
-        }
+    public String getQuery() {
+        return mQuery;
+    }
+
+    @Override
+    public void setQuery(@NonNull String query) {
+        mQuery = query;
+    }
+
+    @Nullable
+    @Override
+    public SettingsSearch getLastIndex() {
+        return mLastIndex;
+    }
+
+    @Override
+    public void setLastIndex(@NonNull SettingsSearch index) {
+        mLastIndex = index;
     }
 
     @Override

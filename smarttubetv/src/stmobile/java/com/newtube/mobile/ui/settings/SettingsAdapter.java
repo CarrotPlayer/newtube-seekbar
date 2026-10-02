@@ -8,7 +8,6 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
-import androidx.core.view.ViewCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.switchmaterial.SwitchMaterial;
@@ -24,9 +23,6 @@ final class SettingsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
     interface Listener {
         void onRowClicked(@NonNull SettingsRow row);
-
-        /** The search bar: the view it is, so the search page can grow out of it. */
-        void onSearchClicked(@NonNull View bar);
     }
 
     private final Listener mListener;
@@ -91,8 +87,6 @@ final class SettingsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 return new TextHolder(inflater.inflate(R.layout.item_mobile_settings_note, parent, false));
             case SettingsRow.KIND_DIVIDER:
                 return new RecyclerView.ViewHolder(inflater.inflate(R.layout.item_mobile_settings_divider, parent, false)) {};
-            case SettingsRow.KIND_SEARCH:
-                return new SearchHolder(inflater.inflate(R.layout.item_mobile_settings_search_bar, parent, false));
             default:
                 return new RowHolder(inflater.inflate(R.layout.item_mobile_settings_row, parent, false));
         }
@@ -105,8 +99,6 @@ final class SettingsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             ((TextHolder) holder).text.setText(row.title);
         } else if (holder instanceof RowHolder) {
             ((RowHolder) holder).bind(row, mListener);
-        } else if (holder instanceof SearchHolder) {
-            ((SearchHolder) holder).bind(mListener);
         }
     }
 
@@ -115,19 +107,6 @@ final class SettingsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         holder.itemView.setForeground(null); // a search result's highlight, if it was still glowing
     }
 
-    private static final class SearchHolder extends RecyclerView.ViewHolder {
-        private final View bar;
-
-        SearchHolder(@NonNull View itemView) {
-            super(itemView);
-            bar = itemView.findViewById(R.id.settings_search_bar);
-        }
-
-        void bind(Listener listener) {
-            ViewCompat.setTransitionName(bar, SettingsSearchFragment.TRANSITION_NAME);
-            bar.setOnClickListener(v -> listener.onSearchClicked(bar));
-        }
-    }
 
     private static final class TextHolder extends RecyclerView.ViewHolder {
         final TextView text;

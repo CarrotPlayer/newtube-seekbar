@@ -32,9 +32,9 @@ choice is one row showing its value that opens a radio dialog.
 - **Shared code:** `MobileAppDialogActivity` lost its full-screen mode (sheets only);
   `MobileAlertDialog` no longer greys its surface (`elevationOverlayEnabled=false`, every dialog);
   local auto backup's "None" now really stops the worker (`LocalDriveBackupWorker.cancel`).
-- **Search** (branch feat/settings-search, on top): a bar at the top grows into a search page; results
-  as you type (accent-blind, synonyms like "subtitles" → Captions), a result opens its page with the
-  row glowing. Index built off the main thread. See docs/settings/README.md › Search.
+- **Search** (branch feat/settings-search, on top): a field at the top of Settings; results replace the
+  list in place as you type (accent-blind, synonyms like "subtitles" → Captions), a result opens its
+  page with the row glowing. Index built off the main thread. See docs/settings/README.md › Search.
 - Verified on emulator: every page in both themes, landscape, recreation on the theme switch,
   choice dialogs, restart snackbar, the card menu and player pickers still in sheets. Not yet on a
   real phone or signed in.
