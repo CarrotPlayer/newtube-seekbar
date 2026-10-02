@@ -122,6 +122,11 @@
     <string name="mobile_you_pinned">Fijados</string>
     <string name="pin_unpin_from_sidebar">Fijar en Tú</string>
     <string name="mobile_settings_experimental">Experimental</string>
+    <string name="mobile_settings_gestures">Gestos</string>
+    <string name="mobile_settings_gesture_levels">Deslizar para el brillo y el volumen</string>
+    <string name="mobile_settings_gesture_levels_summary">Arriba y abajo a la izquierda o a la derecha del vídeo a pantalla completa</string>
+    <string name="mobile_settings_gesture_seek">Deslizar para avanzar o retroceder</string>
+    <string name="mobile_settings_gesture_seek_summary">De lado sobre el vídeo</string>
     <string name="subscribed_to_channel">Suscripción añadida</string>
     <string name="unsubscribed_from_channel">Suscripción cancelada</string>
     <string name="mobile_player_settings">Ajustes</string>

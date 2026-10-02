@@ -78,6 +78,7 @@ import com.newtube.mobile.ui.common.SkeletonReveal;
 import com.newtube.mobile.ui.update.MobileUpdateActivity;
 import com.newtube.mobile.update.AppUpdates;
 import com.newtube.mobile.ui.playback.MiniPlayerBridge;
+import com.newtube.mobile.ui.playback.PlayerGesturePrefs;
 import com.newtube.mobile.ui.playback.SystemPipBridge;
 
 import java.util.ArrayList;
@@ -899,12 +900,27 @@ public class MobileBrowseActivity extends MobileActivity
         // NEWTUBE(settings): it sits at the end of Player now, not as a raw row on the Settings root.
         // A one-row checked category, so it lines up with the checkbox column above it.
         com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.PlayerSettingsPresenter.setPhoneExtraRows(
-                (context, presenter) -> presenter.appendCheckedCategory(
-                        context.getString(R.string.mobile_settings_experimental),
-                        java.util.Collections.singletonList(UiOptionItem.from(
-                                context.getString(R.string.sabr_vod_option),
-                                option -> com.newtube.mobile.player.SabrSourcePreference.setPreferred(context, option.isSelected()),
-                                com.newtube.mobile.player.SabrSourcePreference.isPreferred(context)))));
+                (context, presenter) -> {
+                    // NEWTUBE(gestures): the optional player swipes (#12), on by default
+                    // (PlayerGesturePrefs); the fullscreen and minimize swipes are always on.
+                    java.util.List<com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem> gestures =
+                            new java.util.ArrayList<>();
+                    gestures.add(UiOptionItem.from(context.getString(R.string.mobile_settings_gesture_levels),
+                            context.getString(R.string.mobile_settings_gesture_levels_summary),
+                            option -> PlayerGesturePrefs.setLevelSwipesOn(context, option.isSelected()),
+                            PlayerGesturePrefs.isLevelSwipesOn(context)));
+                    gestures.add(UiOptionItem.from(context.getString(R.string.mobile_settings_gesture_seek),
+                            context.getString(R.string.mobile_settings_gesture_seek_summary),
+                            option -> PlayerGesturePrefs.setSeekSwipeOn(context, option.isSelected()),
+                            PlayerGesturePrefs.isSeekSwipeOn(context)));
+                    presenter.appendCheckedCategory(context.getString(R.string.mobile_settings_gestures), gestures);
+                    presenter.appendCheckedCategory(
+                            context.getString(R.string.mobile_settings_experimental),
+                            java.util.Collections.singletonList(UiOptionItem.from(
+                                    context.getString(R.string.sabr_vod_option),
+                                    option -> com.newtube.mobile.player.SabrSourcePreference.setPreferred(context, option.isSelected()),
+                                    com.newtube.mobile.player.SabrSourcePreference.isPreferred(context))));
+                });
 
         // Tag this as the full-screen Settings tree so MobileAppDialogActivity renders it full-screen
         // (nested category screens push onto the same activity and inherit that). Context menus and the

@@ -257,6 +257,12 @@
     <string name="mobile_you_pinned">Pinned</string>
     <string name="pin_unpin_from_sidebar">Pin to You</string>
     <string name="mobile_settings_experimental">Experimental</string>
+    <!-- NEWTUBE(gestures): Settings > Player, the switches for the optional player swipes (#12). -->
+    <string name="mobile_settings_gestures">Gestures</string>
+    <string name="mobile_settings_gesture_levels">Swipe for brightness and volume</string>
+    <string name="mobile_settings_gesture_levels_summary">Up and down on the left or right of the fullscreen video</string>
+    <string name="mobile_settings_gesture_seek">Swipe to seek</string>
+    <string name="mobile_settings_gesture_seek_summary">Sideways on the video</string>
     <!-- Default-locale twins of the values-es overrides below (lint ExtraTranslation). -->
     <string name="subscribed_to_channel">Subscribed</string>
     <string name="unsubscribed_from_channel">Unsubscribed</string>
