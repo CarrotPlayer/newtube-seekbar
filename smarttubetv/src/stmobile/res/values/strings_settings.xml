@@ -101,6 +101,10 @@
     <string name="mobile_settings_menu_playlists">Playlists</string>
     <string name="mobile_settings_menu_tabs">Tab menu</string>
     <string name="mobile_settings_menu_move_section">Move up and down</string>
+    <string name="mobile_settings_menu_switch_account">Switch account</string>
+    <string name="mobile_settings_menu_usual_order">Usual order</string>
+    <string name="mobile_settings_menu_usual_order_summary">Put the menu items back in their usual places</string>
+    <string name="mobile_settings_menu_usual_order_done">Menu order restored</string>
     <string name="mobile_settings_thumbnails">Thumbnails</string>
     <string name="mobile_settings_thumbnails_default">The uploader\'s thumbnail</string>
     <string name="mobile_settings_thumbnails_start">A frame from the start of the video</string>
@@ -112,6 +116,12 @@
     <string name="mobile_settings_channels_order_recent">Recently watched first</string>
     <string name="mobile_settings_channels_order_name">A to Z</string>
     <string name="mobile_settings_channels_order_new">New videos first</string>
+    <string name="mobile_settings_pinned_channels">Pinned channels show</string>
+    <string name="mobile_settings_pinned_channels_all">The channel\'s home page</string>
+    <string name="mobile_settings_pinned_channels_uploads">Just its videos</string>
+    <string name="mobile_settings_playlists_style">Playlists in You</string>
+    <string name="mobile_settings_playlists_style_grid">Each playlist</string>
+    <string name="mobile_settings_playlists_style_rows">All their videos, one after another</string>
 
     <!-- History and privacy -->
     <string name="mobile_settings_watch_history">Watch history</string>
@@ -126,12 +136,11 @@
     <string name="mobile_settings_clear_watch_history_confirm">Clear watch history?</string>
     <string name="mobile_settings_clear_watch_history_body">Every video in your YouTube watch history is removed. This can\'t be undone.</string>
     <string name="mobile_settings_search_history_off">Don\'t keep search history</string>
-    <string name="mobile_settings_search_history_off_summary">Hides past searches and clears your YouTube search history each time you leave Search</string>
-    <string name="mobile_settings_search_history_off_summary_signed_out">Hides your past searches</string>
+    <string name="mobile_settings_search_history_off_summary">Past searches aren\'t kept or suggested</string>
     <string name="mobile_settings_clear_search_history">Clear search history</string>
-    <string name="mobile_settings_clear_search_history_summary">Deletes your past searches from YouTube</string>
+    <string name="mobile_settings_clear_search_history_summary">Deletes the searches saved on this phone</string>
     <string name="mobile_settings_clear_search_history_confirm">Clear search history?</string>
-    <string name="mobile_settings_clear_search_history_body">Every search in your YouTube search history is removed. This can\'t be undone.</string>
+    <string name="mobile_settings_clear_search_history_body">The searches NewTube saved on this phone are deleted. This can\'t be undone.</string>
     <string name="mobile_settings_remove_password">Remove the start-up password</string>
     <string name="mobile_settings_remove_password_summary">NewTube stops asking for it when it opens</string>
     <string name="mobile_settings_child_mode_off">Turn off child mode</string>

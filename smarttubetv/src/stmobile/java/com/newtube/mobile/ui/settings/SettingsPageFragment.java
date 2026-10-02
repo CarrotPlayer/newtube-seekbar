@@ -1,5 +1,6 @@
 package com.newtube.mobile.ui.settings;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -142,8 +143,11 @@ public final class SettingsPageFragment extends Fragment implements SettingsAdap
 
     /** A change that lands after a restart says so, and offers to do it now. */
     public void offerRestart() {
+        // The snackbar outlives this page (it sits on the activity): its action can't ask the
+        // fragment for a context after Back took the page away.
+        Context app = requireContext().getApplicationContext();
         MobileSnackbar.show(requireContext(), getString(R.string.mobile_settings_restart_needed),
-                getString(R.string.mobile_settings_restart), () -> Utils.restartTheApp(requireContext().getApplicationContext()));
+                getString(R.string.mobile_settings_restart), () -> Utils.restartTheApp(app));
     }
 
     /**

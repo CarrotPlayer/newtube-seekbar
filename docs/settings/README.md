@@ -15,9 +15,9 @@ every page, old and new, with uiautomator dumps and scrolling to the end.
 | | Before (1.14.1) | After |
 |---|---|---|
 | Screens | 25 (incl. 9 identical SponsorBlock sub-pages and two Auto backup pages with no title) | 16 |
-| Rows drawn | 1,015 + 56 headers, 800 of them inline radio options | 167 + 25 headers |
+| Rows drawn | 1,015 + 56 headers, 800 of them inline radio options | about 170 + 25 headers |
 | Scrolling, all pages | about 79 screens | about 21 screens |
-| Longest page | Player: 487 rows, 37.7 screens | Video menu: 39 switches, 3.2 screens (then Advanced, 2.2) |
+| Longest page | Player: 487 rows, 37.7 screens | Video menu: 41 switches, about 3.3 screens (then Advanced, 2.2) |
 | Choices | a header plus every option, no current value on the parent | one row with the value under it; a tap opens a radio dialog |
 | TV-only rows shown | dozens (clock, screensaver, OK-button long press, ATV launcher, TV layouts…) | none |
 
@@ -102,11 +102,16 @@ Per-row evidence (what each pref does on the phone, with file:line) is in
   behaviour, Android TV channels and launcher, TV player buttons, decoder and frame-drop fixes for TV
   boxes, the network-engine picker that media3 ignores, audio delay, and so on). Their prefs are untouched.
 - **Rows the phone reads only to do harm or to do something other than the label**: the "Oculus
-  fix" (landscape-locks every screen), "Ambilight"/TextureView (stops SponsorBlock skipping short
-  parts), the auto-hide timeout, the likes counter (it only gated the dislike fetch), the TV
-  layouts of Channels, pinned channels and Playlists, "Fullscreen mode" (unticked, it adds a TV inset
-  theme). A one-shot migration in `MobileMainApplication` (`settings_redesign_defaults`) puts these
-  back to their defaults once, so nobody is stuck with a value there is no row to change.
+  fix" (landscape-locks every screen), "Ambilight"/TextureView (stops SponsorBlock skipping near a
+  part's end), the auto-hide timeout, the likes counter (it only gated the dislike fetch), Channels'
+  old look and auto-load (they change what a tap on a channel does), "Fullscreen mode" (unticked, it
+  adds a TV inset theme), and the card-menu items Open comments (a stub) and Pause history (never
+  pauses). `PhoneOnlyPrefs` pins these at every start and on every profile change, writing only
+  what differs, so nobody is stuck with a value there is no row to change. (A one-shot migration
+  didn't hold: the prefs classes save 10 s after a change, and it covered one profile.)
+- **Kept as choices, not reset:** what pinned channels show (their home page or just their videos)
+  and Playlists in You (each playlist, or all their videos in one list). They looked like TV
+  layouts, but on the phone they change what the feed holds, and both work (Tabs and feeds).
 - **Removed features:** Google Drive backup (broken on the phone: its sign-in step opens the YouTube
   sign-in screen and never reaches Google), the
   GrayJay/PocketTube/NewPipe import, "Protect all settings with password" (nothing enforced it),
@@ -116,9 +121,10 @@ Per-row evidence (what each pref does on the phone, with file:line) is in
 - **Duplicates merged:** history (General radio, Search switch, menu items) is one History and privacy
   page; "separate settings per account" and the account password stay in the accounts sheet
   (Account › Account settings) only.
-- **Video menu:** the reorder UI is gone (the order is fixed and tested); items that never show on
-  the phone (exit PiP, move section up, open playlist/comments, pause history, update check, select
-  account) have no switch.
+- **Video menu:** the per-item position picker is gone. People whose order was customised get a
+  "Usual order" row that puts back the phone's order. No switch for items whose flag the phone
+  ignores (exit PiP; Open playlist always shows where it applies; Move up follows Move down) or that
+  `PhoneOnlyPrefs` keeps off (Open comments, Pause history).
 - **Shorts** rows are gone with Shorts (1.12.0); **Hide Mixes** too (its filter only runs on the old v1
   lists; every phone feed is v2).
 

@@ -12,8 +12,13 @@ import java.util.List;
  * ({@link MainUIData#isMenuConfigDefault()}): a user who enabled, disabled or moved anything keeps
  * their menu untouched.
  */
-final class CardMenuMigration {
+public final class CardMenuMigration {
     private CardMenuMigration() {
+    }
+
+    /** The phone's menu order: the stock order with the two moves below (the Settings' "Usual order"). */
+    public static List<Long> phoneOrder(List<Long> stockOrder) {
+        return blockAfterPlayNext(shareAfterDownload(stockOrder));
     }
 
     static void applyIfDefault(MainUIData ui) {

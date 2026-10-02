@@ -99,6 +99,10 @@
     <string name="mobile_settings_menu_playlists">Listas de reproducción</string>
     <string name="mobile_settings_menu_tabs">Menú de pestaña</string>
     <string name="mobile_settings_menu_move_section">Subir y bajar</string>
+    <string name="mobile_settings_menu_switch_account">Cambiar de cuenta</string>
+    <string name="mobile_settings_menu_usual_order">Orden habitual</string>
+    <string name="mobile_settings_menu_usual_order_summary">Devuelve los elementos del menú a su sitio habitual</string>
+    <string name="mobile_settings_menu_usual_order_done">Orden del menú restaurado</string>
     <string name="mobile_settings_thumbnails">Miniaturas</string>
     <string name="mobile_settings_thumbnails_default">La miniatura del autor</string>
     <string name="mobile_settings_thumbnails_start">Un fotograma del principio del vídeo</string>
@@ -110,6 +114,12 @@
     <string name="mobile_settings_channels_order_recent">Vistos recientemente primero</string>
     <string name="mobile_settings_channels_order_name">De la A a la Z</string>
     <string name="mobile_settings_channels_order_new">Vídeos nuevos primero</string>
+    <string name="mobile_settings_pinned_channels">Los canales fijados muestran</string>
+    <string name="mobile_settings_pinned_channels_all">La página principal del canal</string>
+    <string name="mobile_settings_pinned_channels_uploads">Solo sus vídeos</string>
+    <string name="mobile_settings_playlists_style">Listas en Tú</string>
+    <string name="mobile_settings_playlists_style_grid">Cada lista</string>
+    <string name="mobile_settings_playlists_style_rows">Todos sus vídeos, uno tras otro</string>
 
     <!-- History and privacy -->
     <string name="mobile_settings_watch_history">Historial de reproducciones</string>
@@ -124,12 +134,11 @@
     <string name="mobile_settings_clear_watch_history_confirm">¿Borrar el historial de reproducciones?</string>
     <string name="mobile_settings_clear_watch_history_body">Se borran todos los vídeos de tu historial de YouTube. No se puede deshacer.</string>
     <string name="mobile_settings_search_history_off">No guardar el historial de búsqueda</string>
-    <string name="mobile_settings_search_history_off_summary">Oculta las búsquedas anteriores y borra tu historial de búsqueda de YouTube cada vez que sales de Buscar</string>
-    <string name="mobile_settings_search_history_off_summary_signed_out">Oculta tus búsquedas anteriores</string>
+    <string name="mobile_settings_search_history_off_summary">No se guardan ni se sugieren las búsquedas anteriores</string>
     <string name="mobile_settings_clear_search_history">Borrar historial de búsqueda</string>
-    <string name="mobile_settings_clear_search_history_summary">Borra tus búsquedas anteriores de YouTube</string>
+    <string name="mobile_settings_clear_search_history_summary">Borra las búsquedas guardadas en este teléfono</string>
     <string name="mobile_settings_clear_search_history_confirm">¿Borrar el historial de búsqueda?</string>
-    <string name="mobile_settings_clear_search_history_body">Se borran todas las búsquedas de tu historial de YouTube. No se puede deshacer.</string>
+    <string name="mobile_settings_clear_search_history_body">Se borran las búsquedas que NewTube guardó en este teléfono. No se puede deshacer.</string>
     <string name="mobile_settings_remove_password">Quitar la contraseña de inicio</string>
     <string name="mobile_settings_remove_password_summary">NewTube deja de pedirla al abrirse</string>
     <string name="mobile_settings_child_mode_off">Desactivar el modo infantil</string>

@@ -7,20 +7,25 @@ import androidx.annotation.NonNull;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
+import com.liskovsoft.smartyoutubetv2.common.app.models.playback.manager.PlayerConstants;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.providers.ContextMenuManager;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.providers.ContextMenuProvider;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.SidebarService;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.BackupSettingsPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.LanguageSettingsPresenter;
+import com.liskovsoft.smartyoutubetv2.common.misc.BackupAndRestoreManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.VideoDownloads;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerTweaksData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.SearchData;
 import com.liskovsoft.smartyoutubetv2.common.utils.ClickbaitRemover;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.liskovsoft.youtubeapi.service.internal.MediaServiceData;
+import com.newtube.mobile.CardMenuMigration;
 import com.newtube.mobile.ui.common.MobileSnackbar;
 import com.newtube.mobile.ui.common.ThemeMode;
 
@@ -174,6 +179,20 @@ final class AppPages {
                     com.liskovsoft.smartyoutubetv2.common.prefs.DeArrowData.instance(context).setReplaceTitlesEnabled(false);
                 }));
 
+        // On the phone these change what the feed holds, not its layout (both work): kept as choices.
+        rows.add(SettingsRow.<Boolean>choice(context.getString(R.string.mobile_settings_pinned_channels))
+                .option(context.getString(R.string.mobile_settings_pinned_channels_all), true)
+                .option(context.getString(R.string.mobile_settings_pinned_channels_uploads), false)
+                .bind(mainUIData::isPinnedChannelRowsEnabled, mainUIData::setPinnedChannelRowsEnabled)
+                .needsRestart());
+        rows.add(SettingsRow.<Integer>choice(context.getString(R.string.mobile_settings_playlists_style))
+                .option(context.getString(R.string.mobile_settings_playlists_style_grid), MainUIData.PLAYLISTS_STYLE_GRID)
+                .option(context.getString(R.string.mobile_settings_playlists_style_rows), MainUIData.PLAYLISTS_STYLE_ROWS)
+                .bind(mainUIData::getPlaylistsStyle, style -> {
+                    mainUIData.setPlaylistsStyle(style);
+                    BrowsePresenter.instance(context).updatePlaylistsStyle();
+                }));
+
         rows.add(SettingsRow.<Integer>choice(context.getString(R.string.mobile_settings_channels_order))
                 .option(context.getString(R.string.mobile_settings_channels_order_recent), MainUIData.CHANNEL_SORTING_LAST_VIEWED)
                 .option(context.getString(R.string.mobile_settings_channels_order_name), MainUIData.CHANNEL_SORTING_NAME)
@@ -297,9 +316,10 @@ final class AppPages {
 
     /**
      * The "⋮" menu on videos and the long-press menu on tabs: one switch per item, grouped by what
-     * it does instead of the menu's order. Left out: items the phone ignores (Return to background
-     * video and Open playlist always show when they apply; Move section up follows Move section
-     * down), Open comments and Pause history (broken there) and Check for updates (About has it).
+     * it does instead of the menu's order. Left out: items whose switch the phone ignores (Return to
+     * background video and Open playlist always show when they apply; Move section up follows Move
+     * section down) and the two broken there, which PhoneOnlyPrefs keeps off (Open comments, Pause
+     * history). No per-item position picker: "Usual order" puts back the phone's order.
      */
     static SettingsPages.Page videoMenu(Context context) {
         List<SettingsRow> rows = new ArrayList<>();
@@ -351,8 +371,25 @@ final class AppPages {
         menuToggle(context, rows, data, MainUIData.MENU_ITEM_MOVE_SECTION_DOWN, R.string.mobile_settings_menu_move_section);
         menuToggle(context, rows, data, MainUIData.MENU_ITEM_RENAME_SECTION, R.string.rename_section);
         menuToggle(context, rows, data, MainUIData.MENU_ITEM_CLEAR_HISTORY, R.string.clear_history);
+        menuToggle(context, rows, data, MainUIData.MENU_ITEM_SELECT_ACCOUNT, R.string.mobile_settings_menu_switch_account);
+        menuToggle(context, rows, data, MainUIData.MENU_ITEM_UPDATE_CHECK, R.string.check_for_updates);
         for (ContextMenuProvider provider : new ContextMenuManager(context).getProviders()) {
             menuToggle(context, rows, data, provider.getId(), provider.getTitleResId());
+        }
+
+        // Shown only to people whose menu was reordered (by the old per-item picker).
+        List<Long> stock = data.getDefaultMenuItemsOrder();
+        List<Long> usual = CardMenuMigration.phoneOrder(stock);
+        List<Long> current = data.getMenuItemsOrdered();
+        if (current.size() < usual.size() || !current.subList(0, usual.size()).equals(usual)) {
+            rows.add(SettingsRow.divider());
+            rows.add(SettingsRow.action(context.getString(R.string.mobile_settings_menu_usual_order),
+                    context.getString(R.string.mobile_settings_menu_usual_order_summary),
+                    page -> {
+                        data.setMenuItemsOrder(usual);
+                        page.rebuild();
+                        MobileSnackbar.show(context, R.string.mobile_settings_menu_usual_order_done);
+                    }));
         }
 
         return new SettingsPages.Page(context.getString(R.string.mobile_settings_video_menu), rows);
@@ -403,21 +440,25 @@ final class AppPages {
 
         rows.add(SettingsRow.divider());
 
+        // The searches NewTube keeps on the phone (signed in or not); Search also clears them
+        // whenever it closes while this is on, as the old dialog did when it closed.
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_search_history_off),
-                context.getString(signedIn ? R.string.mobile_settings_search_history_off_summary
-                        : R.string.mobile_settings_search_history_off_summary_signed_out),
-                searchData::isSearchHistoryDisabled, searchData::setSearchHistoryDisabled));
+                context.getString(R.string.mobile_settings_search_history_off_summary),
+                searchData::isSearchHistoryDisabled, off -> {
+                    searchData.setSearchHistoryDisabled(off);
+                    if (off) {
+                        MediaServiceManager.instance().clearSearchHistory();
+                    }
+                }));
 
-        if (signedIn) {
-            rows.add(SettingsRow.action(context.getString(R.string.mobile_settings_clear_search_history),
-                    context.getString(R.string.mobile_settings_clear_search_history_summary),
-                    page -> confirm(page, R.string.mobile_settings_clear_search_history_confirm,
-                            R.string.mobile_settings_clear_search_history_body, R.string.mobile_settings_clear,
-                            () -> {
-                                MediaServiceManager.instance().clearSearchHistory();
-                                MobileSnackbar.show(context, R.string.mobile_settings_cleared);
-                            })));
-        }
+        rows.add(SettingsRow.action(context.getString(R.string.mobile_settings_clear_search_history),
+                context.getString(R.string.mobile_settings_clear_search_history_summary),
+                page -> confirm(page, R.string.mobile_settings_clear_search_history_confirm,
+                        R.string.mobile_settings_clear_search_history_body, R.string.mobile_settings_clear,
+                        () -> {
+                            MediaServiceManager.instance().clearSearchHistory();
+                            MobileSnackbar.show(context, R.string.mobile_settings_cleared);
+                        })));
 
         // Shown only to people who already turned these on, so they can turn them off: on the phone
         // the start-up password can be cleared by anyone who reaches Settings, and child mode
@@ -438,13 +479,37 @@ final class AppPages {
             rows.add(SettingsRow.action(context.getString(R.string.mobile_settings_child_mode_off),
                     context.getString(R.string.mobile_settings_child_mode_off_summary),
                     page -> {
-                        generalData.setChildModeEnabled(false);
-                        generalData.setSettingsPassword(null);
+                        turnOffChildMode(context);
                         page.rebuild();
                     }));
         }
 
         return new SettingsPages.Page(context.getString(R.string.mobile_settings_privacy), rows);
+    }
+
+    /**
+     * Undoes what turning child mode on did (GeneralSettingsPresenter.enableChildMode), the phone's
+     * way: the card menu back to the phone's default, Home back on (the Explore tabs it switched off
+     * stay a choice on the Tabs page; Shorts don't exist on the phone), Up next and autoplay back,
+     * popular searches back.
+     */
+    private static void turnOffChildMode(Context context) {
+        GeneralData generalData = GeneralData.instance(context);
+        MainUIData mainUIData = MainUIData.instance(context);
+        generalData.setChildModeEnabled(false);
+        generalData.setSettingsPassword(null);
+        // The same bits turning it on cleared (context-menu providers sit above them), then the
+        // phone's menu: the stock items plus Share, in the phone's order.
+        mainUIData.setMenuItemDisabled(Integer.MAX_VALUE);
+        mainUIData.setMenuItemEnabled(MainUIData.MENU_ITEM_DEFAULT | MainUIData.MENU_ITEM_SHARE_LINK);
+        mainUIData.setMenuItemsOrder(CardMenuMigration.phoneOrder(mainUIData.getDefaultMenuItemsOrder()));
+        mainUIData.setTopButtonEnabled(MainUIData.TOP_BUTTON_DEFAULT);
+        PlayerTweaksData tweaks = PlayerTweaksData.instance(context);
+        tweaks.setPlayerButtonEnabled(PlayerTweaksData.PLAYER_BUTTON_DEFAULT);
+        tweaks.setSuggestionsDisabled(false);
+        PlayerData.instance(context).setPlaybackMode(PlayerConstants.PLAYBACK_MODE_ALL);
+        SearchData.instance(context).setPopularSearchesDisabled(false);
+        BrowsePresenter.instance(context).enableSection(MediaGroup.TYPE_HOME, true);
     }
 
     /** A confirmation whose button repeats the verb ("Clear"), red because it deletes something. */
@@ -464,20 +529,26 @@ final class AppPages {
     static SettingsPages.Page backup(Context context) {
         List<SettingsRow> rows = new ArrayList<>();
         GeneralData generalData = GeneralData.instance(context);
-        BackupSettingsPresenter backup = BackupSettingsPresenter.instance(context);
-        String backupPath = backup.getLocalBackupPath();
-        String restorePath = backup.getLocalRestorePath();
+        // Read without BackupSettingsPresenter: while that exists the auto-backup worker only
+        // retries (the TV dialog released it on close), so it is created for an action and let go.
+        BackupAndRestoreManager paths = new BackupAndRestoreManager(context);
+        String backupPath = paths.getBackupRootPath();
+        String restorePath = paths.getRestoreRootPath();
 
         rows.add(SettingsRow.action(context.getString(R.string.mobile_settings_backup_now),
                 backupPath != null ? context.getString(R.string.mobile_settings_backup_now_summary, shortPath(backupPath)) : null,
                 page -> {
                     BackupSettingsPresenter.instance(page.requireContext()).backupLocal();
+                    BackupSettingsPresenter.unhold();
                     MobileSnackbar.show(context, R.string.mobile_settings_backup_done);
                 }));
 
         rows.add(SettingsRow.action(context.getString(R.string.mobile_settings_restore),
                 restorePath != null ? context.getString(R.string.mobile_settings_restore_summary, shortPath(restorePath)) : null,
-                page -> BackupSettingsPresenter.instance(page.requireContext()).restoreLocal()));
+                page -> {
+                    BackupSettingsPresenter.instance(page.requireContext()).restoreLocal();
+                    BackupSettingsPresenter.unhold();
+                }));
 
         rows.add(SettingsRow.<Integer>choice(context.getString(R.string.mobile_settings_auto_backup))
                 .option(context.getString(R.string.mobile_settings_auto_backup_off), -1)
@@ -485,7 +556,10 @@ final class AppPages {
                 .option(context.getString(R.string.once_a_week), 7)
                 .option(context.getString(R.string.once_a_month), 30)
                 .bind(generalData::getLocalDriveBackupFreqDays,
-                        days -> BackupSettingsPresenter.instance(context).setAutoBackupDays(days)));
+                        days -> {
+                            BackupSettingsPresenter.instance(context).setAutoBackupDays(days);
+                            BackupSettingsPresenter.unhold();
+                        }));
 
         rows.add(SettingsRow.note(context.getString(R.string.mobile_settings_backup_note)));
 

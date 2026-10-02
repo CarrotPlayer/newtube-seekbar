@@ -15,16 +15,17 @@ Issue #2: the TV-era Settings were 25 screens and 1,015 rows (Player alone 37.7 
 radio lists). The phone now has its own Settings (`ui/settings/`, design note and per-row audits
 in [docs/settings/](../settings/README.md)): an Account row, then App (General, Tabs and feeds,
 History and privacy), Video and audio (Playback, Video quality, Captions, SponsorBlock, DeArrow)
-and Other (Backup and restore, Advanced, About). 16 pages, 167 rows, about 21 screens in all; a
+and Other (Backup and restore, Advanced, About). 16 pages, about 170 rows, about 21 screens in all; a
 choice is one row showing its value that opens a radio dialog.
 
 - **Gone from the screen:** rows nothing on the phone reads (TV layouts, clock, screensaver, D-pad,
   ATV, TV decoder fixes, the network-engine picker), Google Drive backup (its sign-in never reaches
   Google), the import, the settings password, turning on child mode or the start-up password (a
-  turn-off row stays for people who use them), the video-menu reorder.
-- **One-shot migration** (`settings_redesign_defaults`): the knobs the phone reads only to do harm
-  go back to their defaults (Oculus fix, TextureView, auto-hide timeout, likes counter, TV layouts of
-  Channels/pinned/Playlists, "Fullscreen mode").
+  turn-off row stays for people who use them), the video-menu position picker ("Usual order"
+  instead).
+- **`PhoneOnlyPrefs`** pins the knobs the phone reads only to do harm (Oculus fix, TextureView,
+  auto-hide timeout, likes counter, Channels' old look/auto-load, "Fullscreen mode", the broken Open
+  comments / Pause history menu items) at every start and on every profile change.
 - **Shared code:** `MobileAppDialogActivity` lost its full-screen mode (sheets only);
   `MobileAlertDialog` no longer greys its surface (`elevationOverlayEnabled=false`, every dialog);
   local auto backup's "None" now really stops the worker (`LocalDriveBackupWorker.cancel`).

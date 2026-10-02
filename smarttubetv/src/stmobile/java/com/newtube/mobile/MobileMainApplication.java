@@ -75,6 +75,8 @@ import com.newtube.mobile.ui.webbrowser.MobileWebBrowserActivity;
 public class MobileMainApplication extends MainApplication {
     /** BotGuard warmup for a process whose first Activity never draws (see onCreate). */
     private static final long TOKEN_WARMUP_FALLBACK_MS = 4_000;
+    /** Held here: AppPrefs keeps its profile listeners weakly. */
+    private PhoneOnlyPrefs mPhoneOnlyPrefs;
     /**
      * NEWTUBE(token-warmup): the static switch. true = the BotGuard warm-up (and the WEB
      * enrichment that would build the WebView on its own) waits for the open in flight to show its
@@ -279,32 +281,10 @@ public class MobileMainApplication extends MainApplication {
             migrations.edit().putBoolean("card_menu_share_block_order_v2", true).apply();
         }
 
-        // SETTINGS REDESIGN (issue #2, mobile-only, one-shot): the new Settings leave out every row
-        // the phone doesn't read, and a few it reads only to do harm or do something other than
-        // what the row said. A value left off its default there would keep acting with nothing on
-        // screen to change it back, so those go back to their defaults once: the Oculus fix
-        // (landscape-locks every screen), the "Ambilight" fix (stops SponsorBlock skipping short
-        // segments), the auto-hide timeout (could only hide the controls sooner), the likes counter
-        // (only gated the dislike fetch), the TV layouts of Channels, pinned channels and Playlists,
-        // and "Fullscreen mode" (unticked it adds a TV inset theme).
-        if (!migrations.getBoolean("settings_redesign_defaults", false)) {
-            com.liskovsoft.smartyoutubetv2.common.prefs.PlayerTweaksData tweaks =
-                    com.liskovsoft.smartyoutubetv2.common.prefs.PlayerTweaksData.instance(this);
-            if (!com.liskovsoft.smartyoutubetv2.common.utils.Utils.isOculusQuest()) {
-                tweaks.setOculusQuestFixEnabled(false);
-            }
-            tweaks.setTextureViewEnabled(false);
-            tweaks.setLikesCounterEnabled(true);
-            PlayerData.instance(this).setUiHideTimeoutSec(3);
-            com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData mainUI =
-                    com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData.instance(this);
-            mainUI.setUploadsOldLookEnabled(false);
-            mainUI.setUploadsAutoLoadEnabled(true);
-            mainUI.setPinnedChannelRowsEnabled(true);
-            mainUI.setPlaylistsStyle(com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData.PLAYLISTS_STYLE_GRID);
-            com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData.instance(this).setFullscreenModeEnabled(true);
-            migrations.edit().putBoolean("settings_redesign_defaults", true).apply();
-        }
+        // SETTINGS (issue #2, mobile-only): the values the phone Settings have no row for, pinned at
+        // every start and on every profile change (PhoneOnlyPrefs says which and why).
+        mPhoneOnlyPrefs = new PhoneOnlyPrefs(this);
+        mPhoneOnlyPrefs.install();
 
         // NOTE(buffering): the back-buffer / start-gate / forward-buffer tuning that used to be
         // pushed into the legacy engine here (ExoPlayerInitializer.set*Override) moved into the

@@ -88,16 +88,6 @@ public class BackupSettingsPresenter extends BasePresenter<Void> {
         }
     }
 
-    /** NEWTUBE(settings): where a backup is written, for the row's summary (null when unknown). */
-    public String getLocalBackupPath() {
-        return new BackupAndRestoreManager(getContext()).getBackupRootPath();
-    }
-
-    /** NEWTUBE(settings): where a backup must be for Restore to find it. */
-    public String getLocalRestorePath() {
-        return new BackupAndRestoreManager(getContext()).getRestoreRootPath();
-    }
-
     public void showLocalRestoreDialogApi30() {
         BackupAndRestoreManager backupManager = new BackupAndRestoreManager(getContext(), true);
 
