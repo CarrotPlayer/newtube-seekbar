@@ -231,6 +231,18 @@ public class MotherActivity extends FragmentActivity {
             // Night bits only (the type bits stay UNDEFINED, so the system's are kept).
             override.uiMode = nightMode;
         }
+        // The resources this override builds start from the activity's own context, not from the
+        // locale wrapper's (attachBaseContext), so the app language goes in here too: without it a
+        // forced theme or UI scale showed the screen in the system language until onResume's
+        // applySavedLocale caught up, and the views inflated in onCreate kept it.
+        java.util.Locale locale = LocaleUpdater.getSavedLocale(base);
+        if (locale != null) {
+            if (VERSION.SDK_INT >= 24) {
+                override.setLocales(new android.os.LocaleList(locale));
+            } else {
+                override.setLocale(locale);
+            }
+        }
         applyOverrideConfiguration(override);
     }
 
