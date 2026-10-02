@@ -60,6 +60,44 @@ public class BackupSettingsPresenter extends BasePresenter<Void> {
         createAndShowDialog();
     }
 
+    /**
+     * NEWTUBE(settings): the phone Settings' Backup page offers the local backup as plain actions
+     * (the Google Drive branch can't sign in on the phone: its sign-in lands on the YouTube one).
+     */
+    public void backupLocal() {
+        BackupAndRestoreManager backupManager = new BackupAndRestoreManager(getContext());
+        mSidebarService.enableSection(MediaGroup.TYPE_SETTINGS, true); // prevent Settings lock
+        backupManager.checkPermAndBackup();
+    }
+
+    /** NEWTUBE(settings): lists the backups found and restores the one picked (after a confirmation). */
+    public void restoreLocal() {
+        BackupAndRestoreManager backupManager = new BackupAndRestoreManager(getContext());
+        backupManager.getBackupNames(names -> showLocalRestoreDialog(backupManager, names));
+    }
+
+    /**
+     * NEWTUBE(settings): the automatic local backup, every {@code days} days (-1 = never). Cancels what
+     * was scheduled first, so a new interval replaces the old one instead of being ignored.
+     */
+    public void setAutoBackupDays(int days) {
+        LocalDriveBackupWorker.cancel(getContext());
+        mGeneralData.setLocalDriveBackupFreqDays(days);
+        if (days > 0) {
+            LocalDriveBackupWorker.forceSchedule(getContext());
+        }
+    }
+
+    /** NEWTUBE(settings): where a backup is written, for the row's summary (null when unknown). */
+    public String getLocalBackupPath() {
+        return new BackupAndRestoreManager(getContext()).getBackupRootPath();
+    }
+
+    /** NEWTUBE(settings): where a backup must be for Restore to find it. */
+    public String getLocalRestorePath() {
+        return new BackupAndRestoreManager(getContext()).getRestoreRootPath();
+    }
+
     public void showLocalRestoreDialogApi30() {
         BackupAndRestoreManager backupManager = new BackupAndRestoreManager(getContext(), true);
 

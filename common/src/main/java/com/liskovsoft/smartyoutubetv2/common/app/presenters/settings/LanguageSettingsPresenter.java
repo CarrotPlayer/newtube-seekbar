@@ -6,6 +6,7 @@ import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.sharedutils.locale.LocaleUpdater;
 import com.liskovsoft.sharedutils.locale.LocaleUtility;
 import com.liskovsoft.smartyoutubetv2.common.R;
+import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionCategory;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
@@ -46,6 +47,21 @@ public class LanguageSettingsPresenter extends BasePresenter<Void> {
     }
 
     private void appendLanguageCategory(AppDialogPresenter settingsPresenter) {
+        OptionCategory category = createLanguageCategory();
+        settingsPresenter.appendRadioCategory(category.title, category.options);
+    }
+
+    private void appendCountryCategory(AppDialogPresenter settingsPresenter) {
+        OptionCategory category = createCountryCategory();
+        settingsPresenter.appendRadioCategory(category.title, category.options);
+    }
+
+    /**
+     * NEWTUBE(settings): the language list on its own, for the phone Settings' Language row (which
+     * shows the current pick itself, so the title is the plain "Language"). A pick takes effect
+     * after a restart, which the phone row offers.
+     */
+    public OptionCategory createLanguageCategory() {
         Map<String, String> languages = getSupportedLanguages();
         String language = mLangUpdater.getPreferredLanguage();
         String languageTitle = "";
@@ -67,11 +83,12 @@ public class LanguageSettingsPresenter extends BasePresenter<Void> {
                     entry.getValue().equals(language)));
         }
 
-        settingsPresenter.appendRadioCategory(
+        return OptionCategory.from(0, OptionCategory.TYPE_RADIO_LIST,
                 getContext().getString(R.string.dialog_select_language) + languageTitle, options);
     }
 
-    private void appendCountryCategory(AppDialogPresenter settingsPresenter) {
+    /** NEWTUBE(settings): the country list on its own (see {@link #createLanguageCategory}). */
+    public OptionCategory createCountryCategory() {
         Map<String, String> countries = getSupportedCountries();
         String country = mLangUpdater.getPreferredCountry();
         String countryTitle = "";
@@ -93,7 +110,7 @@ public class LanguageSettingsPresenter extends BasePresenter<Void> {
                     entry.getValue().equals(country)));
         }
 
-        settingsPresenter.appendRadioCategory(
+        return OptionCategory.from(0, OptionCategory.TYPE_RADIO_LIST,
                 getContext().getString(R.string.dialog_select_country) + countryTitle, options);
     }
 

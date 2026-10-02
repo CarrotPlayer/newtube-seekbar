@@ -40,8 +40,9 @@ import java.util.Map;
 
 /**
  * Touch renderer for {@link AppDialogView} - Wave 3 (ARCHITECTURE.md section 4, the
- * highest-leverage seam: one screen here lights up every settings category AND every
- * "..." context menu, since they all funnel through {@link AppDialogPresenter}).
+ * highest-leverage seam: one screen here lights up every "..." context menu and player picker,
+ * since they all funnel through {@link AppDialogPresenter}). The phone Settings drew their TV
+ * categories here too until 1.15; they have their own screen now ({@code ui.settings}).
  *
  * <h3>Backstack model</h3>
  * {@code AppDialogPresenter} drives multi-level navigation (e.g. tapping a Settings category
@@ -71,18 +72,6 @@ import java.util.Map;
  * long-text/chat/comments - the last two stubbed per ARCHITECTURE.md/this wave's scope).
  */
 public class MobileAppDialogActivity extends MobileActivity implements AppDialogView {
-
-    /**
-     * Marker dialog id set by the mobile Settings entry point ({@code MobileBrowseActivity.openSettings()})
-     * so this renderer knows to present the (large, multi-level) Settings tree FULL-SCREEN. Every other
-     * caller - long-press context menus, the player Quality/Speed/Subtitles pickers, overlay dialogs -
-     * uses the default BOTTOM-SHEET presentation. Nested Settings screens push new levels onto this same
-     * activity instance, so the full-screen mode chosen for the root level naturally carries through them.
-     * The value is deliberately far outside the small integer ids the common dialogs use (144, 565, ...).
-     */
-    public static final int ID_FULLSCREEN_SETTINGS = 0x4E540001;
-
-    private static final String STATE_FULL_SCREEN = "newtube:dialog_full_screen";
 
     /**
      * NEWTUBE(ui-mode): the level stack handed from an instance being recreated for a configuration
@@ -129,9 +118,10 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
     private ImageButton mBackButton;
     private DialogRowAdapter mAdapter;
 
-    /** true = full-screen settings surface; false (default) = bottom sheet overlay. */
-    private boolean mFullScreen;
-    /** Presentation (sheet vs full-screen) is locked in on the first show() call. */
+    /**
+     * The sheet is set up on the first show() call. (Until the phone Settings got their own screen
+     * in 1.15, the Settings tree was drawn here too, full screen; every caller now gets a sheet.)
+     */
     private boolean mModeConfigured;
     /**
      * NEWTUBE(motion): the sheet is sliding away and {@code super.finish()} lands when it is gone.
@@ -218,9 +208,8 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
 
         mBackButton.setOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
 
-        // NEWTUBE(ui-mode): a recreated Settings screen came back as a bottom sheet over the feed -
-        // the presenter re-shows its last level, whose id is not the full-screen marker. Keep the
-        // presentation the user was looking at, and the levels below the top one (see sRecreation).
+        // NEWTUBE(ui-mode): a recreated sheet keeps the levels below the top one (see sRecreation);
+        // the presenter only re-shows its last level.
         RecreationState recreation = sRecreation;
         sRecreation = null;
         if (savedInstanceState != null && recreation != null) {
@@ -228,14 +217,9 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
             mRadioOverrides.putAll(recreation.radioOverrides);
             mIsTransparent = recreation.transparent;
         }
-        if (savedInstanceState != null && (savedInstanceState.getBoolean(STATE_FULL_SCREEN) || !mLevels.isEmpty())) {
+        if (savedInstanceState != null && !mLevels.isEmpty()) {
             mModeConfigured = true;
-            mFullScreen = savedInstanceState.getBoolean(STATE_FULL_SCREEN);
-            if (mFullScreen) {
-                configureFullScreen();
-            } else {
-                configureSheet();
-            }
+            configureSheet();
         }
 
         mPresenter = AppDialogPresenter.instance(this);
@@ -280,36 +264,30 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
     }
 
     /**
-     * Sheet: pad the sides and the bottom, never the top - the rounded background then reaches the
-     * display edge while the last row still clears the gesture bar. Full screen: an opaque surface
-     * like any other screen, so it takes the whole inset.
+     * Pad the sides and the bottom, never the top - the rounded background then reaches the
+     * display edge while the last row still clears the gesture bar.
      */
     private void applyDialogInsets() {
         if (mContent == null) {
             return;
         }
 
-        if (mFullScreen) {
-            mContent.setPadding(mSystemInsets.left, mSystemInsets.top,
-                    mSystemInsets.right, mSystemInsets.bottom);
-        } else {
-            Rect window = liveWindowBounds();
-            // NEWTUBE(sheet-landscape): a Material sheet stops at 640dp and centres on a wide
-            // window; full-width rows 914dp long read as a page, not a menu.
-            int maxWidth = getResources().getDimensionPixelSize(R.dimen.mobile_sheet_max_width);
-            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mContent.getLayoutParams();
-            int width = window.width() > maxWidth ? maxWidth : ViewGroup.LayoutParams.MATCH_PARENT;
-            if (lp.width != width) {
-                lp.width = width;
-                lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-                mContent.setLayoutParams(lp);
-            }
-            // A capped sheet no longer reaches the side bars; only a full-width one pads for them.
-            boolean capped = width != ViewGroup.LayoutParams.MATCH_PARENT;
-            mContent.setPadding(capped ? 0 : mSystemInsets.left, 0,
-                    capped ? 0 : mSystemInsets.right, mSystemInsets.bottom);
-            mRecyclerView.setMaxHeight(sheetMaxHeight(window.height()));
+        Rect window = liveWindowBounds();
+        // NEWTUBE(sheet-landscape): a Material sheet stops at 640dp and centres on a wide
+        // window; full-width rows 914dp long read as a page, not a menu.
+        int maxWidth = getResources().getDimensionPixelSize(R.dimen.mobile_sheet_max_width);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mContent.getLayoutParams();
+        int width = window.width() > maxWidth ? maxWidth : ViewGroup.LayoutParams.MATCH_PARENT;
+        if (lp.width != width) {
+            lp.width = width;
+            lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+            mContent.setLayoutParams(lp);
         }
+        // A capped sheet no longer reaches the side bars; only a full-width one pads for them.
+        boolean capped = width != ViewGroup.LayoutParams.MATCH_PARENT;
+        mContent.setPadding(capped ? 0 : mSystemInsets.left, 0,
+                capped ? 0 : mSystemInsets.right, mSystemInsets.bottom);
+        mRecyclerView.setMaxHeight(sheetMaxHeight(window.height()));
     }
 
     /**
@@ -368,9 +346,9 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         DialogLevel level = mLevels.get(mLevels.size() - 1);
 
         mTitleView.setText(level.title);
-        // Show the back arrow when it can pop a level; in full-screen mode also at the root (it
-        // closes Settings). A root-level bottom sheet has no back arrow - the scrim/back dismiss it.
-        boolean showBack = canGoBack() || mFullScreen;
+        // Show the back arrow when it can pop a level. A root-level sheet has no back arrow - the
+        // scrim/back dismiss it.
+        boolean showBack = canGoBack();
         mBackButton.setVisibility(showBack ? View.VISIBLE : View.GONE);
         // NEWTUBE(sheet-title): without the arrow the title sat 4dp from the edge while every row
         // starts at 16dp; line it up with the rows. Beside the arrow, 4dp keeps the usual gap.
@@ -387,43 +365,13 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         }
     }
 
-    /**
-     * Choose the presentation once, on the first {@link #show}. FULL-SCREEN only for the Settings
-     * tree (tagged with {@link #ID_FULLSCREEN_SETTINGS}); everything else - context menus, the player
-     * Quality/Speed/Subtitles pickers, transparent/overlay dialogs - is a bottom sheet.
-     */
-    private void configurePresentation(int id) {
+    /** Set the sheet up once, on the first {@link #show}. */
+    private void configurePresentation() {
         if (mModeConfigured) {
             return;
         }
         mModeConfigured = true;
-        mFullScreen = (id == ID_FULLSCREEN_SETTINGS);
-
-        if (mFullScreen) {
-            configureFullScreen();
-        } else {
-            configureSheet();
-        }
-    }
-
-    private void configureFullScreen() {
-        mScrim.setVisibility(View.GONE);
-        mHandle.setVisibility(View.GONE);
-        mContent.setBackgroundColor(ContextCompat.getColor(this, R.color.mobile_color_background));
-
-        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mContent.getLayoutParams();
-        lp.height = ViewGroup.LayoutParams.MATCH_PARENT;
-        lp.gravity = Gravity.NO_GRAVITY;
-        mContent.setLayoutParams(lp);
-
-        // List fills the window (no cap).
-        mRecyclerView.setMaxHeight(0);
-        LinearLayout.LayoutParams rlp = (LinearLayout.LayoutParams) mRecyclerView.getLayoutParams();
-        rlp.height = 0;
-        rlp.weight = 1;
-        mRecyclerView.setLayoutParams(rlp);
-
-        applyDialogInsets();
+        configureSheet();
     }
 
     private void configureSheet() {
@@ -495,7 +443,7 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         if (mExiting) {
             return true;
         }
-        if (mFullScreen || !mModeConfigured || mContent == null || !mContent.isLaidOut()
+        if (!mModeConfigured || mContent == null || !mContent.isLaidOut()
                 || isFinishing() || isDestroyed()) {
             return false;
         }
@@ -518,8 +466,8 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
 
     /**
      * A follow-up {@link #show} while the sheet was leaving: keep this window for it. The dismissed
-     * flow's levels are gone, so the new one is a root flow of its own - its presentation (sheet or
-     * full-screen Settings) is chosen again, with its own entrance (Codex review of this change).
+     * flow's levels are gone, so the new one is a root flow of its own - its sheet is set up again,
+     * with its own entrance (Codex review of this change).
      */
     private void cancelSheetExit() {
         mExiting = false;
@@ -549,13 +497,10 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
     /**
      * Bottom-sheet overlays must leave the caller's system-bar state untouched (a sheet opened
      * over the immersive landscape player must not pop the status bar in over the video), so the
-     * standard mobile chrome is only applied in full-screen (settings-tree) mode.
+     * standard mobile chrome is never applied here.
      */
     @Override
     protected void applyFullscreenModeIfNeeded() {
-        if (mFullScreen) {
-            applyMobileSystemBars();
-        }
     }
 
     @Override
@@ -574,12 +519,6 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
         if (mPresenter != null) {
             mPresenter.onViewPaused();
         }
-    }
-
-    @Override
-    protected void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putBoolean(STATE_FULL_SCREEN, mFullScreen);
     }
 
     @Override
@@ -644,9 +583,9 @@ public class MobileAppDialogActivity extends MobileActivity implements AppDialog
             mIsOverlay = isOverlay;
             mId = id;
 
-            // Lock in sheet-vs-full-screen on the root level (nested levels inherit it).
+            // The sheet is set up on the root level (nested levels reuse it).
             if (stackWasEmpty) {
-                configurePresentation(id);
+                configurePresentation();
             }
 
             // A recreated instance already holds its stack (onCreate); the presenter's re-show of

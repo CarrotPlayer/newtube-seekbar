@@ -38,7 +38,7 @@ import java.util.List;
  * <p>Switch/sign-out propagate through the same backend calls the old dialog used, so the
  * account-change listener chain (Home refresh etc.) is untouched.
  */
-final class AccountsSheet {
+public final class AccountsSheet {
 
     private AccountsSheet() {
     }
@@ -48,7 +48,7 @@ final class AccountsSheet {
      * "Add account" would be noise); otherwise the sheet, even when browsing signed-out, so a
      * stored account is always re-selectable (the old dialog was unreachable in that state).
      */
-    static void show(Activity activity, Runnable onAccountsChanged) {
+    public static void show(Activity activity, Runnable onAccountsChanged) {
         MediaServiceManager.instance().loadAccounts(accounts -> {
             if (activity.isFinishing() || activity.isDestroyed()) {
                 return;
