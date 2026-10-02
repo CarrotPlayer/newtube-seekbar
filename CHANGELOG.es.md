@@ -4,6 +4,46 @@ Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 
+## 1.15.0 — 02-10-2026 — Edición Los Morancos
+
+"¿Desliza pa'rriba? — ¡Pa'rriba! ¿Y ahora pa'bajo? — ¡Pa'bajo!" Homenaje
+ficticio a Los Morancos y sus números de hermanos, para una versión en la que
+cada gesto tiene gemelo: arriba a pantalla completa y abajo para salir,
+arriba y abajo para el brillo y el volumen, a los lados para avanzar. Y la
+configuración, por fin, cabe en el bolsillo.
+
+### Nuevo
+
+- **Gestos en el reproductor (#12).** Desliza el vídeo hacia arriba para
+  verlo a pantalla completa, y hacia abajo por el centro para salir. A
+  pantalla completa, desliza arriba o abajo por la izquierda para el brillo y
+  por la derecha para el volumen, con una píldora que marca el nivel.
+  Desliza de lado sobre el vídeo para avanzar o retroceder. El brillo es solo
+  del reproductor: el resto del móvil mantiene el suyo. Configuración →
+  Reproducción → Gestos los desactiva.
+- **Buscador en Configuración.** Una barra arriba del todo abre su propia página;
+  los resultados salen mientras escribes, también con palabras que el ajuste
+  no lleva en el nombre ("subtítulos", "oscuro"), y cada resultado abre su
+  página con la fila resaltada.
+
+### Cambios
+
+- **Configuración en páginas cortas, como la de YouTube (#2).** La configuración
+  venía de la app de TV: 25 pantallas y más de mil filas. Ahora son 16
+  páginas cortas, y cada opción es una fila que muestra su valor. Se van las
+  opciones que el móvil no usaba, la copia en Google Drive (su inicio de
+  sesión nunca funcionó en móviles), la importación de ajustes y la
+  contraseña de ajustes. El modo infantil y la contraseña de inicio quedan
+  desactivados, con una fila solo para apagarlos.
+
+### Arreglado
+
+- **Pantalla completa con un idioma o país de la app (#17).** El vídeo
+  salía recortado y la barra de progreso fuera de la pantalla, y al volver
+  del minirreproductor se veía la barra de estado.
+- **El idioma de la app se mantiene con un tema o tamaño forzado.** Algunas
+  pantallas salían en el idioma del móvil hasta reabrirlas.
+
 ## 1.14.1 — 2026-10-01 — Edición Pepe Viyuela
 
 «¿Subirlo? —Si nunca estuvo bajo, era la app.» Un homenaje inventado a Pepe

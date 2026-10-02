@@ -2,6 +2,44 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.15.0 — 2026-10-02 — Los Morancos Edition
+
+"Swipe up? — Up! And now swipe it down. — Down!" A fictional homage to Los
+Morancos and their two-brothers routines, for a release where every swipe has
+a twin: up into fullscreen and down out of it, up and down for brightness and
+volume, left and right to seek. Settings got short pages and a search, too.
+
+### New
+
+- **Swipe gestures in the player (#12).** Swipe the video up to go
+  fullscreen, and down in the middle to leave it. In fullscreen, swipe up or
+  down on the left for brightness and on the right for volume, with a pill
+  showing the level. Swipe sideways on the video to seek. Brightness is only
+  the player's: everywhere else keeps your phone's. Settings → Playback →
+  Gestures turns the brightness/volume and seek swipes off.
+- **Search in Settings.** A search bar at the top of Settings opens its own
+  page; results come as you type, also for words a setting's name doesn't
+  have ("subtitles" finds Captions, "dark" finds Theme), and a result opens
+  its page with the row highlighted.
+
+### Changed
+
+- **Settings in short pages, like YouTube's (#2).** The old Settings came
+  from the TV app: 25 screens and over a thousand rows. They're now 16 short
+  pages under App, Video and audio, and Other, and a choice is one row that
+  shows its value. Options nothing on the phone used are gone, along with
+  Google Drive backup (its sign-in never worked on phones), settings import
+  and the settings password. Child mode and the start-up password are turned
+  off and keep only a row to turn them off.
+
+### Fixed
+
+- **Fullscreen with an app language or country set (#17).** The video was
+  cropped and the seek bar off screen, and coming back from the mini player
+  showed the status bar.
+- **The app language holds with a forced theme or interface size.** Some
+  screens came out in the phone's language until they were reopened.
+
 ## 1.14.1 — 2026-10-01 — Pepe Viyuela Edition
 
 "Turn it up? — It was never down, it was the app." A fictional homage to

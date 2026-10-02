@@ -97,6 +97,8 @@ YouTube app.
 - Playlists: Play all, Shuffle, Save to playlist, New playlist, a queue with "Playing from…"
 - Several accounts, with a switcher, or none at all
 - Picture-in-picture on Android 8 and later
+- Swipe gestures: up into fullscreen, down out of it, brightness and volume on the sides, sideways to seek
+- Settings in short pages, with a search
 - Read and write comments, live chat; chapters and dubbed audio tracks
 - Playback that waits out tunnels and dead zones and resumes where it stopped
 - English and Spanish
