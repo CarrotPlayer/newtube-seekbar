@@ -42,18 +42,14 @@ import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.smartyoutubetv2.tv.BuildConfig;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.BrowseSection;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.SettingsGroup;
-import com.liskovsoft.smartyoutubetv2.common.app.models.data.SettingsItem;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.VideoGroup;
 import com.liskovsoft.smartyoutubetv2.common.app.models.errors.ErrorFragmentData;
-import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
-import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.SearchPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.YTSignInPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.AccountSettingsPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.views.BrowseView;
-import com.liskovsoft.smartyoutubetv2.common.misc.AppDataSourceManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.smartyoutubetv2.tv.R;
@@ -874,43 +870,12 @@ public class MobileBrowseActivity extends MobileActivity
     }
 
     /**
-     * Settings entry point (Wave 3). Reuses the Wave 3 AppDialog renderer directly instead of
-     * a separate settings screen: {@link AppDataSourceManager#getSettingItems} returns the same
-     * {@code List<SettingsItem>} (title + onClick + icon) that the TV {@code SettingsGridFragment}
-     * renders as a grid - each item's {@code onClick} already calls e.g.
-     * {@code GeneralSettingsPresenter.instance(context).show()}, which itself just builds
-     * {@code OptionCategory} lists and calls {@code AppDialogPresenter.showDialog()}. So the
-     * cleanest reuse is to render the top-level Settings list as one more
-     * {@code AppDialogPresenter} button category screen: tapping a row runs the real
-     * {@code SettingsItem.onClick}, which opens its own nested AppDialog screen on top (the
-     * same "push a new level" mechanism described in {@code MobileAppDialogActivity}).
+     * Settings entry point: the phone Settings screen (issue #2). Until 1.14 this rendered
+     * AppDataSourceManager's TV categories through the AppDialog renderer; the tree now lives in
+     * {@link com.newtube.mobile.ui.settings.SettingsPages}.
      */
     private void openSettings() {
-        AppDialogPresenter dialogPresenter = AppDialogPresenter.instance(this);
-        dialogPresenter.clearBackstack();
-
-        for (SettingsItem item : AppDataSourceManager.instance().getSettingItems(this)) {
-            dialogPresenter.appendSingleButton(UiOptionItem.from(item.title, optionItem -> item.onClick.run()));
-        }
-
-        // Only the experiment is offered. The link-less "fallback" is debug-only: it is capped at
-        // ~60 s by the server's attestation demand, so a switch for it would promise a playback
-        // that cannot finish. See SabrSourcePreference and HANDOFF section 28.
-        // NEWTUBE(settings): it sits at the end of Player now, not as a raw row on the Settings root.
-        // A one-row checked category, so it lines up with the checkbox column above it.
-        com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.PlayerSettingsPresenter.setPhoneExtraRows(
-                (context, presenter) -> presenter.appendCheckedCategory(
-                        context.getString(R.string.mobile_settings_experimental),
-                        java.util.Collections.singletonList(UiOptionItem.from(
-                                context.getString(R.string.sabr_vod_option),
-                                option -> com.newtube.mobile.player.SabrSourcePreference.setPreferred(context, option.isSelected()),
-                                com.newtube.mobile.player.SabrSourcePreference.isPreferred(context)))));
-
-        // Tag this as the full-screen Settings tree so MobileAppDialogActivity renders it full-screen
-        // (nested category screens push onto the same activity and inherit that). Context menus and the
-        // player option pickers leave the id unset and get the default bottom-sheet presentation.
-        dialogPresenter.setId(com.newtube.mobile.ui.dialog.MobileAppDialogActivity.ID_FULLSCREEN_SETTINGS);
-        dialogPresenter.showDialog(getString(R.string.header_settings));
+        startActivity(com.newtube.mobile.ui.settings.MobileSettingsActivity.intent(this, null));
     }
 
     private void setupBottomNav() {

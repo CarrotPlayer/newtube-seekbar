@@ -327,6 +327,26 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
                 && mMenuItemsOrdered.subList(0, stock.size()).equals(stock);
     }
 
+    /** NEWTUBE(settings): the card menu's stock order, for the phone Settings' "Usual order" row. */
+    public List<Long> getDefaultMenuItemsOrder() {
+        return new ArrayList<>(java.util.Arrays.asList(MENU_ITEM_DEFAULT_ORDER));
+    }
+
+    /**
+     * NEWTUBE(settings): puts the menu items in {@code order}; items it leaves out (context-menu
+     * providers) keep their place after it. The phone Settings have no per-item position picker.
+     */
+    public void setMenuItemsOrder(List<Long> order) {
+        List<Long> result = new ArrayList<>(order);
+        for (Long item : mMenuItemsOrdered) {
+            if (!result.contains(item)) {
+                result.add(item);
+            }
+        }
+        mMenuItemsOrdered = result;
+        persistState();
+    }
+
     public int getMenuItemIndex(long menuItem) {
         return mMenuItemsOrdered.indexOf(menuItem);
     }

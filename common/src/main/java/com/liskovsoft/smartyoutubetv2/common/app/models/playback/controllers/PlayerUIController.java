@@ -575,17 +575,12 @@ public class PlayerUIController extends BasePlayerController {
                     getPlayer().showControls(false);
                 });
 
-        OptionCategory videoAspectCategory = AppDialogUtil.createVideoAspectCategory(
-                getContext(), getPlayerData(), () -> getPlayer().setAspectRatio(getPlayerData().getAspectRatio()));
-
-        OptionCategory videoRotateCategory = AppDialogUtil.createVideoRotateCategory(
-                getContext(), getPlayerData(), () -> getPlayer().setRotationAngle(getPlayerData().getRotationAngle()));
-
+        // NEWTUBE(settings): only the fit modes. The TV's aspect ratio and rotation lists did
+        // nothing on the phone (its setAspectRatio/setRotationAngle are empty). The one list needs
+        // no header under the sheet's title.
         AppDialogPresenter settingsPresenter = getAppDialogPresenter();
-        settingsPresenter.appendRadioCategory(videoAspectCategory.title, videoAspectCategory.options);
-        settingsPresenter.appendRadioCategory(videoZoomCategory.title, videoZoomCategory.options);
-        settingsPresenter.appendRadioCategory(videoRotateCategory.title, videoRotateCategory.options);
-        settingsPresenter.showDialog(getContext().getString(R.string.video_aspect));
+        settingsPresenter.appendRadioCategory(null, videoZoomCategory.options);
+        settingsPresenter.showDialog(getContext().getString(R.string.video_zoom));
     }
 
     private void onPipClicked() {

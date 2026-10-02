@@ -37,6 +37,7 @@ import com.newtube.mobile.ui.dialog.MobileAppDialogActivity;
 import com.newtube.mobile.ui.playback.MobilePlaybackActivity;
 import com.newtube.mobile.ui.playback.SystemPipBridge;
 import com.newtube.mobile.ui.search.MobileSearchActivity;
+import com.newtube.mobile.ui.settings.MobileSettingsActivity;
 import com.newtube.mobile.ui.signin.MobileSignInActivity;
 import com.newtube.mobile.ui.webbrowser.MobileWebBrowserActivity;
 
@@ -74,6 +75,8 @@ import com.newtube.mobile.ui.webbrowser.MobileWebBrowserActivity;
 public class MobileMainApplication extends MainApplication {
     /** BotGuard warmup for a process whose first Activity never draws (see onCreate). */
     private static final long TOKEN_WARMUP_FALLBACK_MS = 4_000;
+    /** Held here: AppPrefs keeps its profile listeners weakly. */
+    private PhoneOnlyPrefs mPhoneOnlyPrefs;
     /**
      * NEWTUBE(token-warmup): the static switch. true = the BotGuard warm-up (and the WEB
      * enrichment that would build the WebView on its own) waits for the open in flight to show its
@@ -277,6 +280,11 @@ public class MobileMainApplication extends MainApplication {
             CardMenuMigration.applyIfDefault(com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData.instance(this));
             migrations.edit().putBoolean("card_menu_share_block_order_v2", true).apply();
         }
+
+        // SETTINGS (issue #2, mobile-only): the values the phone Settings have no row for, pinned at
+        // every start and on every profile change (PhoneOnlyPrefs says which and why).
+        mPhoneOnlyPrefs = new PhoneOnlyPrefs(this);
+        mPhoneOnlyPrefs.install();
 
         // NOTE(buffering): the back-buffer / start-gate / forward-buffer tuning that used to be
         // pushed into the legacy engine here (ExoPlayerInitializer.set*Override) moved into the
@@ -990,6 +998,11 @@ public class MobileMainApplication extends MainApplication {
         //    GuidedStep; MobileAddDeviceActivity is a touch pairing-code screen.
         viewManager.register(WebBrowserView.class, MobileWebBrowserActivity.class, MobileBrowseActivity.class);
         viewManager.register(AddDeviceView.class, MobileAddDeviceActivity.class, MobileBrowseActivity.class);
+
+        // Phone Settings (issue #2): opened directly, not through a presenter's view; the mapping
+        // only gives it Home as its parent - addTop() of a screen with no parent mapping clears
+        // ViewManager's stack, and Back from Settings then left the app.
+        viewManager.register(MobileSettingsActivity.class, MobileSettingsActivity.class, MobileBrowseActivity.class);
 
         viewManager.setRoot(MobileBrowseActivity.class);
     }

@@ -9,6 +9,36 @@ Phone-only: the TV flavors, vendored ExoPlayer fork and Leanback modules were
 deleted. Playback uses Media3 1.10.1 with embedded Cronet and an OkHttp fallback.
 Toolchain: AGP 9.2.1 / Gradle 9.6.1 / compileSdk 37 / targetSdk 37 / minSdk 24.
 
+## Settings in short pages (#2) (2026-10-02, branch feat/settings-redesign, emulator)
+
+Issue #2: the TV-era Settings were 25 screens and 1,015 rows (Player alone 37.7 screens of inline
+radio lists). The phone now has its own Settings (`ui/settings/`, design note and per-row audits
+in [docs/settings/](../settings/README.md)): an Account row, then App (General, Tabs and feeds,
+History and privacy), Video and audio (Playback, Video quality, Captions, SponsorBlock, DeArrow)
+and Other (Backup and restore, Advanced, About). 16 pages, about 170 rows, about 21 screens in all; a
+choice is one row showing its value that opens a radio dialog.
+
+- **Gone from the screen:** rows nothing on the phone reads (TV layouts, clock, screensaver, D-pad,
+  ATV, TV decoder fixes, the network-engine picker), Google Drive backup (its sign-in never reaches
+  Google), the import, child mode and the settings, start-up and account passwords,
+  the accounts sheet's TV "Account settings" ("separate settings per account" is in Advanced now),
+  the video-menu QR code / Switch account / Check for updates, the player Zoom sheet's dead aspect,
+  rotation and percentage lists, and the video-menu position picker ("Usual order" instead).
+- **`PhoneOnlyPrefs`** pins the knobs the phone reads only to do harm (Oculus fix, TextureView,
+  auto-hide timeout, likes counter, Channels' old look/auto-load, "Fullscreen mode", the broken Open
+  comments / Pause history menu items) and keeps the removed TV ones off (child mode, passwords,
+  account picker on start, the three menu items) at every start and on every profile
+  change.
+- **Shared code:** `MobileAppDialogActivity` lost its full-screen mode (sheets only);
+  `MobileAlertDialog` no longer greys its surface (`elevationOverlayEnabled=false`, every dialog);
+  local auto backup's "None" now really stops the worker (`LocalDriveBackupWorker.cancel`).
+- **Search** (branch feat/settings-search, on top): a bar at the top of Settings opens a search page;
+  results as you type (accent-blind, synonyms like "subtitles" → Captions), a result opens its
+  page with the row glowing. Index built off the main thread. See docs/settings/README.md › Search.
+- Verified on emulator: every page in both themes, landscape, recreation on the theme switch,
+  choice dialogs, restart snackbar, the card menu and player pickers still in sheets. Not yet on a
+  real phone or signed in.
+
 ## 1.14.0: seek drag, drag haptics, About rows (2026-10-01)
 
 - **Seek bar follows the finger** (relative drag, YouTube-measured; a tap no longer seeks; the

@@ -286,6 +286,19 @@
           configChanges pattern as the other touch Activities - surviving rotation keeps the live
           pairing-code Rx subscription and the already-rendered code.
         -->
+        <!--
+          Phone Settings (issue #2): the settings tree of com.newtube.mobile.ui.settings, one page
+          at a time. Same shared task and configChanges as the other touch screens (a theme switch
+          recreates it through MobileActivity.checkTheme, landing on the same page).
+        -->
+        <activity
+            android:name="com.newtube.mobile.ui.settings.MobileSettingsActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|layoutDirection|keyboardHidden|uiMode"
+            android:screenOrientation="unspecified"
+            android:theme="@style/Theme.NewTube" />
+
         <activity
             android:name="com.newtube.mobile.ui.adddevice.MobileAddDeviceActivity"
             android:exported="false"

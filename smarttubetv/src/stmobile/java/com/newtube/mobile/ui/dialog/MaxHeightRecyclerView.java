@@ -15,10 +15,10 @@ import androidx.recyclerview.widget.RecyclerView;
  * to their content, but a long list (e.g. a settings screen shown as a sheet) must stop growing and
  * start scrolling instead of running off the top of the screen. Setting a max height (via
  * {@link #setMaxHeight}) makes {@code wrap_content} measure "content height, but no taller than N".
- * In full-screen mode the max is cleared ({@code 0}) so the list fills the window as normal.</p>
+ * A max of {@code 0} leaves the list unlimited.</p>
  */
 public class MaxHeightRecyclerView extends RecyclerView {
-    /** 0 = unlimited (full-screen mode). */
+    /** 0 = unlimited. */
     private int mMaxHeight;
 
     public MaxHeightRecyclerView(@NonNull Context context) {

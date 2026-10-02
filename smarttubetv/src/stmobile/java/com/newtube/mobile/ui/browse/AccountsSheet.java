@@ -16,7 +16,6 @@ import com.liskovsoft.mediaserviceinterfaces.oauth.Account;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.YTSignInPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AccountSelectionPresenter;
-import com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.AccountSettingsPresenter;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
@@ -24,21 +23,22 @@ import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
 import java.util.List;
 
 /**
- * Accounts bottom sheet - the touch replacement for the TV {@link AccountSettingsPresenter}
+ * Accounts bottom sheet - the touch replacement for the TV {@code AccountSettingsPresenter}
  * AppDialog on the You tab's account row (user feedback: "very complex" - a radio group with a
  * cryptic "None" entry plus a remove flow driven by checkboxes acting as buttons).
  *
  * <p>One flat Material sheet instead: every stored account as an avatar row (tap = switch,
  * check = active), a "Use without account" row (the old "None": browse signed-out while keeping
  * the tokens stored), then plain actions - Add account (device-code sign-in), Sign out of the
- * active account behind a real confirm dialog ({@code removeAccount} deletes the stored token),
- * and the advanced TV toggles (password lock / per-account settings / choose on boot) tucked
- * behind "Account settings" via {@link AccountSettingsPresenter#showAdvanced()}.
+ * active account behind a real confirm dialog ({@code removeAccount} deletes the stored token).
+ * The TV's "Account settings" toggles are gone (2026-10-02): "separate settings per account" is in
+ * Settings &gt; Advanced, and the password lock and the picker on start are kept off
+ * ({@code PhoneOnlyPrefs}).
  *
  * <p>Switch/sign-out propagate through the same backend calls the old dialog used, so the
  * account-change listener chain (Home refresh etc.) is untouched.
  */
-final class AccountsSheet {
+public final class AccountsSheet {
 
     private AccountsSheet() {
     }
@@ -48,7 +48,7 @@ final class AccountsSheet {
      * "Add account" would be noise); otherwise the sheet, even when browsing signed-out, so a
      * stored account is always re-selectable (the old dialog was unreachable in that state).
      */
-    static void show(Activity activity, Runnable onAccountsChanged) {
+    public static void show(Activity activity, Runnable onAccountsChanged) {
         MediaServiceManager.instance().loadAccounts(accounts -> {
             if (activity.isFinishing() || activity.isDestroyed()) {
                 return;
@@ -99,11 +99,6 @@ final class AccountsSheet {
             addActionRow(activity, actions, R.drawable.ic_mobile_logout, R.string.mobile_accounts_sign_out,
                     () -> confirmSignOut(activity, sheet, selectedAccount, onAccountsChanged));
         }
-
-        addActionRow(activity, actions, R.drawable.ic_mobile_settings, R.string.mobile_accounts_more, () -> {
-            sheet.dismiss();
-            AccountSettingsPresenter.instance(activity).showAdvanced();
-        });
 
         sheet.setContentView(content);
         sheet.show();

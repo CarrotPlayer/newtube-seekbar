@@ -642,27 +642,11 @@ public class AppDialogUtil {
                         playerData.setZoomPercents(-1);
                         onSelectZoomMode.run();
                     },
-                    playerData.getResizeMode() == pair[1] && playerData.getZoomPercents() == -1));
+                    playerData.getResizeMode() == pair[1]));
         }
 
-        // Zoom above 100% has centering problems with 2K-4K videos
-        int[][] zoomRanges = {
-            Helpers.range(50, 95, 5),  // from 50 to 95 in steps of 5
-            Helpers.range(96, 100, 1), // from 96 to 100 in steps of 1
-            Helpers.range(105, 300, 5) // from 105 to 300 in steps of 5
-        };
-
-        for (int[] zoomRange : zoomRanges) {
-            for (int zoomPercents : zoomRange) {
-                options.add(UiOptionItem.from(String.format("%s%%", zoomPercents),
-                        optionItem -> {
-                            playerData.setZoomPercents(zoomPercents);
-                            playerData.setResizeMode(PlayerData.RESIZE_MODE_DEFAULT);
-                            onSelectZoomMode.run();
-                        },
-                        playerData.getZoomPercents() == zoomPercents));
-            }
-        }
+        // NEWTUBE(settings): no 50%-300% list, the phone never implemented it (setZoomPercents is
+        // empty); a fit mode picked above clears a percentage stored before.
 
         String videoZoomTitle = context.getString(R.string.video_zoom);
 

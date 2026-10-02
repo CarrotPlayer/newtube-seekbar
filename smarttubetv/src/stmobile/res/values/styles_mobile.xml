@@ -253,6 +253,10 @@
     -->
     <style name="MobileAlertDialog" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
         <item name="colorSurface">@color/mobile_color_surface</item>
+        <!-- Same trap as the sheets: the dialog's 24dp elevation blended white into colorSurface,
+             so in the dark theme every dialog came out grey (#3F3F3F-ish) instead of the
+             #1E1E1E of the sheets beside it. -->
+        <item name="elevationOverlayEnabled">false</item>
         <item name="android:textColorPrimary">@color/mobile_color_on_surface</item>
         <item name="materialAlertDialogBodyTextStyle">@style/MobileAlertDialogBody</item>
         <item name="buttonBarPositiveButtonStyle">@style/MobileAlertDialogButtonDestructive</item>

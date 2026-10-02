@@ -37,4 +37,17 @@
     <dimen name="mobile_watch_related_thumb_height">90dp</dimen>
     <!-- NEWTUBE(comments-panel): a comment's avatar; its text column starts 12dp after it. -->
     <dimen name="mobile_comment_avatar">28dp</dimen>
+
+    <!-- Settings (issue #2): YouTube's measured list geometry - 16dp side inset, 24dp icons with
+         the text at 60dp, 56dp one-line rows, a 64dp bar with the title at 72dp. -->
+    <dimen name="mobile_settings_bar_height">64dp</dimen>
+    <dimen name="mobile_settings_title_inset">20dp</dimen>
+    <dimen name="mobile_settings_title_size">20sp</dimen>
+    <dimen name="mobile_settings_row_min_height">56dp</dimen>
+    <dimen name="mobile_settings_row_inset">16dp</dimen>
+    <dimen name="mobile_settings_icon_gap">20dp</dimen>
+    <dimen name="mobile_settings_row_padding_vertical">14dp</dimen>
+    <dimen name="mobile_settings_row_title_size">16sp</dimen>
+    <dimen name="mobile_settings_row_summary_size">14sp</dimen>
+    <dimen name="mobile_settings_header_size">16sp</dimen>
 </resources>
