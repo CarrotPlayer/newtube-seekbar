@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="mobile_settings_search_hint">Buscar ajustes</string>
+    <string name="mobile_settings_search_hint">Buscar en configuración</string>
     <string name="mobile_settings_search_none">Ningún ajuste coincide con «%1$s»</string>
 
     <string name="mobile_settings_search_kw_account">iniciar sesión cerrar sesión google perfil cambiar</string>
