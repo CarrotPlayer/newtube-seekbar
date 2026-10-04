@@ -143,6 +143,14 @@ android {
         buildConfig = true
     }
 
+    // NEWTUBE(fdroid): no "Dependency metadata" block in the APK signing block. AGP adds it for
+    // Google Play (an encrypted list of dependencies); F-Droid's APK scanner rejects any extra
+    // signing block, and the F-Droid APK is our signed twin. Nothing reads it outside Play.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     compileSdk = project.ext.compileSdkVersion
     testOptions.unitTests.includeAndroidResources = true
     ndkVersion = "21.0.6113669" // reduce size of the *.so files (stripping debug symbols)
