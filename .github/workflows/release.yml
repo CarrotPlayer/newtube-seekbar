@@ -15,6 +15,14 @@ name: Build release
 # code and the attestation's commit are the same thing. To rebuild an existing tag by hand, run it
 # ON the tag: gh workflow run release.yml --ref v1.10.3. Run on main, it is a test build: the APKs
 # are attested and kept as a workflow artifact, and no release is touched.
+#
+# It also builds NewTube_<version>_fdroid_universal.apk, the twin of F-Droid's own build: F-Droid
+# builds the same commit with -Pfdroid and publishes its build only if it matches this APK apart
+# from the signature, which it then copies, so F-Droid installs carry NewTube's signature
+# (reproducible builds). Its recipe (fdroiddata metadata/io.github.aleixrodriala.arc.yml) sets
+# the same three things this file does: SOURCE_DATE_EPOCH = the commit time, cmdline-tools
+# $CMDLINE_TOOLS_VERSION's profgen for the embedded ART profile, and no J2V8 jniLibs. The update
+# manifest never points at this APK. fdroid-twin.yml adds it to a release published without one.
 
 on:
   push:
@@ -42,6 +50,7 @@ jobs:
       # SHA-256 of the certificate every NewTube release has been signed with.
       EXPECTED_CERT: 2ef99d76edfad988ad17cdee8ba18c634e230fe1e3cb1fdc6cdb0249370a36c9
       NDK_VERSION: 21.0.6113669   # smarttubetv/build.gradle ndkVersion (strips the .so files)
+      CMDLINE_TOOLS_VERSION: "23.0"   # profgen; F-Droid's recipe installs the same version
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -56,8 +65,16 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Install the NDK
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" > /dev/null
+      # The runner's cmdline-tools/latest drifts with the image; the embedded ART profile has to
+      # come from the same profgen F-Droid uses, or the F-Droid APK can't match.
+      - name: Install the NDK and a fixed profgen
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" "cmdline-tools;$CMDLINE_TOOLS_VERSION" > /dev/null
+          profgen="$ANDROID_HOME/cmdline-tools/$CMDLINE_TOOLS_VERSION/bin/profgen"
+          test -x "$profgen"
+          echo "PROFGEN=$profgen" >> "$GITHUB_ENV"
+          echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
 
       - name: Configure signing
         env:
@@ -80,7 +97,19 @@ jobs:
           } > keystore.properties
 
       - name: Build the release APKs
-        run: ./gradlew --no-daemon --stacktrace :smarttubetv:assembleStmobileRelease
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --stacktrace :smarttubetv:assembleStmobileRelease -PprofgenPath="$PROFGEN"
+          mkdir dist
+          cp smarttubetv/build/outputs/renamed_apks/stmobileRelease/NewTube_*.apk dist/
+
+      # From a clean build, as F-Droid's is, and without the J2V8 libs its recipe deletes.
+      - name: Build the F-Droid APK
+        run: |
+          set -euo pipefail
+          rm -rf SharedModules/j2v8/src/main/jniLibs MediaServiceCore/SharedModules/j2v8/src/main/jniLibs
+          ./gradlew --no-daemon --stacktrace clean :smarttubetv:assembleStmobileRelease -Pfdroid -PprofgenPath="$PROFGEN"
+          cp smarttubetv/build/outputs/renamed_apks/stmobileRelease/NewTube_*_fdroid_universal.apk dist/
 
       - name: Remove the signing key
         if: always()
@@ -89,8 +118,6 @@ jobs:
       - name: Check names, version and signature
         run: |
           set -euo pipefail
-          mkdir dist
-          cp smarttubetv/build/outputs/renamed_apks/stmobileRelease/NewTube_*.apk dist/
           ls -l dist
           if [ -n "$TAG" ]; then
             version="${TAG#v}"

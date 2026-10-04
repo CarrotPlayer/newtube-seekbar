@@ -1,0 +1,133 @@
+name: Add the F-Droid APK to a release
+
+# Builds NewTube_<version>_fdroid_universal.apk for a release that was published without one
+# (1.15.0 and older) and adds it to that release. release.yml builds it for every new release; see
+# the note there for what F-Droid does with it. Same build, signing and checks as release.yml.
+#
+#   gh workflow run fdroid-twin.yml --ref main -f tag=v1.15.0
+#
+# It runs on main (the release environment only allows main and v* tags) and checks out the tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published release tag, e.g. v1.15.0"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fdroid-twin-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: write      # add the file to the release
+      id-token: write      # sign the attestation
+      attestations: write
+    env:
+      TAG: ${{ inputs.tag }}
+      EXPECTED_CERT: 2ef99d76edfad988ad17cdee8ba18c634e230fe1e3cb1fdc6cdb0249370a36c9
+      NDK_VERSION: 21.0.6113669
+      CMDLINE_TOOLS_VERSION: "23.0"
+    steps:
+      - name: Check the tag
+        run: |
+          if ! printf '%s' "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$TAG' isn't a release tag like v1.15.0."
+            exit 1
+          fi
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          submodules: true
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install the NDK and a fixed profgen
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" "cmdline-tools;$CMDLINE_TOOLS_VERSION" > /dev/null
+          profgen="$ANDROID_HOME/cmdline-tools/$CMDLINE_TOOLS_VERSION/bin/profgen"
+          test -x "$profgen"
+          echo "PROFGEN=$profgen" >> "$GITHUB_ENV"
+          echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
+
+      - name: Configure signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::The release environment has no RELEASE_KEYSTORE_BASE64 secret."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > keystore.properties
+
+      - name: Build the F-Droid APK
+        run: |
+          set -euo pipefail
+          rm -rf SharedModules/j2v8/src/main/jniLibs MediaServiceCore/SharedModules/j2v8/src/main/jniLibs
+          ./gradlew --no-daemon --stacktrace :smarttubetv:assembleStmobileRelease -Pfdroid -PprofgenPath="$PROFGEN"
+
+      - name: Remove the signing key
+        if: always()
+        run: rm -f keystore.properties "$RUNNER_TEMP/release.jks"
+
+      - name: Check name and signature
+        run: |
+          set -euo pipefail
+          mkdir dist
+          cp "smarttubetv/build/outputs/renamed_apks/stmobileRelease/NewTube_${TAG#v}_fdroid_universal.apk" dist/
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/[0-9]* | sort -V | tail -1)/apksigner"
+          out="$("$apksigner" verify --print-certs dist/*.apk 2>&1)" || { echo "$out"; echo "::error::apksigner rejected the APK."; exit 1; }
+          certs="$(printf '%s\n' "$out" | grep -oE 'certificate SHA-256 digest: [0-9a-f]{64}' | awk '{print $4}' | sort -u)"
+          if [ "$certs" != "$EXPECTED_CERT" ]; then
+            echo "$out"
+            echo "::error::The APK is signed with '${certs}', not NewTube's certificate."
+            exit 1
+          fi
+          (cd dist && sha256sum -- *.apk)
+
+      - name: Attest the build
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+
+      - name: Keep the APK as a workflow artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: NewTube-fdroid-${{ inputs.tag }}
+          if-no-files-found: ignore
+          path: dist/
+          retention-days: 14
+
+      # No --clobber: a release that already has its F-Droid APK keeps it.
+      - name: Add to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$TAG" dist/*.apk
