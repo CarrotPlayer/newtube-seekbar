@@ -60,7 +60,7 @@ jobs:
       - name: Install the NDK and a fixed profgen
         run: |
           set -euo pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" "cmdline-tools;$CMDLINE_TOOLS_VERSION" > /dev/null
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" "cmdline-tools;$CMDLINE_TOOLS_VERSION" > /dev/null
           profgen="$ANDROID_HOME/cmdline-tools/$CMDLINE_TOOLS_VERSION/bin/profgen"
           test -x "$profgen"
           echo "PROFGEN=$profgen" >> "$GITHUB_ENV"
