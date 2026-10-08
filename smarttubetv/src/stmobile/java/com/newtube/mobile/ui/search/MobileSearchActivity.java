@@ -74,8 +74,8 @@ import java.util.List;
  *       {@code startActivityForResult}; the recognized text is dropped into the field and
  *       searched. If voice is unavailable (e.g. emulator) it simply falls back to text input
  *       without crashing.</li>
- *   <li>The filter button invokes {@link SearchPresenter#onSearchSettingsClicked()}, opening
- *       the filter dialog (date, duration, type, sorting).</li>
+ *   <li>The filter button invokes {@link SearchFilterBottomSheet#show}, opening
+ *       the touch bottom sheet for search filtering and sorting.</li>
  * </ul>
  */
 public class MobileSearchActivity extends MobileActivity
@@ -156,9 +156,10 @@ public class MobileSearchActivity extends MobileActivity
         mMicButton.setOnClickListener(v -> startVoiceRecognition());
         mFilterButton.setOnClickListener(v -> {
             if (mPresenter != null) {
-                mPresenter.onSearchSettingsClicked();
+                SearchFilterBottomSheet.show(this, mPresenter);
             }
         });
+
         // Clear the query, keep editing: focus stays, history rows replace the suggestions.
         mClearButton.setOnClickListener(v -> {
             setQueryText("");
