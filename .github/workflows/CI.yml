@@ -25,31 +25,32 @@ jobs:
       - name: Grant Gradle permissions
         run: chmod +x gradlew
 
-      - name: Build ARM64 only
-        run: ./gradlew :smarttubetv:assembleStmobileDebug -Pandroid.injected.build.abi=arm64-v8a --no-daemon
+      - name: Build with Gradle
+        run: ./gradlew :smarttubetv:assembleStmobileDebug --no-daemon
 
-      - name: Publish Direct APK to Releases
+      - name: Publish Universal APK to Releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          APK_FILE=$(find smarttubetv/build/outputs/apk -name "*arm64*.apk" | head -n 1)
+          APK_FILE=$(find smarttubetv/build/outputs -name "*universal*.apk" -o -name "*Universal*.apk" | head -n 1)
           if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find smarttubetv/build/outputs/apk -name "*.apk" | head -n 1)
+            # S'il n'y a pas "universal" explicite dans le nom, sélectionne l'APK le plus volumineux (qui embarque toutes les architectures)
+            APK_FILE=$(find smarttubetv/build/outputs -name "*.apk" -type f -exec ls -S {} + | head -n 1)
           fi
-          echo "Trouvé: $APK_FILE"
-          
-          # Nettoie l'ancienne version de test si elle existe
+          echo "APK sélectionné : $APK_FILE"
+
+          # Nettoie l'ancien tag/release s'il existe déjà
           gh release delete v-debug --yes || true
           git tag -d v-debug || true
           git push origin :refs/tags/v-debug || true
-          
-          # Crée le lien direct de téléchargement
+
+          # Publie l'APK direct
           gh release create v-debug "$APK_FILE" \
-            --title "NewTube ARM64 Debug" \
-            --notes "APK direct (ARM64 uniquement, ~35 Mo, sans archive zip)."
+            --title "NewTube Universal Debug" \
+            --notes "APK Universal direct compatible tous processeurs (sans archive zip)."
 
       - name: Upload Artifact Backup
         uses: actions/upload-artifact@v4
         with:
-          name: NewTube-ARM64-Debug
-          path: 'smarttubetv/build/outputs/apk/**/*arm64*.apk'
+          name: NewTube-Universal-Debug
+          path: smarttubetv/build/outputs/apk/**/*.apk
