@@ -94,8 +94,6 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
         @Override
         @SuppressLint("DiffUtilEquals")
         public boolean areContentsTheSame(@NonNull Video oldItem, @NonNull Video newItem) {
-            // Video.equals() is identity-like (IDs only). A new instance with the same ID can
-            // carry refreshed metadata and must be rebound; the same instance needs no rebind.
             return oldItem == newItem;
         }
     };
@@ -130,7 +128,7 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
         private final TextView mSubtitle;
         private Video mVideo;
 
-        @SuppressLint("ClickableViewAccessibility") // observes only; the row's click still runs
+        @SuppressLint("ClickableViewAccessibility")
         RelatedViewHolder(@NonNull View itemView, OnRelatedClickListener clickListener,
                 @androidx.annotation.Nullable OnRelatedPressListener pressListener, long pressIntentMs) {
             super(itemView);
@@ -177,17 +175,15 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
 
             mTitle.setText(video.getTitle());
 
-            // Single subtitle line = "Channel • views • date" (Video.getSecondTitle()). Previously the
-            // channel showed twice - once as its own byline (getAuthor(), which is just the channel token
-            // extracted from the very same secondTitle) and again at the head of this metadata line, so
-            // the two lines were identical whenever views/date were absent. Fall back to the bare channel
-            // name when no secondTitle is available.
             CharSequence subtitle = video.getSecondTitle();
             if (subtitle == null || subtitle.length() == 0) {
                 subtitle = video.getAuthor();
             }
             if (subtitle != null && subtitle.length() > 0) {
-                mSubtitle.setText(subtitle);
+                String formatted = formatTwoLineSubtitle(subtitle.toString(), video.getAuthor());
+                mSubtitle.setMaxLines(2);
+                mSubtitle.setSingleLine(false);
+                mSubtitle.setText(formatted);
                 mSubtitle.setVisibility(View.VISIBLE);
             } else {
                 mSubtitle.setVisibility(View.GONE);
@@ -198,9 +194,36 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
             bindThumbnail(context, video);
         }
 
+        private String formatTwoLineSubtitle(String fullSubtitle, String author) {
+            if (fullSubtitle == null || fullSubtitle.isEmpty()) {
+                return author != null ? author : "";
+            }
+
+            if (author != null && !author.isEmpty() && fullSubtitle.startsWith(author)) {
+                String remainder = fullSubtitle.substring(author.length()).trim();
+                remainder = remainder.replaceFirst("^[•·\\-\\s]+", "").trim();
+                if (!remainder.isEmpty()) {
+                    return author + "\n" + remainder;
+                }
+                return author;
+            }
+
+            int sepIndex = fullSubtitle.indexOf(" • ");
+            if (sepIndex == -1) {
+                sepIndex = fullSubtitle.indexOf(" · ");
+            }
+            if (sepIndex != -1) {
+                String line1 = fullSubtitle.substring(0, sepIndex).trim();
+                String line2 = fullSubtitle.substring(sepIndex + 3).trim();
+                if (!line2.isEmpty()) {
+                    return line1 + "\n" + line2;
+                }
+            }
+
+            return fullSubtitle;
+        }
+
         private void bindBadge(Video video, boolean isCurrent) {
-            // The playing row takes over the badge slot: in a queue the duration matters far less
-            // than knowing where you are, and this needs no extra view in the row layout.
             if (isCurrent) {
                 mBadge.setText(R.string.mobile_watch_queue_now_playing);
                 mBadge.setVisibility(View.VISIBLE);
@@ -237,20 +260,13 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
             int thumbQuality = MainUIData.instance(context).getThumbQuality();
             String thumbnailUrl = ClickbaitRemover.updateThumbnail(video, thumbQuality);
 
-            // NEWTUBE(net): downsampling happens on the DEVICE, so a 640px sddefault still crosses the
-            // wire in full before Glide throws most of it away. Ask the CDN for the row's actual size
-            // instead: 12 of these bind at once and the difference is ~1.3 MB vs ~300 KB per open.
             thumbnailUrl = ClickbaitRemover.fitThumbnail(thumbnailUrl, relatedThumbWidthPx(context));
 
-            // SCROLL-JANK FIX: opaque JPEG thumbs -> RGB_565 halves decode + GPU upload. The thumb view
-            // is fixed-dp-sized, so Glide already downsamples to it (no override needed). Only build the
-            // fallback request when its URL can actually differ from the primary (never at default quality).
             com.bumptech.glide.RequestBuilder<android.graphics.drawable.Drawable> request = Glide.with(context)
                     .load(thumbnailUrl)
                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                     .format(DecodeFormat.PREFER_RGB_565)
                     .centerCrop()
-                    // Fade network loads in over the placeholder; cache hits skip the transition.
                     .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(150));
 
             String fallbackUrl = video.getCardImageUrl();
@@ -264,7 +280,6 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
             request.into(mThumbnail);
         }
 
-        /** Row thumb width in real pixels, so the CDN rendition is chosen for THIS screen's density. */
         private int relatedThumbWidthPx(Context context) {
             return context.getResources().getDimensionPixelSize(
                     R.dimen.mobile_watch_related_thumb_width);
