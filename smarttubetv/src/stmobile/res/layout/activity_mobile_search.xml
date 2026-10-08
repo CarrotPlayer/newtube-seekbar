@@ -3,9 +3,9 @@
   Touch Search screen (Wave 4b).
 
   Toolbar = back arrow + a rounded EditText (IME action = search) + a mic button for
-  voice input. Below the toolbar, a horizontally-scrolling strip of tag SUGGESTION chips
-  (fed live as the user types, via SearchPresenter's MediaServiceSearchTagProvider), and
-  under that a single Material RecyclerView GRID of results (reuses VideoCardAdapter and
+  voice input + a filter/settings button. Below the toolbar, a horizontally-scrolling strip
+  of tag SUGGESTION chips (fed live as the user types, via SearchPresenter's MediaServiceSearchTagProvider),
+  and under that a single Material RecyclerView GRID of results (reuses VideoCardAdapter and
   the same runtime span-count math + onScrollEnd pagination as the Home/Channel grids).
 
   Drives the unchanged SearchPresenter via the standard MVP seam; this is the touch
@@ -80,6 +80,15 @@
             android:contentDescription="@string/mobile_search_voice"
             android:padding="12dp"
             android:src="@drawable/ic_mobile_mic" />
+
+        <ImageButton
+            android:id="@+id/mobile_search_filter"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/settings_search"
+            android:padding="12dp"
+            android:src="@drawable/ic_mobile_filter" />
 
     </LinearLayout>
 
