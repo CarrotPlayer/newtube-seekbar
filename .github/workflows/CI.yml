@@ -3,6 +3,9 @@ name: Build Debug APK
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,11 +25,31 @@ jobs:
       - name: Grant Gradle permissions
         run: chmod +x gradlew
 
-      - name: Build with Gradle
-        run: ./gradlew :smarttubetv:assembleStmobileDebug --no-daemon
+      - name: Build ARM64 only
+        run: ./gradlew :smarttubetv:assembleStmobileDebug -Pandroid.injected.build.abi=arm64-v8a --no-daemon
 
-      - name: Upload APK
+      - name: Publish Direct APK to Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK_FILE=$(find smarttubetv/build/outputs/apk -name "*arm64*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find smarttubetv/build/outputs/apk -name "*.apk" | head -n 1)
+          fi
+          echo "Trouvé: $APK_FILE"
+          
+          # Nettoie l'ancienne version de test si elle existe
+          gh release delete v-debug --yes || true
+          git tag -d v-debug || true
+          git push origin :refs/tags/v-debug || true
+          
+          # Crée le lien direct de téléchargement
+          gh release create v-debug "$APK_FILE" \
+            --title "NewTube ARM64 Debug" \
+            --notes "APK direct (ARM64 uniquement, ~35 Mo, sans archive zip)."
+
+      - name: Upload Artifact Backup
         uses: actions/upload-artifact@v4
         with:
-          name: NewTube-Seekbar-Debug
-          path: '**/build/outputs/apk/**/*.apk'
+          name: NewTube-ARM64-Debug
+          path: 'smarttubetv/build/outputs/apk/**/*arm64*.apk'
