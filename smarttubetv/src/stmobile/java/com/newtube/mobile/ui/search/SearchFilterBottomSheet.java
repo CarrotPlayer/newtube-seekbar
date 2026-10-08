@@ -2,11 +2,16 @@ package com.newtube.mobile.ui.search;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.view.Gravity;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
-import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.widget.PopupMenu;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.liskovsoft.mediaserviceinterfaces.data.SearchOptions;
@@ -22,9 +27,13 @@ public final class SearchFilterBottomSheet {
         View view = LayoutInflater.from(context).inflate(R.layout.sheet_mobile_search_filter, null);
         dialog.setContentView(view);
 
+        // Correction intégrale du double-arrondi : on supprime le fond natif du conteneur Google
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
         View bottomSheetInternal = dialog.findViewById(com.google.android.material.R.id.design_bottom_sheet);
         if (bottomSheetInternal != null) {
-            bottomSheetInternal.setBackgroundColor(Color.TRANSPARENT);
+            bottomSheetInternal.setBackground(null);
         }
 
         final int[] uploadDate = {presenter.getUploadDateOptions()};
@@ -38,16 +47,22 @@ public final class SearchFilterBottomSheet {
         TextView valDate = view.findViewById(R.id.filter_val_date);
         TextView valSort = view.findViewById(R.id.filter_val_sort);
 
+        View rowType = view.findViewById(R.id.filter_row_type);
+        View rowDuration = view.findViewById(R.id.filter_row_duration);
+        View rowDate = view.findViewById(R.id.filter_row_date);
+        View rowSort = view.findViewById(R.id.filter_row_sort);
+
         TextView chipLive = view.findViewById(R.id.chip_feature_live);
         TextView chip4k = view.findViewById(R.id.chip_feature_4k);
         TextView chipHdr = view.findViewById(R.id.chip_feature_hdr);
+        ImageButton btnReset = view.findViewById(R.id.filter_btn_reset);
 
-        // --- Données des listes déroulantes ---
+        // --- Listes d'options ---
         String[] typeLabels = {"Toutes les catégories", "Vidéos", "Chaînes", "Playlists", "Films"};
         int[] typeValues = {0, SearchOptions.TYPE_VIDEO, SearchOptions.TYPE_CHANNEL, SearchOptions.TYPE_PLAYLIST, SearchOptions.TYPE_MOVIE};
         updateLabel(valType, typeLabels, typeValues, type[0]);
-        view.findViewById(R.id.filter_row_type).setOnClickListener(v ->
-                showSingleChoiceDialog(context, "Type", typeLabels, typeValues, type[0], chosen -> {
+        rowType.setOnClickListener(v ->
+                showPopupMenu(context, valType, typeLabels, typeValues, type[0], chosen -> {
                     type[0] = chosen;
                     updateLabel(valType, typeLabels, typeValues, chosen);
                 }));
@@ -55,8 +70,8 @@ public final class SearchFilterBottomSheet {
         String[] durationLabels = {"Toutes", "Moins de 4 minutes", "De 4 à 20 minutes", "Plus de 20 minutes"};
         int[] durationValues = {0, SearchOptions.DURATION_UNDER_4, SearchOptions.DURATION_BETWEEN_4_20, SearchOptions.DURATION_OVER_20};
         updateLabel(valDuration, durationLabels, durationValues, duration[0]);
-        view.findViewById(R.id.filter_row_duration).setOnClickListener(v ->
-                showSingleChoiceDialog(context, "Durée", durationLabels, durationValues, duration[0], chosen -> {
+        rowDuration.setOnClickListener(v ->
+                showPopupMenu(context, valDuration, durationLabels, durationValues, duration[0], chosen -> {
                     duration[0] = chosen;
                     updateLabel(valDuration, durationLabels, durationValues, chosen);
                 }));
@@ -64,8 +79,8 @@ public final class SearchFilterBottomSheet {
         String[] dateLabels = {"Date indifférente", "Aujourd'hui", "Cette semaine", "Ce mois-ci", "Cette année"};
         int[] dateValues = {0, SearchOptions.UPLOAD_DATE_TODAY, SearchOptions.UPLOAD_DATE_THIS_WEEK, SearchOptions.UPLOAD_DATE_THIS_MONTH, SearchOptions.UPLOAD_DATE_THIS_YEAR};
         updateLabel(valDate, dateLabels, dateValues, uploadDate[0]);
-        view.findViewById(R.id.filter_row_date).setOnClickListener(v ->
-                showSingleChoiceDialog(context, "Date d'ajout", dateLabels, dateValues, uploadDate[0], chosen -> {
+        rowDate.setOnClickListener(v ->
+                showPopupMenu(context, valDate, dateLabels, dateValues, uploadDate[0], chosen -> {
                     uploadDate[0] = chosen;
                     updateLabel(valDate, dateLabels, dateValues, chosen);
                 }));
@@ -73,13 +88,13 @@ public final class SearchFilterBottomSheet {
         String[] sortLabels = {"Pertinence", "Popularité", "Date d'ajout", "Note"};
         int[] sortValues = {0, SearchOptions.SORT_BY_VIEW_COUNT, SearchOptions.SORT_BY_UPLOAD_DATE, SearchOptions.SORT_BY_RATING};
         updateLabel(valSort, sortLabels, sortValues, sorting[0]);
-        view.findViewById(R.id.filter_row_sort).setOnClickListener(v ->
-                showSingleChoiceDialog(context, "Priorité", sortLabels, sortValues, sorting[0], chosen -> {
+        rowSort.setOnClickListener(v ->
+                showPopupMenu(context, valSort, sortLabels, sortValues, sorting[0], chosen -> {
                     sorting[0] = chosen;
                     updateLabel(valSort, sortLabels, sortValues, chosen);
                 }));
 
-        // --- Configuration des puces ---
+        // --- Puces Caractéristiques ---
         setupChip(chipLive, (feature[0] & SearchOptions.FEATURE_LIVE) != 0, selected -> {
             feature[0] = selected ? (feature[0] | SearchOptions.FEATURE_LIVE) : (feature[0] & ~SearchOptions.FEATURE_LIVE);
         });
@@ -90,8 +105,8 @@ public final class SearchFilterBottomSheet {
             feature[0] = selected ? (feature[0] | SearchOptions.FEATURE_HDR) : (feature[0] & ~SearchOptions.FEATURE_HDR);
         });
 
-        // --- Bouton Réinitialiser (remise à zéro visuelle immédiate) ---
-        view.findViewById(R.id.filter_btn_reset).setOnClickListener(v -> {
+        // --- Bouton Réinitialiser (icône en haut à droite) ---
+        btnReset.setOnClickListener(v -> {
             type[0] = 0;
             duration[0] = 0;
             uploadDate[0] = 0;
@@ -108,7 +123,7 @@ public final class SearchFilterBottomSheet {
             setChipState(chipHdr, false);
         });
 
-        // --- Validation / Enregistrement ---
+        // --- Bouton Appliquer ---
         view.findViewById(R.id.filter_btn_apply).setOnClickListener(v -> {
             presenter.setTypeOptions(type[0]);
             presenter.setDurationOptions(duration[0]);
@@ -147,22 +162,25 @@ public final class SearchFilterBottomSheet {
         target.setText(labels[0]);
     }
 
-    private static void showSingleChoiceDialog(Context context, String title, String[] labels, int[] values, int currentValue, OnSelectedListener listener) {
-        int selectedIndex = 0;
-        for (int i = 0; i < values.length; i++) {
+    private static void showPopupMenu(Context context, View anchorView, String[] labels, int[] values, int currentValue, OnSelectedListener listener) {
+        PopupMenu popup = new PopupMenu(context, anchorView, Gravity.END);
+        Menu menu = popup.getMenu();
+
+        for (int i = 0; i < labels.length; i++) {
+            MenuItem item = menu.add(Menu.NONE, i, i, labels[i]);
             if (values[i] == currentValue) {
-                selectedIndex = i;
-                break;
+                item.setCheckable(true);
+                item.setChecked(true);
             }
         }
 
-        new AlertDialog.Builder(context)
-                .setTitle(title)
-                .setSingleChoiceItems(labels, selectedIndex, (dialog, which) -> {
-                    listener.onSelected(values[which]);
-                    dialog.dismiss();
-                })
-                .show();
+        popup.setOnMenuItemClickListener(item -> {
+            int index = item.getItemId();
+            listener.onSelected(values[index]);
+            return true;
+        });
+
+        popup.show();
     }
 
     private interface OnSelectedListener {
