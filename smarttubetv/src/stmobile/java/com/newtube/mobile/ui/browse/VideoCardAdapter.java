@@ -26,6 +26,9 @@ import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.utils.ClickbaitRemover;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Touch video card adapter (port of the gist of
  * {@code com.liskovsoft.smartyoutubetv2.tv.presenter.VideoCardPresenter}, minus
@@ -33,9 +36,7 @@ import com.liskovsoft.smartyoutubetv2.tv.R;
  * and {@code MaterialCardView} elevation).
  */
 public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder> {
-    /** Regular video card (full-width thumbnail + title/meta). */
     private static final int VIEW_TYPE_VIDEO = 0;
-    /** Channel result row (round avatar + name + subs) — e.g. channels in search results. */
     private static final int VIEW_TYPE_CHANNEL = 1;
 
     public interface OnVideoClickListener {
@@ -192,7 +193,7 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             CharSequence meta = video.getSecondTitle();
             CharSequence rawMeta = (meta == null || meta.length() == 0) ? video.getAuthor() : meta;
             if (rawMeta != null && rawMeta.length() > 0) {
-                String formatted = formatTwoLineSubtitle(rawMeta.toString(), video.getAuthor());
+                String formatted = formatTwoLineSubtitle(rawMeta.toString(), video.getAuthor(), 32);
                 mMeta.setMaxLines(2);
                 mMeta.setSingleLine(false);
                 mMeta.setText(formatted);
@@ -215,7 +216,7 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             CharSequence meta = video.getSecondTitle();
             CharSequence rawMeta = (meta == null || meta.length() == 0) ? video.getAuthor() : meta;
             if (rawMeta != null && rawMeta.length() > 0) {
-                String formatted = formatTwoLineSubtitle(rawMeta.toString(), video.getAuthor());
+                String formatted = formatTwoLineSubtitle(rawMeta.toString(), video.getAuthor(), 32);
                 mMeta.setMaxLines(2);
                 mMeta.setSingleLine(false);
                 mMeta.setText(formatted);
@@ -234,33 +235,62 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             }
         }
 
-        private static String formatTwoLineSubtitle(String fullSubtitle, String author) {
-            if (fullSubtitle == null || fullSubtitle.isEmpty()) {
+        private static String formatTwoLineSubtitle(String fullSubtitle, String author, int maxAuthorLength) {
+            if (fullSubtitle == null || fullSubtitle.trim().isEmpty()) {
                 return author != null ? author : "";
             }
 
-            if (author != null && !author.isEmpty() && fullSubtitle.startsWith(author)) {
-                String remainder = fullSubtitle.substring(author.length()).trim();
-                remainder = remainder.replaceFirst("^[•·\\-\\s]+", "").trim();
-                if (!remainder.isEmpty()) {
-                    return author + "\n" + remainder;
-                }
-                return author;
-            }
-
-            int sepIndex = fullSubtitle.indexOf(" • ");
-            if (sepIndex == -1) {
-                sepIndex = fullSubtitle.indexOf(" · ");
-            }
-            if (sepIndex != -1) {
-                String line1 = fullSubtitle.substring(0, sepIndex).trim();
-                String line2 = fullSubtitle.substring(sepIndex + 3).trim();
-                if (!line2.isEmpty()) {
-                    return line1 + "\n" + line2;
+            String[] rawSegments = fullSubtitle.split("\\s*[•·]\\s*");
+            List<String> segments = new ArrayList<>();
+            for (String seg : rawSegments) {
+                String s = seg.trim();
+                if (!s.isEmpty() && !s.startsWith("@")) {
+                    segments.add(s);
                 }
             }
 
-            return fullSubtitle;
+            if (segments.isEmpty()) {
+                return author != null ? author : "";
+            }
+
+            String channelName;
+            int startIndex = 1;
+
+            if (author != null && !author.trim().isEmpty()) {
+                channelName = author.trim();
+            } else {
+                channelName = segments.get(0);
+            }
+
+            if (channelName.length() > maxAuthorLength) {
+                channelName = channelName.substring(0, maxAuthorLength - 1) + "…";
+            }
+
+            StringBuilder metaBuilder = new StringBuilder();
+            for (int i = startIndex; i < segments.size(); i++) {
+                String clean = cleanMeta(segments.get(i));
+                if (!clean.isEmpty()) {
+                    if (metaBuilder.length() > 0) {
+                        metaBuilder.append(" • ");
+                    }
+                    metaBuilder.append(clean);
+                }
+            }
+
+            String metaLine = metaBuilder.toString().trim();
+            if (metaLine.isEmpty()) {
+                return channelName;
+            }
+
+            return channelName + "\n" + metaLine;
+        }
+
+        private static String cleanMeta(String text) {
+            if (text == null) return "";
+            String s = text.trim();
+            s = s.replaceAll("(?i)\\bil y a\\s*", "");
+            s = s.replaceAll("(?i)\\bde\\s+vues?\\b", "vues");
+            return s.trim();
         }
 
         private void bindBadge(Context context, Video video) {
