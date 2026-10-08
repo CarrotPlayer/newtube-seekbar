@@ -147,18 +147,16 @@ final class PlayerPages {
                 context.getString(R.string.mobile_settings_resume_live_summary),
                 tweaks::isRememberPositionOfLiveVideosEnabled, tweaks::setRememberPositionOfLiveVideosEnabled));
 
-        // NEWTUBE(gestures): the optional player swipes (#12), on by default (PlayerGesturePrefs);
-        // the fullscreen and minimize swipes are always on.
+        // NEWTUBE(gestures): independent switches for side swipes and seek swipe
         rows.add(SettingsRow.header(context.getString(R.string.mobile_settings_gestures)));
-        boolean fr = "fr".equalsIgnoreCase(Locale.getDefault().getLanguage());
         rows.add(SettingsRow.toggle(
-                fr ? "Balayage pour la luminosité" : "Swipe for brightness",
-                fr ? "Glisser sur le côté gauche de la vidéo (0 = auto)" : "Swipe on the left side of the video (0 = auto)",
+                "Swipe for brightness",
+                "Swipe up and down on the left side of the fullscreen video",
                 () -> PlayerGesturePrefs.isBrightnessSwipeOn(context),
                 on -> PlayerGesturePrefs.setBrightnessSwipeOn(context, on)));
         rows.add(SettingsRow.toggle(
-                fr ? "Balayage pour le volume" : "Swipe for volume",
-                fr ? "Glisser sur le côté droit de la vidéo" : "Swipe on the right side of the video",
+                "Swipe for volume",
+                "Swipe up and down on the right side of the fullscreen video",
                 () -> PlayerGesturePrefs.isVolumeSwipeOn(context),
                 on -> PlayerGesturePrefs.setVolumeSwipeOn(context, on)));
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_gesture_seek),
