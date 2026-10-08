@@ -46,7 +46,6 @@ import java.util.Locale;
  * their stored values untouched.
  */
 final class PlayerPages {
-    /** SponsorBlock's highlight is a point, not a segment: nothing to skip or paint on the phone. */
     private static final String SEGMENT_HIGHLIGHT = "poi_highlight";
 
     private PlayerPages() {
@@ -109,7 +108,7 @@ final class PlayerPages {
                                     playerData.setAllSpeedEnabled(true);
                                     break;
                                 default:
-                                    playerData.setAllSpeedEnabled(false); // clears all three
+                                    playerData.setAllSpeedEnabled(false);
                                     break;
                             }
                         }));
@@ -151,10 +150,17 @@ final class PlayerPages {
         // NEWTUBE(gestures): the optional player swipes (#12), on by default (PlayerGesturePrefs);
         // the fullscreen and minimize swipes are always on.
         rows.add(SettingsRow.header(context.getString(R.string.mobile_settings_gestures)));
-        rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_gesture_levels),
-                context.getString(R.string.mobile_settings_gesture_levels_summary),
-                () -> PlayerGesturePrefs.isLevelSwipesOn(context),
-                on -> PlayerGesturePrefs.setLevelSwipesOn(context, on)));
+        boolean fr = "fr".equalsIgnoreCase(Locale.getDefault().getLanguage());
+        rows.add(SettingsRow.toggle(
+                fr ? "Balayage pour la luminosité" : "Swipe for brightness",
+                fr ? "Glisser sur le côté gauche de la vidéo (0 = auto)" : "Swipe on the left side of the video (0 = auto)",
+                () -> PlayerGesturePrefs.isBrightnessSwipeOn(context),
+                on -> PlayerGesturePrefs.setBrightnessSwipeOn(context, on)));
+        rows.add(SettingsRow.toggle(
+                fr ? "Balayage pour le volume" : "Swipe for volume",
+                fr ? "Glisser sur le côté droit de la vidéo" : "Swipe on the right side of the video",
+                () -> PlayerGesturePrefs.isVolumeSwipeOn(context),
+                on -> PlayerGesturePrefs.setVolumeSwipeOn(context, on)));
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_gesture_seek),
                 context.getString(R.string.mobile_settings_gesture_seek_summary),
                 () -> PlayerGesturePrefs.isSeekSwipeOn(context),
@@ -180,11 +186,6 @@ final class PlayerPages {
     private static final int SPEED_ALL = 2;
     private static final int SPEED_NONE = 3;
 
-    /**
-     * Pauses playback this long after the player opened (the TV's "no key pressed" half has no
-     * phone equivalent). Half-hour steps up to two hours, then whole ones; a stored value from the
-     * old 0.5-10 h list stays listed.
-     */
     private static SettingsRow sleepTimer(Context context, PlayerData playerData) {
         List<Float> hours = new ArrayList<>();
         for (float value : new float[] {0f, 0.5f, 1f, 1.5f, 2f, 3f, 4f, 6f, 8f}) {
@@ -263,7 +264,6 @@ final class PlayerPages {
         return new SettingsPages.Page(context.getString(R.string.mobile_settings_quality), rows);
     }
 
-    /** "Auto (up to 1080p)" or the cap the user picked, for the Video quality row on the top level. */
     static CharSequence qualitySummary(Context context) {
         SettingsRow row = defaultQuality(context);
         CharSequence text = row.summaryText();
@@ -273,12 +273,6 @@ final class PlayerPages {
     private static final String QUALITY_AUTO = "auto";
     private static final String QUALITY_OTHER = "other";
 
-    /**
-     * YouTube-style quality choice: Auto plus one cap per resolution. Each cap is a preset (a
-     * ceiling the automatic selection stays under, 60 fps where the phone decodes it); the exact
-     * codec presets stay one level down, under Advanced > Video format. A preset picked there shows
-     * here under its own name.
-     */
     private static SettingsRow defaultQuality(Context context) {
         PlayerData playerData = PlayerData.instance(context);
         FormatItem current = playerData.getFormat(FormatItem.TYPE_VIDEO);
@@ -288,7 +282,7 @@ final class PlayerPages {
         List<VideoPreset> caps = new ArrayList<>();
         for (int height : new int[] {2160, 1440, 1080, 720, 480, 360}) {
             if (height == autoHeight) {
-                continue; // Auto is that cap already
+                continue;
             }
             VideoPreset preset = bestPreset(height);
             if (preset != null) {
@@ -311,7 +305,6 @@ final class PlayerPages {
             }
         }
         if (currentKey == null) {
-            // A preset chosen under Advanced (another codec or frame rate): show it by name.
             choice.option(presetLabel(presetName(current)), QUALITY_OTHER);
             currentKey = QUALITY_OTHER;
         }
@@ -329,7 +322,6 @@ final class PlayerPages {
         });
     }
 
-    /** Same as the TV presets list: a pick also clears "Force legacy codecs". */
     private static void setFormat(PlayerData playerData, FormatItem format) {
         if (playerData.isLegacyCodecsForced()) {
             playerData.setLegacyCodecsForced(false);
@@ -337,7 +329,6 @@ final class PlayerPages {
         playerData.setFormat(format);
     }
 
-    /** The phone's best preset at a height: 60 fps first, then VP9 > AV1 > AVC, SDR only. */
     private static VideoPreset bestPreset(int height) {
         VideoPreset best = null;
         int bestScore = -1;
@@ -370,7 +361,6 @@ final class PlayerPages {
         return format != null ? format.getHeight() + "p" : "";
     }
 
-    /** "(4K) 2160p    60fps    vp9+hdr" -> "2160p60 · VP9 HDR". */
     static String presetLabel(String name) {
         String resolution = "";
         String fps = "";
@@ -388,7 +378,6 @@ final class PlayerPages {
         return String.format(Locale.US, "%s%s · %s", resolution, fps, codecLabel);
     }
 
-    /** Fraction of full volume the player plays at, on top of the phone's own volume. */
     private static SettingsRow playerVolume(Context context, PlayerData playerData) {
         List<Float> values = new ArrayList<>();
         for (int percent = 100; percent >= 10; percent -= 10) {
@@ -525,7 +514,6 @@ final class PlayerPages {
         return context.getString(R.string.mobile_settings_segment_marks_summary, marked, total);
     }
 
-    /** "● Sponsor", the dot in the segment's seek-bar colour. */
     private static CharSequence segmentTitle(Context context, SponsorBlockData data, String category) {
         SpannableStringBuilder title = new SpannableStringBuilder("●  ");
         title.setSpan(new ForegroundColorSpan(ContextCompat.getColor(context, data.getColorRes(category))),
@@ -553,7 +541,7 @@ final class PlayerPages {
                 context.getString(R.string.mobile_settings_dearrow_titles_summary),
                 data::isReplaceTitlesEnabled, on -> {
                     data.setReplaceTitlesEnabled(on);
-                    mainUIData.setUnlocalizedTitlesEnabled(false); // DeArrow's title or the original one
+                    mainUIData.setUnlocalizedTitlesEnabled(false);
                 }));
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_dearrow_thumbnails),
                 context.getString(R.string.mobile_settings_dearrow_thumbnails_summary),
@@ -636,7 +624,6 @@ final class PlayerPages {
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_proxy),
                 context.getString(R.string.mobile_settings_proxy_summary),
                 generalData::isProxyEnabled, on -> {
-                    // Proxy with authentication is supported only by OkHttp (as in General settings).
                     tweaks.setPlayerDataSource(on ? PlayerTweaksData.PLAYER_DATA_SOURCE_OKHTTP : PlayerTweaksData.PLAYER_DATA_SOURCE_CRONET);
                     generalData.setProxyEnabled(on);
                     new WebProxyDialog(context).enable(on);
@@ -647,12 +634,10 @@ final class PlayerPages {
                 .option(context.getString(R.string.mobile_settings_dns_system), PlayerTweaksData.DNS_TYPE_SYSTEM)
                 .option(context.getString(R.string.mobile_settings_dns_google), PlayerTweaksData.DNS_TYPE_GOOGLE)
                 .bind(tweaks::getPreferredDnsType, tweaks::setPreferredDnsType).needsRestart());
-        // Upstream's "Internet censorship" switch (ByeByeDPI and the like): not a TV leftover.
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_conscrypt),
                 context.getString(R.string.mobile_settings_conscrypt_summary),
                 networkData::isConscryptEnabled, networkData::setConscryptEnabled).needsRestart());
 
-        // From the TV's Account settings dialog, the one of its three rows the phone has a use for.
         rows.add(SettingsRow.header(context.getString(R.string.mobile_settings_accounts)));
         AppPrefs prefs = AppPrefs.instance(context);
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_multi_profiles),
@@ -670,7 +655,6 @@ final class PlayerPages {
         return new SettingsPages.Page(context.getString(R.string.mobile_settings_advanced), rows);
     }
 
-    /** Every preset, labelled "1080p60 · VP9", as the exact format the automatic quality stays under. */
     private static SettingsRow videoFormat(Context context, PlayerData playerData, PlayerTweaksData tweaks) {
         FormatItem current = playerData.getFormat(FormatItem.TYPE_VIDEO);
         boolean presetSelected = current != null && current.isPreset();
