@@ -74,6 +74,8 @@ import java.util.List;
  *       {@code startActivityForResult}; the recognized text is dropped into the field and
  *       searched. If voice is unavailable (e.g. emulator) it simply falls back to text input
  *       without crashing.</li>
+ *   <li>The filter button invokes {@link SearchPresenter#onSearchSettingsClicked()}, opening
+ *       the filter dialog (date, duration, type, sorting).</li>
  * </ul>
  */
 public class MobileSearchActivity extends MobileActivity
@@ -92,6 +94,7 @@ public class MobileSearchActivity extends MobileActivity
     private ImageButton mBackButton;
     private ImageButton mClearButton;
     private ImageButton mMicButton;
+    private ImageButton mFilterButton;
     private RecyclerView mSuggestions;
     private SearchTagAdapter mTagAdapter;
     private RecyclerView mGrid;
@@ -151,6 +154,11 @@ public class MobileSearchActivity extends MobileActivity
 
         mBackButton.setOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
         mMicButton.setOnClickListener(v -> startVoiceRecognition());
+        mFilterButton.setOnClickListener(v -> {
+            if (mPresenter != null) {
+                mPresenter.onSearchSettingsClicked();
+            }
+        });
         // Clear the query, keep editing: focus stays, history rows replace the suggestions.
         mClearButton.setOnClickListener(v -> {
             setQueryText("");
@@ -168,6 +176,7 @@ public class MobileSearchActivity extends MobileActivity
         mBackButton = findViewById(R.id.mobile_search_back);
         mClearButton = findViewById(R.id.mobile_search_clear);
         mMicButton = findViewById(R.id.mobile_search_mic);
+        mFilterButton = findViewById(R.id.mobile_search_filter);
         mSuggestions = findViewById(R.id.mobile_search_suggestions);
         mGrid = findViewById(R.id.mobile_search_grid);
         // NEWTUBE(mini-inset): the last row can scroll clear of the docked mini-player card.
