@@ -458,4 +458,22 @@ public class SearchPresenter extends BasePresenter<SearchView> implements VideoG
             loadSearchResult(searchText);
         }
     }
+        public int getUploadDateOptions() { return mUploadDateOptions; }
+    public void setUploadDateOptions(int options) { mUploadDateOptions = options; }
+
+    public int getDurationOptions() { return mDurationOptions; }
+    public void setDurationOptions(int options) { mDurationOptions = options; }
+
+    public int getTypeOptions() { return mTypeOptions; }
+    public void setTypeOptions(int options) { mTypeOptions = options; }
+
+    public int getFeatureOptions() { return mFeatureOptions; }
+    public void setFeatureOptions(int options) { mFeatureOptions = options; }
+
+    public int getSortingOptions() { return mSortingOptions; }
+    public void setSortingOptions(int options) { mSortingOptions = options; }
+
+    public void reloadSearch() {
+        loadSearchResult();
+    }
 }
