@@ -21,43 +21,21 @@ import com.newtube.mobile.ui.common.Haptics;
 /**
  * NEWTUBE(gestures): what an up/down swipe on the side of the fullscreen video sets - the
  * brightness on the left, the volume on the right (issue #12) - and the pill that shows it.
- *
- * <ul>
- *   <li><b>Brightness</b> is this window's own ({@link WindowManager.LayoutParams#screenBrightness}),
- *   never the phone's setting: it holds while the player is fullscreen and the phone's own level
- *   comes back as soon as it is not (portrait, PiP, another screen). The swipe moves along the
- *   phone's own slider curve (AOSP BrightnessUtils), so half way up looks like half way up the
- *   quick-settings slider, not like the near-full glare a linear half is.</li>
- *   <li><b>Volume</b> is the media stream's, in the phone's own steps, without the system's
- *   volume panel (this pill replaces it). Each step ticks, as a chapter line does on the seek bar.</li>
- * </ul>
- *
- * <p>Finger travel maps onto the full range over {@link #rangePxFor} - three quarters of the
- * video's height, so one comfortable stroke goes from silent to full. A swipe starts from the
- * current level wherever the finger lands; the pill stays a moment after the finger lifts.</p>
  */
 final class SwipeLevels {
     static final int BRIGHTNESS = 1;
     static final int VOLUME = 2;
 
-    /** Full range for this share of the video's height. */
     private static final float RANGE_OF_HEIGHT = 0.75f;
-    /** The pill stays this long after the finger lifts. */
     static final long PILL_LINGER_MS = 700;
-    /**
-     * A brightness the swipes set comes back on the next fullscreen for this long; after that the
-     * phone's own level is the better guess (it may well be daylight now).
-     */
     private static final long BRIGHTNESS_MEMORY_MS = 4 * 60 * 60 * 1000L;
 
-    /** Shows the level while a swipe sets it; implemented by the player over its pill views. */
     interface Pill {
         void showLevel(@DrawableRes int iconRes, float level);
 
         void hideLevel();
     }
 
-    /** The level the swipes last set (perceptual 0..1) and when, for the whole app session. */
     private static float sBrightness = -1f;
     private static long sBrightnessAt;
 
@@ -73,9 +51,7 @@ final class SwipeLevels {
     private float mRangePx = 1f;
     private float mLevel;
     private int mVolumeStep;
-    /** This swipe already let the system's panel ask about the hearing-safety limit. */
     private boolean mSafeVolumeAsked;
-    /** Brightness is applied to the window: the player is fullscreen and in front. */
     private boolean mBrightnessActive;
 
     SwipeLevels(Context context, Window window, View hapticView, Pill pill) {
@@ -86,20 +62,22 @@ final class SwipeLevels {
         mHidePill = mPill::hideLevel;
     }
 
-    /** Finger travel (px) for the full range on a video {@code videoHeightPx} tall. */
     static float rangePxFor(float videoHeightPx) {
         return Math.max(1f, videoHeightPx * RANGE_OF_HEIGHT);
     }
 
-    /** Whether a swipe of {@code kind} can set anything here (a phone with a fixed volume cannot). */
     boolean canSwipe(int kind) {
+        Context context = mWindow.getContext();
         if (kind == VOLUME) {
-            return mAudio != null && !mAudio.isVolumeFixed() && maxVolume() > minVolume();
+            return PlayerGesturePrefs.isVolumeSwipeOn(context)
+                    && mAudio != null && !mAudio.isVolumeFixed() && maxVolume() > minVolume();
         }
-        return kind == BRIGHTNESS;
+        if (kind == BRIGHTNESS) {
+            return PlayerGesturePrefs.isBrightnessSwipeOn(context);
+        }
+        return false;
     }
 
-    /** A swipe of {@code kind} begins; {@code videoHeightPx} sizes its range. */
     void begin(int kind, float videoHeightPx) {
         mKind = kind;
         mRangePx = rangePxFor(videoHeightPx);
@@ -116,7 +94,6 @@ final class SwipeLevels {
         showPill();
     }
 
-    /** The finger is {@code upPx} above where the swipe began (negative = below). */
     void move(float upPx) {
         if (mKind == 0) {
             return;
@@ -130,36 +107,33 @@ final class SwipeLevels {
         showPill();
     }
 
-    /** The swipe ended: the pill lingers, then goes. */
     void end() {
         if (mKind == 0) {
             return;
         }
         if (BuildConfig.DEBUG) {
             NetPath.log("gesture level " + (mKind == VOLUME ? "volume step=" + mVolumeStep
-                    : "brightness=" + Math.round(mLevel * 100) + "%"));
+                    : "brightness=" + (mLevel <= 0f ? "auto" : Math.round(mLevel * 100) + "%")));
         }
         mKind = 0;
         mHapticView.removeCallbacks(mHidePill);
         mHapticView.postDelayed(mHidePill, PILL_LINGER_MS);
     }
 
-    /** No swipe, no pill (the player went to PiP or the background mid-swipe). */
     void cancel() {
         mKind = 0;
         mHapticView.removeCallbacks(mHidePill);
         mPill.hideLevel();
     }
 
-    /**
-     * The player became fullscreen and in front ({@code true}), or stopped being so: the swiped
-     * brightness holds only then; otherwise the phone's own level shows.
-     */
     void setBrightnessActive(boolean active) {
         mBrightnessActive = active;
         float level = rememberedBrightness();
-        applyWindowBrightness(active && level >= 0f ? gammaToLinear(level)
-                : WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+        if (active && level > 0f) {
+            applyWindowBrightness(Math.max(0.01f, gammaToLinear(level)));
+        } else {
+            applyWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+        }
     }
 
     // ---------------------------------------------------------------------------------
@@ -175,8 +149,6 @@ final class SwipeLevels {
                 mAudio.setStreamVolume(AudioManager.STREAM_MUSIC, step, 0);
                 int now = currentVolume();
                 if (now < step && step > mVolumeStep && !mSafeVolumeAsked) {
-                    // Held back by the hearing-safety limit (headphones): only the system's own
-                    // panel can ask to go past it, so let it show once - as VLC does.
                     mSafeVolumeAsked = true;
                     mAudio.setStreamVolume(AudioManager.STREAM_MUSIC, step, AudioManager.FLAG_SHOW_UI);
                     now = currentVolume();
@@ -186,7 +158,7 @@ final class SwipeLevels {
                 }
                 mVolumeStep = now;
             } catch (SecurityException e) {
-                return; // Do Not Disturb owns the volume
+                return;
             }
             Haptics.tick(mHapticView);
         }
@@ -216,14 +188,17 @@ final class SwipeLevels {
         sBrightness = level;
         sBrightnessAt = SystemClock.elapsedRealtime();
         if (mBrightnessActive) {
-            applyWindowBrightness(gammaToLinear(level));
+            if (level <= 0f) {
+                applyWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+            } else {
+                applyWindowBrightness(Math.max(0.01f, gammaToLinear(level)));
+            }
         }
         if (bookend) {
-            Haptics.tick(mHapticView); // the darkest and the brightest are boundaries, like a seek bar's ends
+            Haptics.tick(mHapticView);
         }
     }
 
-    /** Where a brightness swipe starts: what the swipes last set, else the phone's own level. */
     private float currentBrightness() {
         float remembered = rememberedBrightness();
         if (remembered >= 0f) {
@@ -233,9 +208,6 @@ final class SwipeLevels {
         if (window >= 0f) {
             return linearToGamma(window);
         }
-        // The phone's setting is linear 0..255 since Android 9 (its slider writes it through the
-        // same curve). With adaptive brightness on it is the last manual level, not the live one -
-        // there is no public API for that - so the first swipe may start a little off.
         int setting = Settings.System.getInt(mWindow.getContext().getContentResolver(),
                 Settings.System.SCREEN_BRIGHTNESS, 128);
         return linearToGamma(setting / 255f);
@@ -256,8 +228,6 @@ final class SwipeLevels {
         }
     }
 
-    // AOSP com.android.settingslib.display.BrightnessUtils: the quick-settings slider's curve
-    // (hybrid log-gamma), slider position 0..1 <-> linear brightness 0..1.
     private static final float HLG_R = 0.5f;
     private static final float HLG_A = 0.17883277f;
     private static final float HLG_B = 0.28466892f;
@@ -294,6 +264,9 @@ final class SwipeLevels {
             }
             return level < 0.5f ? R.drawable.ic_player_volume_down
                     : R.drawable.ic_player_volume_up;
+        }
+        if (level <= 0f) {
+            return R.drawable.ic_player_brightness_auto;
         }
         if (level < 1f / 3f) {
             return R.drawable.ic_player_brightness_low;
