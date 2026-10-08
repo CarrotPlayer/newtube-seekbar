@@ -42,11 +42,6 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
         void onVideoClick(Video video);
     }
 
-    /** Long-press = the touch equivalent of the TV D-pad OK-long-press context-menu shortcut
-     *  (ARCHITECTURE.md section 3's input contract: {@code onVideoItemLongClicked}). Routes to
-     *  {@code BrowsePresenter.onVideoItemLongClicked()}, which builds an OptionCategory menu via
-     *  {@code VideoMenuPresenter}/{@code AppDialogPresenter} and shows it through the Wave 3
-     *  {@code MobileAppDialogActivity} renderer. */
     public interface OnVideoLongClickListener {
         boolean onVideoLongClick(Video video);
     }
@@ -67,29 +62,22 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
     private static final DiffUtil.ItemCallback<Video> DIFF_CALLBACK = new DiffUtil.ItemCallback<Video>() {
         @Override
         public boolean areItemsTheSame(@NonNull Video oldItem, @NonNull Video newItem) {
-            // Video#equals/hashCode are content-based (videoId/playlistId/channelId/...).
             return oldItem.equals(newItem);
         }
 
         @Override
         @SuppressLint("DiffUtilEquals")
         public boolean areContentsTheSame(@NonNull Video oldItem, @NonNull Video newItem) {
-            // Video.equals() is identity-like (IDs only). A new instance with the same ID can
-            // carry refreshed metadata and must be rebound; the same instance needs no rebind.
             return oldItem == newItem;
         }
     };
 
     @Override
     public int getItemViewType(int position) {
-        // isChannel() alone also matches playlists delivered in the playlist-as-channel shape
-        // (videoId/playlistId null + a VL... channelId — the standard shape of the user
-        // Playlists section): those must stay thumbnail cards, not round-avatar channel rows.
         Video item = getItem(position);
         return item.isChannel() && !item.isPlaylistAsChannel() ? VIEW_TYPE_CHANNEL : VIEW_TYPE_VIDEO;
     }
 
-    /** Full-span rows (channel results) for the grid's SpanSizeLookup in multi-column layouts. */
     public boolean isFullSpan(int position) {
         return position >= 0 && position < getItemCount() && getItemViewType(position) == VIEW_TYPE_CHANNEL;
     }
@@ -123,34 +111,17 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
         }
     }
 
-    /**
-     * Force a re-bind of the given items in place.
-     *
-     * Needed for {@code VideoGroup.ACTION_SYNC} (e.g. DeArrow / unlocalized-title overrides):
-     * those processors MUTATE the existing {@link Video} instances in place
-     * ({@code video.deArrowTitle} / {@code video.altCardImageUrl}) rather than emitting new
-     * ones, so {@code submitList()} can't detect the change - {@link #DIFF_CALLBACK}'s
-     * {@code areContentsTheSame} sees the same object reference on both sides and skips the
-     * bind. We locate each item by content identity ({@link Video#equals}) in the currently
-     * displayed list and rebind that row so the crowd-sourced title/thumbnail actually shows.
-     */
     public void refreshItems(java.util.List<Video> items) {
         java.util.List<Video> current = getCurrentList();
         for (Video item : items) {
             for (int i = 0; i < current.size(); i++) {
                 if (current.get(i).equals(item)) {
-                    // Payloaded change: RecyclerView reuses the bound holder (no change-animation
-                    // cross-fade of the whole card) and the partial bind below skips the Glide
-                    // reload unless the thumbnail URL actually changed. A bare notifyItemChanged
-                    // here made the just-watched card visibly blink on every Browse resume (the
-                    // resume sync only carries a percentWatched update).
                     notifyItemChanged(i, PAYLOAD_SYNC);
                 }
             }
         }
     }
 
-    /** Marker payload for in-place item mutations (watch progress, DeArrow overrides). */
     private static final Object PAYLOAD_SYNC = new Object();
 
     @Override
@@ -163,10 +134,6 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
         }
     }
 
-    /**
-     * Public for reuse by other screens that render the standard video card (kept public
-     * after the channel page's old heterogeneous adapter was replaced by tabs, 2026-07-09).
-     */
     public static class VideoViewHolder extends RecyclerView.ViewHolder {
         private final ImageView mThumbnail;
         private final View mThumbnailFrame;
@@ -208,8 +175,6 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             itemView.setOnLongClickListener(v ->
                     mVideo != null && longClickListener != null && longClickListener.onVideoLongClick(mVideo));
 
-            // ⋮ = the exact long-press context menu, just discoverable (Not interested, Open
-            // channel, playlists...). Hidden when the host screen has no menu wired.
             if (mOverflow != null) {
                 mOverflow.setVisibility(longClickListener == null ? View.GONE : View.VISIBLE);
                 mOverflow.setOnClickListener(v -> {
@@ -217,7 +182,6 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
                         longClickListener.onVideoLongClick(mVideo);
                     }
                 });
-                // NEWTUBE(a11y): one of 40 identical "More options" otherwise.
                 mOverflow.setContentDescription(video.getTitle() != null
                         ? context.getString(R.string.mobile_more_options_for, video.getTitle())
                         : context.getString(R.string.mobile_player_more));
@@ -225,10 +189,17 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
 
             mTitle.setText(video.getTitle());
 
-            // "Channel · 1.2M views · 3 weeks ago" like YouTube; author-only when the
-            // service didn't build the info line (e.g. some playlist rows).
             CharSequence meta = video.getSecondTitle();
-            mMeta.setText(meta == null || meta.length() == 0 ? video.getAuthor() : meta);
+            CharSequence rawMeta = (meta == null || meta.length() == 0) ? video.getAuthor() : meta;
+            if (rawMeta != null && rawMeta.length() > 0) {
+                String formatted = formatTwoLineSubtitle(rawMeta.toString(), video.getAuthor());
+                mMeta.setMaxLines(2);
+                mMeta.setSingleLine(false);
+                mMeta.setText(formatted);
+                mMeta.setVisibility(View.VISIBLE);
+            } else {
+                mMeta.setVisibility(View.GONE);
+            }
 
             bindBadge(context, video);
             bindProgress(video);
@@ -236,19 +207,22 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             bindThumbnail(context, video);
         }
 
-        /**
-         * Sync rebind for an item mutated in place (ACTION_SYNC): refresh the text/progress
-         * views and only touch the thumbnail if its resolved URL changed (DeArrow override
-         * arriving). Keeping the ImageView untouched for a same-URL sync is what stops the
-         * just-watched card from blinking when Browse resumes after playback.
-         */
         void bindPartial(Video video) {
             mVideo = video;
             Context context = itemView.getContext();
 
             mTitle.setText(video.getTitle());
             CharSequence meta = video.getSecondTitle();
-            mMeta.setText(meta == null || meta.length() == 0 ? video.getAuthor() : meta);
+            CharSequence rawMeta = (meta == null || meta.length() == 0) ? video.getAuthor() : meta;
+            if (rawMeta != null && rawMeta.length() > 0) {
+                String formatted = formatTwoLineSubtitle(rawMeta.toString(), video.getAuthor());
+                mMeta.setMaxLines(2);
+                mMeta.setSingleLine(false);
+                mMeta.setText(formatted);
+                mMeta.setVisibility(View.VISIBLE);
+            } else {
+                mMeta.setVisibility(View.GONE);
+            }
 
             bindBadge(context, video);
             bindProgress(video);
@@ -258,6 +232,35 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             if (thumbnailUrl == null ? mBoundThumbUrl != null : !thumbnailUrl.equals(mBoundThumbUrl)) {
                 bindThumbnail(context, video);
             }
+        }
+
+        private static String formatTwoLineSubtitle(String fullSubtitle, String author) {
+            if (fullSubtitle == null || fullSubtitle.isEmpty()) {
+                return author != null ? author : "";
+            }
+
+            if (author != null && !author.isEmpty() && fullSubtitle.startsWith(author)) {
+                String remainder = fullSubtitle.substring(author.length()).trim();
+                remainder = remainder.replaceFirst("^[•·\\-\\s]+", "").trim();
+                if (!remainder.isEmpty()) {
+                    return author + "\n" + remainder;
+                }
+                return author;
+            }
+
+            int sepIndex = fullSubtitle.indexOf(" • ");
+            if (sepIndex == -1) {
+                sepIndex = fullSubtitle.indexOf(" · ");
+            }
+            if (sepIndex != -1) {
+                String line1 = fullSubtitle.substring(0, sepIndex).trim();
+                String line2 = fullSubtitle.substring(sepIndex + 3).trim();
+                if (!line2.isEmpty()) {
+                    return line1 + "\n" + line2;
+                }
+            }
+
+            return fullSubtitle;
         }
 
         private void bindBadge(Context context, Video video) {
@@ -282,17 +285,11 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             }
         }
 
-        /**
-         * NEWTUBE(downloads): a download that is not playable yet (queued, fetching, finishing,
-         * failed) keeps its thumbnail dimmed so it never reads as a ready video - the badge and
-         * the meta line say what it is doing.
-         */
         private void bindReadiness(Video video) {
             mThumbnail.setAlpha(video.isPendingDownload() ? 0.4f : 1f);
         }
 
         private void bindProgress(Video video) {
-            // Count progress that's very close to zero (e.g. user closed the video immediately).
             int progress = video.percentWatched > 0 && video.percentWatched < 1 ? 1 : Math.round(video.percentWatched);
 
             if (progress > 0 && progress <= 100) {
@@ -303,14 +300,6 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             }
         }
 
-        /**
-         * SCROLL-JANK FIX: decode thumbnails downsampled to the card's real display size (not the
-         * layout-determined size Glide would otherwise wait a measure pass for) and in RGB_565.
-         * Thumbnails are opaque JPEGs, so 565 halves both decode work and the GPU texture upload
-         * per card - the biggest per-frame cost while fling-scrolling the grid. Sized for the
-         * portrait single-column feed (the largest card = full screen width); landscape splits
-         * the wider dimension across 2+ columns, so this stays a correct downsample bound there.
-         */
         private static int sThumbW;
         private static int sThumbH;
 
@@ -323,13 +312,6 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             return sThumbW;
         }
 
-        /**
-         * The card's primary thumbnail request, without its view-only options (transition, error
-         * fallback). NEWTUBE(scroll): shared with {@link com.newtube.mobile.ui.common.FeedThumbnailPreloader}
-         * so a preloaded image has exactly the memory-cache key the bind will ask for (same URL,
-         * size, transformation and decode format) and the card binds it with no network wait and
-         * no fade.
-         */
         public static com.bumptech.glide.RequestBuilder<android.graphics.drawable.Drawable> thumbnailRequest(
                 com.bumptech.glide.RequestManager glide, Context context, Video video) {
             int w = thumbWidth(context);
@@ -342,8 +324,6 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
         }
 
         public static String thumbnailUrl(Context context, Video video) {
-            // NEWTUBE(ux): entries saved without an image (local history, link opens) get the
-            // i.ytimg.com fallback here, so the preloader and the bind ask for the same URL.
             com.newtube.mobile.ui.common.LocalThumbnails.fill(video);
             return ClickbaitRemover.updateThumbnail(video, MainUIData.instance(context).getThumbQuality());
         }
@@ -355,18 +335,12 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             int w = thumbWidth(context);
             com.bumptech.glide.RequestBuilder<android.graphics.drawable.Drawable> request =
                     thumbnailRequest(Glide.with(context), context, video)
-                    // Network loads fade in over the placeholder-colored card instead of popping;
-                    // memory-cache hits skip the transition entirely, so scrolling stays crisp.
                     .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(150));
 
-            // NEWTUBE(startup): release-visible "first thumbnail on screen" milestone. The listener
-            // is attached only until it has fired once per process.
             if (com.newtube.mobile.LaunchMilestones.wantsFirstThumb()) {
                 request = request.addListener(FIRST_THUMB_LISTENER);
             }
 
-            // At the default thumb quality the primary URL IS the card URL, so a fallback request
-            // would be identical - only pay the second RequestBuilder when it can actually differ.
             String fallbackUrl = video.getCardImageUrl();
             if (fallbackUrl != null && !fallbackUrl.equals(thumbnailUrl)) {
                 request = request.error(Glide.with(context)
@@ -404,12 +378,6 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
         }
     }
 
-    /**
-     * Channel result row: round avatar (the channel item's cardImageUrl IS the avatar) +
-     * name + "subscribers · N videos". Tap routes through the same click listener — the
-     * presenters' onVideoItemClicked already opens the mobile channel screen for
-     * {@code Video.isChannel()} items; long-press/⋮-less row keeps the context menu too.
-     */
     static class ChannelViewHolder extends RecyclerView.ViewHolder {
         private final ImageView mAvatar;
         private final TextView mName;
@@ -439,7 +407,6 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
 
             mName.setText(video.getTitle());
 
-            // secondTitle = subscriber count, badge = "N videos" (see MediaItemImpl mapping).
             CharSequence subs = video.getSecondTitle();
             String videosCount = video.badge;
             StringBuilder meta = new StringBuilder();
