@@ -6,16 +6,16 @@
     android:background="@drawable/bg_mobile_bottom_sheet"
     android:orientation="vertical"
     android:paddingHorizontal="20dp"
-    android:paddingTop="20dp"
+    android:paddingTop="18dp"
     android:paddingBottom="24dp">
 
-    <!-- En-tête : Titre à gauche + Réinitialiser à droite -->
+    <!-- En-tête : Titre à gauche + Bouton Icône Reset à droite -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:layout_marginBottom="16dp">
+        android:layout_marginBottom="12dp">
 
         <TextView
             android:layout_width="0dp"
@@ -26,18 +26,15 @@
             android:textSize="22sp"
             android:textStyle="bold" />
 
-        <TextView
+        <ImageButton
             android:id="@+id/filter_btn_reset"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:clickable="true"
-            android:focusable="true"
-            android:padding="8dp"
-            android:text="Réinitialiser"
-            android:textColor="#3EA6FF"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:contentDescription="Réinitialiser"
+            android:padding="10dp"
+            android:src="@drawable/ic_mobile_reset"
+            app:tint="#FFFFFF" />
     </LinearLayout>
 
     <!-- Ligne 1 : Type -->
