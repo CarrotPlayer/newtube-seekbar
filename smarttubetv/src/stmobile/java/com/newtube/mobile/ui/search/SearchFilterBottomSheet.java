@@ -22,13 +22,11 @@ public final class SearchFilterBottomSheet {
         View view = LayoutInflater.from(context).inflate(R.layout.sheet_mobile_search_filter, null);
         dialog.setContentView(view);
 
-        // Rendre le conteneur Material transparent pour conserver nos coins arrondis
         View bottomSheetInternal = dialog.findViewById(com.google.android.material.R.id.design_bottom_sheet);
         if (bottomSheetInternal != null) {
             bottomSheetInternal.setBackgroundColor(Color.TRANSPARENT);
         }
 
-        // Copies locales des états actuels
         final int[] uploadDate = {presenter.getUploadDateOptions()};
         final int[] duration = {presenter.getDurationOptions()};
         final int[] type = {presenter.getTypeOptions()};
@@ -44,9 +42,7 @@ public final class SearchFilterBottomSheet {
         TextView chip4k = view.findViewById(R.id.chip_feature_4k);
         TextView chipHdr = view.findViewById(R.id.chip_feature_hdr);
 
-        // --- Données des menus déroulants ---
-
-        // Type
+        // --- Données des listes déroulantes ---
         String[] typeLabels = {"Toutes les catégories", "Vidéos", "Chaînes", "Playlists", "Films"};
         int[] typeValues = {0, SearchOptions.TYPE_VIDEO, SearchOptions.TYPE_CHANNEL, SearchOptions.TYPE_PLAYLIST, SearchOptions.TYPE_MOVIE};
         updateLabel(valType, typeLabels, typeValues, type[0]);
@@ -56,7 +52,6 @@ public final class SearchFilterBottomSheet {
                     updateLabel(valType, typeLabels, typeValues, chosen);
                 }));
 
-        // Durée
         String[] durationLabels = {"Toutes", "Moins de 4 minutes", "De 4 à 20 minutes", "Plus de 20 minutes"};
         int[] durationValues = {0, SearchOptions.DURATION_UNDER_4, SearchOptions.DURATION_BETWEEN_4_20, SearchOptions.DURATION_OVER_20};
         updateLabel(valDuration, durationLabels, durationValues, duration[0]);
@@ -66,7 +61,6 @@ public final class SearchFilterBottomSheet {
                     updateLabel(valDuration, durationLabels, durationValues, chosen);
                 }));
 
-        // Date d'ajout
         String[] dateLabels = {"Date indifférente", "Aujourd'hui", "Cette semaine", "Ce mois-ci", "Cette année"};
         int[] dateValues = {0, SearchOptions.UPLOAD_DATE_TODAY, SearchOptions.UPLOAD_DATE_THIS_WEEK, SearchOptions.UPLOAD_DATE_THIS_MONTH, SearchOptions.UPLOAD_DATE_THIS_YEAR};
         updateLabel(valDate, dateLabels, dateValues, uploadDate[0]);
@@ -76,7 +70,6 @@ public final class SearchFilterBottomSheet {
                     updateLabel(valDate, dateLabels, dateValues, chosen);
                 }));
 
-        // Priorité / Tri
         String[] sortLabels = {"Pertinence", "Popularité", "Date d'ajout", "Note"};
         int[] sortValues = {0, SearchOptions.SORT_BY_VIEW_COUNT, SearchOptions.SORT_BY_UPLOAD_DATE, SearchOptions.SORT_BY_RATING};
         updateLabel(valSort, sortLabels, sortValues, sorting[0]);
@@ -86,7 +79,7 @@ public final class SearchFilterBottomSheet {
                     updateLabel(valSort, sortLabels, sortValues, chosen);
                 }));
 
-        // --- Puces Caractéristiques ---
+        // --- Configuration des puces ---
         setupChip(chipLive, (feature[0] & SearchOptions.FEATURE_LIVE) != 0, selected -> {
             feature[0] = selected ? (feature[0] | SearchOptions.FEATURE_LIVE) : (feature[0] & ~SearchOptions.FEATURE_LIVE);
         });
@@ -97,7 +90,25 @@ public final class SearchFilterBottomSheet {
             feature[0] = selected ? (feature[0] | SearchOptions.FEATURE_HDR) : (feature[0] & ~SearchOptions.FEATURE_HDR);
         });
 
-        // --- Validation ---
+        // --- Bouton Réinitialiser (remise à zéro visuelle immédiate) ---
+        view.findViewById(R.id.filter_btn_reset).setOnClickListener(v -> {
+            type[0] = 0;
+            duration[0] = 0;
+            uploadDate[0] = 0;
+            sorting[0] = 0;
+            feature[0] = 0;
+
+            updateLabel(valType, typeLabels, typeValues, 0);
+            updateLabel(valDuration, durationLabels, durationValues, 0);
+            updateLabel(valDate, dateLabels, dateValues, 0);
+            updateLabel(valSort, sortLabels, sortValues, 0);
+
+            setChipState(chipLive, false);
+            setChipState(chip4k, false);
+            setChipState(chipHdr, false);
+        });
+
+        // --- Validation / Enregistrement ---
         view.findViewById(R.id.filter_btn_apply).setOnClickListener(v -> {
             presenter.setTypeOptions(type[0]);
             presenter.setDurationOptions(duration[0]);
@@ -113,14 +124,17 @@ public final class SearchFilterBottomSheet {
     }
 
     private static void setupChip(TextView chip, boolean active, ChipToggleListener listener) {
-        chip.setSelected(active);
-        chip.setTextColor(active ? Color.WHITE : Color.parseColor("#3EA6FF"));
+        setChipState(chip, active);
         chip.setOnClickListener(v -> {
             boolean newState = !chip.isSelected();
-            chip.setSelected(newState);
-            chip.setTextColor(newState ? Color.WHITE : Color.parseColor("#3EA6FF"));
+            setChipState(chip, newState);
             listener.onToggle(newState);
         });
+    }
+
+    private static void setChipState(TextView chip, boolean active) {
+        chip.setSelected(active);
+        chip.setTextColor(active ? Color.WHITE : Color.parseColor("#3EA6FF"));
     }
 
     private static void updateLabel(TextView target, String[] labels, int[] values, int currentValue) {
