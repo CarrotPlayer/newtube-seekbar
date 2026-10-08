@@ -23,6 +23,9 @@ import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.utils.ClickbaitRemover;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Compact single-column "up next / related" list adapter for the watch page
  * ({@link MobilePlaybackActivity}). Mirrors {@code VideoCardAdapter}'s thumbnail/badge/progress
@@ -36,14 +39,9 @@ import com.liskovsoft.smartyoutubetv2.tv.R;
 public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.RelatedViewHolder> {
 
     public interface OnRelatedClickListener {
-        /**
-         * @param thumbnail the row's picture, so the player can show it in the video box at once
-         *                  (NEWTUBE(motion)); null when the row has none
-         */
         void onRelatedClick(Video video, @androidx.annotation.Nullable ImageView thumbnail);
     }
 
-    /** NEWTUBE(touch-prefetch, experiment): a finger has rested on a row, see PressIntentDetector. */
     public interface OnRelatedPressListener {
         void onRelatedPress(Video video);
     }
@@ -52,17 +50,12 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
     @androidx.annotation.Nullable
     private final OnRelatedPressListener mPressListener;
     private final long mPressIntentMs;
-    /**
-     * Video id to mark as "Now playing", or null for none. Only the queue list sets this - in the
-     * Up-next list the playing video isn't present at all.
-     */
     private String mCurrentVideoId;
 
     public RelatedVideoAdapter(OnRelatedClickListener clickListener) {
         this(clickListener, null, 0);
     }
 
-    /** {@code pressListener} fires after {@code pressIntentMs} of a still finger; null/0 = off. */
     public RelatedVideoAdapter(OnRelatedClickListener clickListener,
             @androidx.annotation.Nullable OnRelatedPressListener pressListener, long pressIntentMs) {
         super(DIFF_CALLBACK);
@@ -71,11 +64,6 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
         mPressIntentMs = pressIntentMs;
     }
 
-    /**
-     * Marks one row as the playing one. Rebinds every row rather than diffing: the flag lives
-     * outside the {@link Video} objects, so {@link #DIFF_CALLBACK} (identity-based by design)
-     * cannot see it change, and both the OLD and the NEW current row need repainting.
-     */
     public void setCurrentVideoId(String videoId) {
         if (android.text.TextUtils.equals(mCurrentVideoId, videoId)) {
             return;
@@ -180,7 +168,7 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
                 subtitle = video.getAuthor();
             }
             if (subtitle != null && subtitle.length() > 0) {
-                String formatted = formatTwoLineSubtitle(subtitle.toString(), video.getAuthor());
+                String formatted = formatTwoLineSubtitle(subtitle.toString(), video.getAuthor(), 26);
                 mSubtitle.setMaxLines(2);
                 mSubtitle.setSingleLine(false);
                 mSubtitle.setText(formatted);
@@ -194,33 +182,62 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
             bindThumbnail(context, video);
         }
 
-        private String formatTwoLineSubtitle(String fullSubtitle, String author) {
-            if (fullSubtitle == null || fullSubtitle.isEmpty()) {
+        private static String formatTwoLineSubtitle(String fullSubtitle, String author, int maxAuthorLength) {
+            if (fullSubtitle == null || fullSubtitle.trim().isEmpty()) {
                 return author != null ? author : "";
             }
 
-            if (author != null && !author.isEmpty() && fullSubtitle.startsWith(author)) {
-                String remainder = fullSubtitle.substring(author.length()).trim();
-                remainder = remainder.replaceFirst("^[•·\\-\\s]+", "").trim();
-                if (!remainder.isEmpty()) {
-                    return author + "\n" + remainder;
-                }
-                return author;
-            }
-
-            int sepIndex = fullSubtitle.indexOf(" • ");
-            if (sepIndex == -1) {
-                sepIndex = fullSubtitle.indexOf(" · ");
-            }
-            if (sepIndex != -1) {
-                String line1 = fullSubtitle.substring(0, sepIndex).trim();
-                String line2 = fullSubtitle.substring(sepIndex + 3).trim();
-                if (!line2.isEmpty()) {
-                    return line1 + "\n" + line2;
+            String[] rawSegments = fullSubtitle.split("\\s*[•·]\\s*");
+            List<String> segments = new ArrayList<>();
+            for (String seg : rawSegments) {
+                String s = seg.trim();
+                if (!s.isEmpty() && !s.startsWith("@")) {
+                    segments.add(s);
                 }
             }
 
-            return fullSubtitle;
+            if (segments.isEmpty()) {
+                return author != null ? author : "";
+            }
+
+            String channelName;
+            int startIndex = 1;
+
+            if (author != null && !author.trim().isEmpty()) {
+                channelName = author.trim();
+            } else {
+                channelName = segments.get(0);
+            }
+
+            if (channelName.length() > maxAuthorLength) {
+                channelName = channelName.substring(0, maxAuthorLength - 1) + "…";
+            }
+
+            StringBuilder metaBuilder = new StringBuilder();
+            for (int i = startIndex; i < segments.size(); i++) {
+                String clean = cleanMeta(segments.get(i));
+                if (!clean.isEmpty()) {
+                    if (metaBuilder.length() > 0) {
+                        metaBuilder.append(" • ");
+                    }
+                    metaBuilder.append(clean);
+                }
+            }
+
+            String metaLine = metaBuilder.toString().trim();
+            if (metaLine.isEmpty()) {
+                return channelName;
+            }
+
+            return channelName + "\n" + metaLine;
+        }
+
+        private static String cleanMeta(String text) {
+            if (text == null) return "";
+            String s = text.trim();
+            s = s.replaceAll("(?i)\\bil y a\\s*", "");
+            s = s.replaceAll("(?i)\\bde\\s+vues?\\b", "vues");
+            return s.trim();
         }
 
         private void bindBadge(Video video, boolean isCurrent) {
