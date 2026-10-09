@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- État sélectionné : Fond blanc plein -->
+    <!-- État sélectionné : Noir en thème clair, Blanc en thème sombre -->
     <item android:state_selected="true">
         <shape android:shape="rectangle">
-            <solid android:color="#FFFFFF" />
+            <solid android:color="@color/mobile_color_inverse_surface" />
             <corners android:radius="19dp" />
         </shape>
     </item>
-    <!-- État par défaut : Fond gris foncé plein -->
+    <!-- État par défaut : Gris clair en thème clair, Gris foncé en thème sombre -->
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#383838" />
+            <solid android:color="@color/mobile_color_filter_pill_bg" />
             <corners android:radius="19dp" />
         </shape>
     </item>
