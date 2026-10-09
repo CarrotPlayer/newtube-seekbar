@@ -1,253 +1,389 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_mobile_bottom_sheet"
     android:orientation="vertical"
-    android:paddingHorizontal="20dp"
-    android:paddingTop="18dp"
-    android:paddingBottom="24dp">
+    android:paddingHorizontal="16dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="28dp">
 
-    <!-- En-tête : Titre à gauche + Bouton Icône Reset à droite -->
-    <LinearLayout
+    <!-- Poignée de glissement (Drag handle) -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="14dp"
+        android:background="@drawable/bg_mobile_drag_handle" />
+
+    <!-- En-tête : Titre + Reset -->
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:layout_marginBottom="12dp">
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp">
 
         <TextView
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Filtres de recherche"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:text="Search filters"
             android:textColor="#FFFFFF"
-            android:textSize="22sp"
+            android:textSize="20sp"
             android:textStyle="bold" />
 
-        <ImageButton
+        <TextView
             android:id="@+id/filter_btn_reset"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Réinitialiser"
-            android:padding="10dp"
-            android:src="@drawable/ic_mobile_reset"
-            app:tint="#FFFFFF" />
-    </LinearLayout>
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="6dp"
+            android:text="Reset"
+            android:textColor="#AAAAAA"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+    </RelativeLayout>
 
-    <!-- Ligne 1 : Type -->
-    <LinearLayout
-        android:id="@+id/filter_row_type"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Type"
-            android:textColor="#B3B3B3"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/filter_val_type"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Toutes les catégories"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp" />
-
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="8dp"
-            android:src="@drawable/ic_mobile_chevron_down"
-            app:tint="#FFFFFF" />
-    </LinearLayout>
-
-    <!-- Ligne 2 : Durée -->
-    <LinearLayout
-        android:id="@+id/filter_row_duration"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Durée"
-            android:textColor="#B3B3B3"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/filter_val_duration"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Toutes"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp" />
-
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="8dp"
-            android:src="@drawable/ic_mobile_chevron_down"
-            app:tint="#FFFFFF" />
-    </LinearLayout>
-
-    <!-- Ligne 3 : Date d'ajout -->
-    <LinearLayout
-        android:id="@+id/filter_row_date"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Date d'ajout"
-            android:textColor="#B3B3B3"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/filter_val_date"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Date indifférente"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp" />
-
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="8dp"
-            android:src="@drawable/ic_mobile_chevron_down"
-            app:tint="#FFFFFF" />
-    </LinearLayout>
-
-    <!-- Ligne 4 : Priorité -->
-    <LinearLayout
-        android:id="@+id/filter_row_sort"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Priorité"
-            android:textColor="#B3B3B3"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/filter_val_sort"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Pertinence"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp" />
-
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="8dp"
-            android:src="@drawable/ic_mobile_chevron_down"
-            app:tint="#FFFFFF" />
-    </LinearLayout>
-
-    <!-- Section Caractéristiques -->
+    <!-- SECTION 1 : Sort by -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Caractéristiques"
-        android:textColor="#B3B3B3"
-        android:textSize="16sp"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="12dp" />
+        android:layout_marginBottom="8dp"
+        android:text="Sort by"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold" />
 
-    <!-- Badges / Chips -->
-    <LinearLayout
+    <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:layout_marginBottom="16dp"
+        android:overScrollMode="never"
+        android:scrollbars="none">
 
-        <TextView
-            android:id="@+id/chip_feature_live"
+        <LinearLayout
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:background="@drawable/bg_filter_chip"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center"
-            android:paddingHorizontal="16dp"
-            android:layout_marginEnd="8dp"
-            android:text="En direct"
-            android:textColor="#3EA6FF"
-            android:textSize="14sp" />
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/chip_feature_4k"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:background="@drawable/bg_filter_chip"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center"
-            android:paddingHorizontal="16dp"
-            android:layout_marginEnd="8dp"
-            android:text="4K"
-            android:textColor="#3EA6FF"
-            android:textSize="14sp" />
+            <TextView
+                android:id="@+id/pill_sort_relevance"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Relevance"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
 
-        <TextView
-            android:id="@+id/chip_feature_hdr"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:background="@drawable/bg_filter_chip"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center"
-            android:paddingHorizontal="16dp"
-            android:text="HDR"
-            android:textColor="#3EA6FF"
-            android:textSize="14sp" />
-    </LinearLayout>
+            <TextView
+                android:id="@+id/pill_sort_popularity"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Popularity"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
 
-    <!-- Bouton Appliquer -->
+    <!-- SECTION 2 : Upload date -->
     <TextView
-        android:id="@+id/filter_btn_apply"
-        android:layout_width="match_parent"
-        android:layout_height="46dp"
-        android:layout_marginTop="24dp"
-        android:background="@drawable/bg_filter_chip"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center"
-        android:text="Appliquer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="Upload date"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
+        android:textSize="15sp"
         android:textStyle="bold" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:overScrollMode="never"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/pill_date_today"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Today"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/pill_date_week"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="This week"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/pill_date_month"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="This month"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/pill_date_year"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="This year"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- SECTION 3 : Duration -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="Duration"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:overScrollMode="never"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/pill_duration_under4"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Under 4 mins"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/pill_duration_4to20"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="4–20 mins"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/pill_duration_over20"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Over 20 mins"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- SECTION 4 : Type -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="Type"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:overScrollMode="never"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/pill_type_videos"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Videos"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/pill_type_channels"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Channels"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/pill_type_playlists"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Playlists"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/pill_type_movies"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Movies"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- SECTION 5 : Features -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="Features"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:overScrollMode="never"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/pill_feat_live"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Live"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/pill_feat_4k"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="4K"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/pill_feat_hdr"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_filter_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="HDR"
+                android:textColor="@color/color_filter_pill_text"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
 
 </LinearLayout>
