@@ -28,7 +28,7 @@
             android:layout_alignParentStart="true"
             android:layout_centerVertical="true"
             android:text="Search filters"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/mobile_color_on_surface"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -43,7 +43,7 @@
             android:focusable="true"
             android:padding="6dp"
             android:text="Reset"
-            android:textColor="#AAAAAA"
+            android:textColor="@color/mobile_color_on_surface_secondary"
             android:textSize="15sp"
             android:textStyle="bold" />
     </RelativeLayout>
@@ -54,7 +54,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:text="Sort by"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/mobile_color_on_surface"
         android:textSize="15sp"
         android:textStyle="bold" />
 
@@ -105,7 +105,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:text="Upload date"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/mobile_color_on_surface"
         android:textSize="15sp"
         android:textStyle="bold" />
 
@@ -184,7 +184,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:text="Duration"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/mobile_color_on_surface"
         android:textSize="15sp"
         android:textStyle="bold" />
 
@@ -249,7 +249,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:text="Type"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/mobile_color_on_surface"
         android:textSize="15sp"
         android:textStyle="bold" />
 
@@ -328,7 +328,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:text="Features"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/mobile_color_on_surface"
         android:textSize="15sp"
         android:textStyle="bold" />
 
