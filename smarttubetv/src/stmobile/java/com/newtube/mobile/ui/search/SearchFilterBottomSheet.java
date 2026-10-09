@@ -2,21 +2,19 @@ package com.newtube.mobile.ui.search;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
-import android.view.Gravity;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
-import android.widget.ImageButton;
 import android.widget.TextView;
-
-import androidx.appcompat.widget.PopupMenu;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.liskovsoft.mediaserviceinterfaces.data.SearchOptions;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.SearchPresenter;
 import com.liskovsoft.smartyoutubetv2.tv.R;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public final class SearchFilterBottomSheet {
 
@@ -27,7 +25,7 @@ public final class SearchFilterBottomSheet {
         View view = LayoutInflater.from(context).inflate(R.layout.sheet_mobile_search_filter, null);
         dialog.setContentView(view);
 
-        // Correction intégrale du double-arrondi : on supprime le fond natif du conteneur Google
+        // Supprime le fond natif Material pour éviter tout conflit de superposition d'arrondis
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
@@ -36,158 +34,159 @@ public final class SearchFilterBottomSheet {
             bottomSheetInternal.setBackground(null);
         }
 
-        final int[] uploadDate = {presenter.getUploadDateOptions()};
-        final int[] duration = {presenter.getDurationOptions()};
-        final int[] type = {presenter.getTypeOptions()};
-        final int[] sorting = {presenter.getSortingOptions()};
-        final int[] feature = {presenter.getFeatureOptions()};
+        // --- SORT BY ---
+        TextView pillSortRel = view.findViewById(R.id.pill_sort_relevance);
+        TextView pillSortPop = view.findViewById(R.id.pill_sort_popularity);
+        Map<Integer, TextView> sortGroup = new HashMap<>();
+        sortGroup.put(0, pillSortRel);
+        sortGroup.put(SearchOptions.SORT_BY_VIEW_COUNT, pillSortPop);
 
-        TextView valType = view.findViewById(R.id.filter_val_type);
-        TextView valDuration = view.findViewById(R.id.filter_val_duration);
-        TextView valDate = view.findViewById(R.id.filter_val_date);
-        TextView valSort = view.findViewById(R.id.filter_val_sort);
+        int currentSort = presenter.getSortingOptions();
+        updateExclusiveGroup(sortGroup, currentSort == SearchOptions.SORT_BY_VIEW_COUNT ? SearchOptions.SORT_BY_VIEW_COUNT : 0);
 
-        View rowType = view.findViewById(R.id.filter_row_type);
-        View rowDuration = view.findViewById(R.id.filter_row_duration);
-        View rowDate = view.findViewById(R.id.filter_row_date);
-        View rowSort = view.findViewById(R.id.filter_row_sort);
-
-        TextView chipLive = view.findViewById(R.id.chip_feature_live);
-        TextView chip4k = view.findViewById(R.id.chip_feature_4k);
-        TextView chipHdr = view.findViewById(R.id.chip_feature_hdr);
-        ImageButton btnReset = view.findViewById(R.id.filter_btn_reset);
-
-        // --- Listes d'options ---
-        String[] typeLabels = {"Toutes les catégories", "Vidéos", "Chaînes", "Playlists", "Films"};
-        int[] typeValues = {0, SearchOptions.TYPE_VIDEO, SearchOptions.TYPE_CHANNEL, SearchOptions.TYPE_PLAYLIST, SearchOptions.TYPE_MOVIE};
-        updateLabel(valType, typeLabels, typeValues, type[0]);
-        rowType.setOnClickListener(v ->
-                showPopupMenu(context, valType, typeLabels, typeValues, type[0], chosen -> {
-                    type[0] = chosen;
-                    updateLabel(valType, typeLabels, typeValues, chosen);
-                }));
-
-        String[] durationLabels = {"Toutes", "Moins de 4 minutes", "De 4 à 20 minutes", "Plus de 20 minutes"};
-        int[] durationValues = {0, SearchOptions.DURATION_UNDER_4, SearchOptions.DURATION_BETWEEN_4_20, SearchOptions.DURATION_OVER_20};
-        updateLabel(valDuration, durationLabels, durationValues, duration[0]);
-        rowDuration.setOnClickListener(v ->
-                showPopupMenu(context, valDuration, durationLabels, durationValues, duration[0], chosen -> {
-                    duration[0] = chosen;
-                    updateLabel(valDuration, durationLabels, durationValues, chosen);
-                }));
-
-        String[] dateLabels = {"Date indifférente", "Aujourd'hui", "Cette semaine", "Ce mois-ci", "Cette année"};
-        int[] dateValues = {0, SearchOptions.UPLOAD_DATE_TODAY, SearchOptions.UPLOAD_DATE_THIS_WEEK, SearchOptions.UPLOAD_DATE_THIS_MONTH, SearchOptions.UPLOAD_DATE_THIS_YEAR};
-        updateLabel(valDate, dateLabels, dateValues, uploadDate[0]);
-        rowDate.setOnClickListener(v ->
-                showPopupMenu(context, valDate, dateLabels, dateValues, uploadDate[0], chosen -> {
-                    uploadDate[0] = chosen;
-                    updateLabel(valDate, dateLabels, dateValues, chosen);
-                }));
-
-        String[] sortLabels = {"Pertinence", "Popularité", "Date d'ajout", "Note"};
-        int[] sortValues = {0, SearchOptions.SORT_BY_VIEW_COUNT, SearchOptions.SORT_BY_UPLOAD_DATE, SearchOptions.SORT_BY_RATING};
-        updateLabel(valSort, sortLabels, sortValues, sorting[0]);
-        rowSort.setOnClickListener(v ->
-                showPopupMenu(context, valSort, sortLabels, sortValues, sorting[0], chosen -> {
-                    sorting[0] = chosen;
-                    updateLabel(valSort, sortLabels, sortValues, chosen);
-                }));
-
-        // --- Puces Caractéristiques ---
-        setupChip(chipLive, (feature[0] & SearchOptions.FEATURE_LIVE) != 0, selected -> {
-            feature[0] = selected ? (feature[0] | SearchOptions.FEATURE_LIVE) : (feature[0] & ~SearchOptions.FEATURE_LIVE);
+        pillSortRel.setOnClickListener(v -> {
+            presenter.setSortingOptions(0);
+            updateExclusiveGroup(sortGroup, 0);
+            presenter.reloadSearch();
         });
-        setupChip(chip4k, (feature[0] & SearchOptions.FEATURE_4K) != 0, selected -> {
-            feature[0] = selected ? (feature[0] | SearchOptions.FEATURE_4K) : (feature[0] & ~SearchOptions.FEATURE_4K);
-        });
-        setupChip(chipHdr, (feature[0] & SearchOptions.FEATURE_HDR) != 0, selected -> {
-            feature[0] = selected ? (feature[0] | SearchOptions.FEATURE_HDR) : (feature[0] & ~SearchOptions.FEATURE_HDR);
+        pillSortPop.setOnClickListener(v -> {
+            presenter.setSortingOptions(SearchOptions.SORT_BY_VIEW_COUNT);
+            updateExclusiveGroup(sortGroup, SearchOptions.SORT_BY_VIEW_COUNT);
+            presenter.reloadSearch();
         });
 
-        // --- Bouton Réinitialiser (icône en haut à droite) ---
-        btnReset.setOnClickListener(v -> {
-            type[0] = 0;
-            duration[0] = 0;
-            uploadDate[0] = 0;
-            sorting[0] = 0;
-            feature[0] = 0;
+        // --- UPLOAD DATE ---
+        TextView pillDateToday = view.findViewById(R.id.pill_date_today);
+        TextView pillDateWeek = view.findViewById(R.id.pill_date_week);
+        TextView pillDateMonth = view.findViewById(R.id.pill_date_month);
+        TextView pillDateYear = view.findViewById(R.id.pill_date_year);
+        Map<Integer, TextView> dateGroup = new HashMap<>();
+        dateGroup.put(SearchOptions.UPLOAD_DATE_TODAY, pillDateToday);
+        dateGroup.put(SearchOptions.UPLOAD_DATE_THIS_WEEK, pillDateWeek);
+        dateGroup.put(SearchOptions.UPLOAD_DATE_THIS_MONTH, pillDateMonth);
+        dateGroup.put(SearchOptions.UPLOAD_DATE_THIS_YEAR, pillDateYear);
 
-            updateLabel(valType, typeLabels, typeValues, 0);
-            updateLabel(valDuration, durationLabels, durationValues, 0);
-            updateLabel(valDate, dateLabels, dateValues, 0);
-            updateLabel(valSort, sortLabels, sortValues, 0);
+        updateExclusiveGroup(dateGroup, presenter.getUploadDateOptions());
 
-            setChipState(chipLive, false);
-            setChipState(chip4k, false);
-            setChipState(chipHdr, false);
-        });
+        setupUncheckablePill(pillDateToday, SearchOptions.UPLOAD_DATE_TODAY, dateGroup, presenter, 1);
+        setupUncheckablePill(pillDateWeek, SearchOptions.UPLOAD_DATE_THIS_WEEK, dateGroup, presenter, 1);
+        setupUncheckablePill(pillDateMonth, SearchOptions.UPLOAD_DATE_THIS_MONTH, dateGroup, presenter, 1);
+        setupUncheckablePill(pillDateYear, SearchOptions.UPLOAD_DATE_THIS_YEAR, dateGroup, presenter, 1);
 
-        // --- Bouton Appliquer ---
-        view.findViewById(R.id.filter_btn_apply).setOnClickListener(v -> {
-            presenter.setTypeOptions(type[0]);
-            presenter.setDurationOptions(duration[0]);
-            presenter.setUploadDateOptions(uploadDate[0]);
-            presenter.setSortingOptions(sorting[0]);
-            presenter.setFeatureOptions(feature[0]);
+        // --- DURATION ---
+        TextView pillDurUnder4 = view.findViewById(R.id.pill_duration_under4);
+        TextView pillDur4to20 = view.findViewById(R.id.pill_duration_4to20);
+        TextView pillDurOver20 = view.findViewById(R.id.pill_duration_over20);
+        Map<Integer, TextView> durGroup = new HashMap<>();
+        durGroup.put(SearchOptions.DURATION_UNDER_4, pillDurUnder4);
+        durGroup.put(SearchOptions.DURATION_BETWEEN_4_20, pillDur4to20);
+        durGroup.put(SearchOptions.DURATION_OVER_20, pillDurOver20);
 
-            dialog.dismiss();
+        updateExclusiveGroup(durGroup, presenter.getDurationOptions());
+
+        setupUncheckablePill(pillDurUnder4, SearchOptions.DURATION_UNDER_4, durGroup, presenter, 2);
+        setupUncheckablePill(pillDur4to20, SearchOptions.DURATION_BETWEEN_4_20, durGroup, presenter, 2);
+        setupUncheckablePill(pillDurOver20, SearchOptions.DURATION_OVER_20, durGroup, presenter, 2);
+
+        // --- TYPE ---
+        TextView pillTypeVid = view.findViewById(R.id.pill_type_videos);
+        TextView pillTypeChan = view.findViewById(R.id.pill_type_channels);
+        TextView pillTypePlay = view.findViewById(R.id.pill_type_playlists);
+        TextView pillTypeMov = view.findViewById(R.id.pill_type_movies);
+        Map<Integer, TextView> typeGroup = new HashMap<>();
+        typeGroup.put(SearchOptions.TYPE_VIDEO, pillTypeVid);
+        typeGroup.put(SearchOptions.TYPE_CHANNEL, pillTypeChan);
+        typeGroup.put(SearchOptions.TYPE_PLAYLIST, pillTypePlay);
+        typeGroup.put(SearchOptions.TYPE_MOVIE, pillTypeMov);
+
+        updateExclusiveGroup(typeGroup, presenter.getTypeOptions());
+
+        setupUncheckablePill(pillTypeVid, SearchOptions.TYPE_VIDEO, typeGroup, presenter, 3);
+        setupUncheckablePill(pillTypeChan, SearchOptions.TYPE_CHANNEL, typeGroup, presenter, 3);
+        setupUncheckablePill(pillTypePlay, SearchOptions.TYPE_PLAYLIST, typeGroup, presenter, 3);
+        setupUncheckablePill(pillTypeMov, SearchOptions.TYPE_MOVIE, typeGroup, presenter, 3);
+
+        // --- FEATURES ---
+        TextView pillFeatLive = view.findViewById(R.id.pill_feat_live);
+        TextView pillFeat4k = view.findViewById(R.id.pill_feat_4k);
+        TextView pillFeatHdr = view.findViewById(R.id.pill_feat_hdr);
+
+        setupToggleFeature(pillFeatLive, SearchOptions.FEATURE_LIVE, presenter);
+        setupToggleFeature(pillFeat4k, SearchOptions.FEATURE_4K, presenter);
+        setupToggleFeature(pillFeatHdr, SearchOptions.FEATURE_HDR, presenter);
+
+        // --- RESET BUTTON ---
+        view.findViewById(R.id.filter_btn_reset).setOnClickListener(v -> {
+            presenter.setSortingOptions(0);
+            presenter.setUploadDateOptions(0);
+            presenter.setDurationOptions(0);
+            presenter.setTypeOptions(0);
+            presenter.setFeatureOptions(0);
+
+            updateExclusiveGroup(sortGroup, 0);
+            updateExclusiveGroup(dateGroup, 0);
+            updateExclusiveGroup(durGroup, 0);
+            updateExclusiveGroup(typeGroup, 0);
+
+            setPillState(pillFeatLive, false);
+            setPillState(pillFeat4k, false);
+            setPillState(pillFeatHdr, false);
+
             presenter.reloadSearch();
         });
 
         dialog.show();
     }
 
-    private static void setupChip(TextView chip, boolean active, ChipToggleListener listener) {
-        setChipState(chip, active);
-        chip.setOnClickListener(v -> {
-            boolean newState = !chip.isSelected();
-            setChipState(chip, newState);
-            listener.onToggle(newState);
+    private static void setupUncheckablePill(TextView pill, int value, Map<Integer, TextView> group, SearchPresenter presenter, int category) {
+        pill.setOnClickListener(v -> {
+            int current = getCurrentVal(presenter, category);
+            int nextVal = (current == value) ? 0 : value;
+
+            setCurrentVal(presenter, category, nextVal);
+            updateExclusiveGroup(group, nextVal);
+            presenter.reloadSearch();
         });
     }
 
-    private static void setChipState(TextView chip, boolean active) {
-        chip.setSelected(active);
-        chip.setTextColor(active ? Color.WHITE : Color.parseColor("#3EA6FF"));
+    private static int getCurrentVal(SearchPresenter presenter, int category) {
+        switch (category) {
+            case 1: return presenter.getUploadDateOptions();
+            case 2: return presenter.getDurationOptions();
+            case 3: return presenter.getTypeOptions();
+            default: return 0;
+        }
     }
 
-    private static void updateLabel(TextView target, String[] labels, int[] values, int currentValue) {
-        for (int i = 0; i < values.length; i++) {
-            if (values[i] == currentValue) {
-                target.setText(labels[i]);
-                return;
-            }
+    private static void setCurrentVal(SearchPresenter presenter, int category, int val) {
+        switch (category) {
+            case 1: presenter.setUploadDateOptions(val); break;
+            case 2: presenter.setDurationOptions(val); break;
+            case 3: presenter.setTypeOptions(val); break;
         }
-        target.setText(labels[0]);
     }
 
-    private static void showPopupMenu(Context context, View anchorView, String[] labels, int[] values, int currentValue, OnSelectedListener listener) {
-        PopupMenu popup = new PopupMenu(context, anchorView, Gravity.END);
-        Menu menu = popup.getMenu();
+    private static void setupToggleFeature(TextView pill, int mask, SearchPresenter presenter) {
+        boolean active = (presenter.getFeatureOptions() & mask) != 0;
+        setPillState(pill, active);
 
-        for (int i = 0; i < labels.length; i++) {
-            MenuItem item = menu.add(Menu.NONE, i, i, labels[i]);
-            if (values[i] == currentValue) {
-                item.setCheckable(true);
-                item.setChecked(true);
-            }
-        }
-
-        popup.setOnMenuItemClickListener(item -> {
-            int index = item.getItemId();
-            listener.onSelected(values[index]);
-            return true;
+        pill.setOnClickListener(v -> {
+            int current = presenter.getFeatureOptions();
+            int next = (current & mask) != 0 ? (current & ~mask) : (current | mask);
+            presenter.setFeatureOptions(next);
+            setPillState(pill, (next & mask) != 0);
+            presenter.reloadSearch();
         });
-
-        popup.show();
     }
 
-    private interface OnSelectedListener {
-        void onSelected(int value);
+    private static void updateExclusiveGroup(Map<Integer, TextView> group, int activeVal) {
+        for (Map.Entry<Integer, TextView> entry : group.entrySet()) {
+            setPillState(entry.getValue(), entry.getKey() == activeVal);
+        }
     }
 
-    private interface ChipToggleListener {
-        void onToggle(boolean selected);
+    private static void setPillState(TextView pill, boolean active) {
+        pill.setSelected(active);
+        pill.setTypeface(null, active ? Typeface.BOLD : Typeface.NORMAL);
     }
 }
