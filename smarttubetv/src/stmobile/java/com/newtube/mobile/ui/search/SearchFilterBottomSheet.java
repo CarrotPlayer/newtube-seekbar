@@ -2,7 +2,6 @@ package com.newtube.mobile.ui.search;
 
 import android.content.Context;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -187,6 +186,5 @@ public final class SearchFilterBottomSheet {
 
     private static void setPillState(TextView pill, boolean active) {
         pill.setSelected(active);
-        pill.setTypeface(null, active ? Typeface.BOLD : Typeface.NORMAL);
     }
 }
