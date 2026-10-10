@@ -4432,10 +4432,16 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     void closeFromMiniPlayer() {
-        if (mPresenter != null) {
-            mPresenter.onFinish();
+        // En mini-lecteur, la fermeture depuis la croix 'X' ne doit pas déclencher
+        // le désempilement global du ViewManager vers l'accueil.
+        // On stoppe le service d'arrière-plan et on détruit les objets multimédias
+        // silencieusement pour laisser l'écran hôte actuel (Recherche, Chaîne, etc.) au premier plan.
+        if (mPlaybackService != null) {
+            mPlaybackService.detachPlayer();
         }
-        finishReally();
+        destroyPlayerObjects();
+        getViewManager().removeTop(this);
+        super.finish();
     }
 
     ExoPlayer getSharedPlayer() {
