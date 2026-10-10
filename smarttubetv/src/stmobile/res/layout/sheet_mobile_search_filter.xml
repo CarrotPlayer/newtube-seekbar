@@ -4,7 +4,6 @@
     android:layout_height="wrap_content"
     android:background="@drawable/bg_mobile_bottom_sheet"
     android:orientation="vertical"
-    android:paddingHorizontal="16dp"
     android:paddingTop="10dp"
     android:paddingBottom="28dp">
 
@@ -20,7 +19,8 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp">
+        android:layout_marginBottom="16dp"
+        android:paddingHorizontal="16dp">
 
         <TextView
             android:layout_width="wrap_content"
@@ -53,6 +53,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
+        android:paddingHorizontal="16dp"
         android:text="Sort by"
         android:textColor="@color/mobile_color_on_surface"
         android:textSize="15sp"
@@ -62,7 +63,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
+        android:clipToPadding="false"
         android:overScrollMode="never"
+        android:paddingHorizontal="16dp"
         android:scrollbars="none">
 
         <LinearLayout
@@ -78,6 +81,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="Relevance"
@@ -91,6 +95,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="Popularity"
@@ -104,6 +109,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
+        android:paddingHorizontal="16dp"
         android:text="Upload date"
         android:textColor="@color/mobile_color_on_surface"
         android:textSize="15sp"
@@ -113,7 +119,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
+        android:clipToPadding="false"
         android:overScrollMode="never"
+        android:paddingHorizontal="16dp"
         android:scrollbars="none">
 
         <LinearLayout
@@ -129,6 +137,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="Today"
@@ -143,6 +152,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="This week"
@@ -157,6 +167,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="This month"
@@ -170,6 +181,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="This year"
@@ -183,6 +195,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
+        android:paddingHorizontal="16dp"
         android:text="Duration"
         android:textColor="@color/mobile_color_on_surface"
         android:textSize="15sp"
@@ -192,7 +205,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
+        android:clipToPadding="false"
         android:overScrollMode="never"
+        android:paddingHorizontal="16dp"
         android:scrollbars="none">
 
         <LinearLayout
@@ -208,6 +223,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="Under 4 mins"
@@ -222,6 +238,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="4–20 mins"
@@ -235,6 +252,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="Over 20 mins"
@@ -248,6 +266,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
+        android:paddingHorizontal="16dp"
         android:text="Type"
         android:textColor="@color/mobile_color_on_surface"
         android:textSize="15sp"
@@ -257,7 +276,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
+        android:clipToPadding="false"
         android:overScrollMode="never"
+        android:paddingHorizontal="16dp"
         android:scrollbars="none">
 
         <LinearLayout
@@ -273,6 +294,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="Videos"
@@ -287,6 +309,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="Channels"
@@ -301,6 +324,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="Playlists"
@@ -314,6 +338,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="Movies"
@@ -327,6 +352,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
+        android:paddingHorizontal="16dp"
         android:text="Features"
         android:textColor="@color/mobile_color_on_surface"
         android:textSize="15sp"
@@ -335,7 +361,9 @@
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:clipToPadding="false"
         android:overScrollMode="never"
+        android:paddingHorizontal="16dp"
         android:scrollbars="none">
 
         <LinearLayout
@@ -351,6 +379,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="Live"
@@ -365,6 +394,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="4K"
@@ -378,6 +408,7 @@
                 android:background="@drawable/bg_filter_pill"
                 android:clickable="true"
                 android:focusable="true"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:paddingHorizontal="16dp"
                 android:text="HDR"
