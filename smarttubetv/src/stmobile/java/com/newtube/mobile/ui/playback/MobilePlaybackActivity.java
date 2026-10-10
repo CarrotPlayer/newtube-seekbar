@@ -3651,7 +3651,7 @@ public class MobilePlaybackActivity extends MobileActivity
         return true;
     }
 
-    static hideLoadingStillImmediately(@Nullable ImageView still) {
+    static boolean hideLoadingStillImmediately(@Nullable ImageView still) {
         if (still == null || still.getVisibility() != View.VISIBLE) {
             return false;
         }
