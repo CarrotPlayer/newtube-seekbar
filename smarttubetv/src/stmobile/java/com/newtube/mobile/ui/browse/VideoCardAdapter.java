@@ -1,12 +1,10 @@
 package com.newtube.mobile.ui.browse;
 
 import android.annotation.SuppressLint;
-
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -254,8 +252,6 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             }
 
             String channelName;
-            int startIndex = 1;
-
             if (author != null && !author.trim().isEmpty()) {
                 channelName = author.trim();
             } else {
@@ -267,8 +263,12 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             }
 
             StringBuilder metaBuilder = new StringBuilder();
-            for (int i = startIndex; i < segments.size(); i++) {
-                String clean = cleanMeta(segments.get(i));
+            for (int i = 0; i < segments.size(); i++) {
+                String seg = segments.get(i);
+                if (isSameAuthor(seg, channelName)) {
+                    continue;
+                }
+                String clean = cleanMeta(seg);
                 if (!clean.isEmpty()) {
                     if (metaBuilder.length() > 0) {
                         metaBuilder.append(" • ");
@@ -283,6 +283,14 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             }
 
             return channelName + "\n" + metaLine;
+        }
+
+        private static boolean isSameAuthor(String segment, String author) {
+            if (segment == null || author == null) return false;
+            String s = segment.trim();
+            String a = author.trim();
+            if (s.equalsIgnoreCase(a)) return true;
+            return a.length() >= 3 && s.toLowerCase().contains(a.toLowerCase());
         }
 
         private static String cleanMeta(String text) {
