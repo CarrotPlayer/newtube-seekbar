@@ -1044,7 +1044,6 @@ public class MobilePlaybackActivity extends MobileActivity
         mExoPlayerController.release();
         mPlayer = null;
     }
-
     @Override
     protected void onStart() {
         super.onStart();
@@ -3652,7 +3651,7 @@ public class MobilePlaybackActivity extends MobileActivity
         return true;
     }
 
-    static boolean hideLoadingStillImmediately(@Nullable ImageView still) {
+    static hideLoadingStillImmediately(@Nullable ImageView still) {
         if (still == null || still.getVisibility() != View.VISIBLE) {
             return false;
         }
@@ -4435,13 +4434,13 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mPresenter != null) {
             mPresenter.onFinish();
         }
-        finishReally();
+        getViewManager().removeTop(this);
+        super.finish();
     }
 
     ExoPlayer getSharedPlayer() {
         return mPlayer;
     }
-
     @Override
     public void showOverlay(boolean show) {
         if (show) {
