@@ -194,4 +194,12 @@ public class ShortsFilterTest {
         video.isShorts = isShorts;
         return video;
     }
+    @Test(timeout = 2000)
+    public void malformedParamsNeitherHangNorThrow() {
+        // Oversized lengths that used to overflow the bounds check (gpt-6.1-sol review).
+        for (String b64 : new String[] {"Cvb/////////fw==", "8gb//////////38=", "8gY=", ""}) {
+            byte[] data = java.util.Base64.getDecoder().decode(b64);
+            assertNull(ShortsFilter.ProtoReader.field(data, 110));
+        }
+    }
 }

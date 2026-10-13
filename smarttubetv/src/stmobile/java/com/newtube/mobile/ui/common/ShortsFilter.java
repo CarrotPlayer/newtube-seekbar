@@ -126,7 +126,7 @@ public final class ShortsFilter {
                             break;
                         case 2:
                             long len = varint(data, pos);
-                            if (len < 0 || pos[0] + len > data.length) {
+                            if (len < 0 || len > data.length - pos[0]) { // no overflow on huge lengths
                                 return null;
                             }
                             start = pos[0];
@@ -145,7 +145,7 @@ public final class ShortsFilter {
                         return Arrays.copyOfRange(data, start, pos[0]);
                     }
                 }
-            } catch (ArrayIndexOutOfBoundsException e) { // truncated varint
+            } catch (RuntimeException e) { // truncated varint, or anything else malformed
                 return null;
             }
             return null;
