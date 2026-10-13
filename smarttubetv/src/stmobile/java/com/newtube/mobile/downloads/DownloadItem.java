@@ -33,8 +33,9 @@ public final class DownloadItem {
     @Nullable public final String audioItag;
     /**
      * Which language variant of {@link #audioItag} was picked ({@link DownloadOptions#audioTrackKey}):
-     * every dub shares the itag, so a re-resolve must match this too. Null for single-audio videos
-     * and items saved before 1.15.1 (those re-resolve to the original track).
+     * every dub shares the itag, so a re-resolve must match this too, and a kept audio part is
+     * only resumed when it belongs to the same track. Null = not recorded (items saved before
+     * 1.15.1): those re-resolve to the original track and restart their audio part.
      */
     @Nullable public volatile String audioTrack;
     public final long createdAt;
