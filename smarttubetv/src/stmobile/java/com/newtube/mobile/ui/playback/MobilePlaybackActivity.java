@@ -358,7 +358,9 @@ public class MobilePlaybackActivity extends MobileActivity
     private final View.OnLayoutChangeListener mWatchRootLayoutListener =
             (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
                 int width = right - left;
-                if (width > 0
+                // Not in PiP: a portrait layout override (a landscape tablet that left
+                // fullscreen in place) outlives the PiP window, which must stay video-only.
+                if (width > 0 && !this.mIsInPip && !this.mPipEnterPending
                         && layoutOrientation()
                         == Configuration.ORIENTATION_PORTRAIT) {
                     applyPortraitVideoHeight(width);
@@ -1437,6 +1439,7 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         // The PiP exit ended in the fullscreen UI, so it was an expand, not a dismiss.
         mPipDismissPending = false;
+        mPipLayoutHold = mIsInPip || mPipEnterPending; // the real window's config is in now
         mRoutedInWhileLeaving = false; // NEWTUBE(link-while-playing): the routed-in open is in front
         // Re-enable the video track BEFORE any texture reattach below, so the first frame comes
         // back promptly (true background audio-only mode dropped the whole video renderer).
@@ -2385,7 +2388,11 @@ public class MobilePlaybackActivity extends MobileActivity
         int height = Math.round(width * 9f / 16f);
         Configuration config = getResources().getConfiguration();
         if (config.orientation == Configuration.ORIENTATION_LANDSCAPE && config.screenHeightDp > 0) {
-            int cap = Math.round(config.screenHeightDp * getResources().getDisplayMetrics().density * 0.6f);
+            // screenHeightDp is in system dp while this activity's density carries the UI scale
+            // override: convert with the system density (VideoViewportCap.windowPixels).
+            float systemDensity = getApplicationContext().getResources().getConfiguration()
+                    .densityDpi / 160f;
+            int cap = Math.round(config.screenHeightDp * systemDensity * 0.6f);
             height = Math.min(height, cap);
         }
         return height;
@@ -2474,6 +2481,7 @@ public class MobilePlaybackActivity extends MobileActivity
             // mIsInPip is still false and the minimize guards would wave a hand-off through into
             // what is already becoming a pinned task. Treat "accepted" as "in PiP" from here.
             mPipEnterPending = true;
+            mPipLayoutHold = true;
             logPip("enter-accepted");
         }
     }
@@ -2699,6 +2707,7 @@ public class MobilePlaybackActivity extends MobileActivity
 
         mIsInPip = isInPictureInPictureMode;
         mPipStateStale = false;
+        mPipLayoutHold = true; // entering, or on the way out until onResume
         mPipEnterPending = false;
         logPip("mode-changed inPip=" + (isInPictureInPictureMode ? "y" : "n")
                 + " stopped=" + (mIsStopped ? "y" : "n"));
@@ -3598,7 +3607,10 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         if (target == windowOrientation) {
             // The window already has that shape: only a layout override kept the other layout
-            // (fullscreen/inline without a rotation), so dropping it is the whole toggle.
+            // (fullscreen/inline without a rotation), so dropping it is the whole toggle - and
+            // the request that toggle may have left (a rotation slower than the fallback, a
+            // request split screen held back) goes too, or it would rotate the player back.
+            releaseFullscreenRequest();
             setLayoutOverride(Configuration.ORIENTATION_UNDEFINED);
             armAutoHide();
             return;
@@ -3609,6 +3621,7 @@ public class MobilePlaybackActivity extends MobileActivity
             // PORTRAIT there was a silent no-op, so a landscape tablet could never leave
             // fullscreen - neither the button nor Back (#44, #60). Fullscreen becomes a layout
             // of the current window instead.
+            releaseFullscreenRequest();
             setLayoutOverride(target);
             armAutoHide();
             return;
@@ -3625,6 +3638,23 @@ public class MobilePlaybackActivity extends MobileActivity
             mContainer.postDelayed(mRotationFallback, FULLSCREEN_ROTATION_WAIT_MS);
         }
         armAutoHide();
+    }
+
+    /**
+     * Drop a rotation the fullscreen button asked for and its pending hand-back, when the toggle
+     * is reversed in place before (or instead of) that rotation happening.
+     */
+    private void releaseFullscreenRequest() {
+        mOrientationHandBack.disarm();
+        updateOrientationHandBackListener();
+        if (mIsInPip || mPipEnterPending) {
+            return; // PiP owns the request meanwhile (releaseOrientationLockForPip)
+        }
+        int requested = getRequestedOrientation();
+        if (requested == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                || requested == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) {
+            setRequestedOrientation(FREE_ORIENTATION);
+        }
     }
 
     private int mRotationFallbackTarget;
@@ -3649,6 +3679,11 @@ public class MobilePlaybackActivity extends MobileActivity
      */
     private int mLayoutOverride = Configuration.ORIENTATION_UNDEFINED;
     private int mLayoutOverrideBase = Configuration.ORIENTATION_UNDEFINED;
+    /**
+     * From a PiP entry until the player resumes after it: the configurations seen meanwhile
+     * describe the PiP window (and, right after the exit callback, may still), not a rotation.
+     */
+    private boolean mPipLayoutHold;
 
     private int layoutOrientation() {
         return layoutOrientation(getResources().getConfiguration().orientation);
@@ -3656,8 +3691,16 @@ public class MobilePlaybackActivity extends MobileActivity
 
     private int layoutOrientation(int windowOrientation) {
         if (mLayoutOverride != Configuration.ORIENTATION_UNDEFINED) {
-            if (windowOrientation == mLayoutOverrideBase) {
+            // A PiP stint (entering, pinned, and until the expanded player resumes) reports the
+            // PiP window's shape, not a rotation: keep the override through it, so a portrait
+            // tablet's in-place fullscreen comes back as fullscreen.
+            if (windowOrientation == mLayoutOverrideBase
+                    || mIsInPip || mPipEnterPending || mPipLayoutHold) {
                 return mLayoutOverride;
+            }
+            if (BuildConfig.DEBUG) {
+                NetPath.log("fullscreen override-dropped window=" + windowOrientation
+                        + " base=" + mLayoutOverrideBase + " override=" + mLayoutOverride);
             }
             mLayoutOverride = Configuration.ORIENTATION_UNDEFINED; // the window rotated
             mLayoutOverrideBase = Configuration.ORIENTATION_UNDEFINED;
