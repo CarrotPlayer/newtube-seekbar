@@ -577,6 +577,17 @@ public final class Video {
     }
 
     /**
+     * NEWTUBE(#56): a card that stands for a whole playlist (Playlists section, search, a channel's
+     * playlists), not one video. Channel actions - subscription groups, Block the channel - have
+     * nothing to act on there. Search results deliver playlists as lockups with no type and no
+     * playlistId - only the playlist's browse id ("VL" + playlist id) in channelId.
+     */
+    public boolean isPlaylistCard() {
+        return itemType == MediaItem.TYPE_PLAYLIST || isPlaylistAsChannel()
+                || (videoId == null && channelId != null && channelId.startsWith("VL"));
+    }
+
+    /**
      * A single playlist item inside a channel. Usually has a badge (e.g. 20 videos)
      */
     public boolean isBadgePlaylistInChannel() {
