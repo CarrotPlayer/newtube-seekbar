@@ -74,6 +74,31 @@ public class ShortsFilterTest {
                 ShortsFilter.isShortsSection("Shorts", "Shorts", Arrays.asList(video("s1", true), video("a", false))));
     }
 
+    @Test
+    public void aShortsTabServedAsATileIsAShort() {
+        // #63: the channel's / Subscriptions' "Shorts" tab arrives as a card with no video; it
+        // opened a list of nothing but Shorts, i.e. a blank screen.
+        Video tile = new Video();
+        tile.title = " Shorts ";
+        tile.channelId = "UCabc";
+        assertTrue(ShortsFilter.isShort(tile));
+
+        Video a = video("a", false);
+        assertEquals(Arrays.asList(a), ShortsFilter.withoutShorts(Arrays.asList(tile, a)));
+    }
+
+    @Test
+    public void aVideoTitledShortsIsNotATile() {
+        Video named = video("v1", false);
+        named.title = "Shorts";
+        assertFalse(ShortsFilter.isShort(named));
+
+        Video channel = new Video();
+        channel.title = "Shorts and more";
+        channel.channelId = "UCabc";
+        assertFalse(ShortsFilter.isShort(channel));
+    }
+
     private static Video video(String id, boolean isShorts) {
         Video video = new Video();
         video.videoId = id;

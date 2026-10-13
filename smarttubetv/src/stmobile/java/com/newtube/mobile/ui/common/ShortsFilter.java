@@ -21,7 +21,24 @@ public final class ShortsFilter {
     }
 
     public static boolean isShort(Video video) {
-        return video != null && video.isShorts;
+        return video != null && (video.isShorts || isShortsTile(video));
+    }
+
+    /**
+     * A card that is not a video but a way into a Shorts list - the channel's (or Subscriptions')
+     * "Shorts" tab or shelf served as a tile (#63). Opening it lands on a list whose every item is
+     * a Short, so after filtering the user saw a blank "Shorts" screen; the tile goes with them.
+     */
+    static boolean isShortsTile(Video video) {
+        return video.videoId == null && isShortsName(video.getTitle());
+    }
+
+    private static boolean isShortsName(CharSequence title) {
+        if (title == null) {
+            return false;
+        }
+        String name = title.toString().trim();
+        return "Shorts".equalsIgnoreCase(name) || "#Shorts".equalsIgnoreCase(name);
     }
 
     /** {@code videos} without its Shorts, in order (the same list when it has none). */
