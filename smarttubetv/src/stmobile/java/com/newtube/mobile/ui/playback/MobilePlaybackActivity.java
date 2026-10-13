@@ -6795,10 +6795,10 @@ public class MobilePlaybackActivity extends MobileActivity
 
     /**
      * The Audio track picker (gear sheet -> Audio track), same anatomy as the Quality sheet: one
-     * row per language, the check on the one playing. A pick applies at once and is the stored
-     * audio preference from then on (PlayerData), exactly what the old Audio section of the
-     * Quality sheet did: the next video plays the same language variant when it has one, and its
-     * original track when it does not (Media3TrackAdapter.findTrack / applyOriginalAudioDefault).
+     * row per language, the check on the one playing. A pick applies at once to THIS video only
+     * (PlayerData.setVideoAudioFormat, kept across its reloads, never persisted): the next video
+     * starts on its original track again (Media3TrackAdapter.applyOriginalAudioDefault), like
+     * YouTube. Issues #52/#53: a stored pick used to drag every later dubbed video onto it.
      */
     private void showAudioTrackSheet() {
         List<AudioTrackChoices.Choice> choices = audioTrackChoices();
@@ -6826,7 +6826,9 @@ public class MobilePlaybackActivity extends MobileActivity
                     return; // autoplay moved on under the open sheet: these rows are another video's
                 }
                 setFormat(choice.item);
-                playerData.setFormat(choice.item);
+                // Issues #52/#53: this video only. Never PlayerData.setFormat - a stored pick used
+                // to carry the language to every later video. Reloads of this video keep it.
+                playerData.setVideoAudioFormat(openedForId, choice.item);
                 // An explicit pick outranks the error fixer's per-video audio fallback, which
                 // restoreAudioFormat would otherwise re-apply on a reload of this video.
                 playerData.setTempAudioFormat(null);
