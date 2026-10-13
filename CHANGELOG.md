@@ -2,6 +2,45 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.15.1 — 2026-10-13 — José Mota Edition
+
+"If you have to leave fullscreen, you leave. But leaving for nothing is
+nonsense." A fictional homage to José Mota, for a patch release of things
+that should already have worked: leaving fullscreen on a tablet, letting the
+screen sleep, and a dub that stays on the video you picked it for.
+
+### Fixed
+
+- **Leaving fullscreen on tablets (#44, #60).** On Android 16 tablets, Back,
+  the fullscreen button and the swipe down did nothing, so the player stayed
+  in fullscreen. Fullscreen on a tablet is now a layout of the screen as it
+  is, so it works without rotating, in both orientations.
+- **Picture-in-picture on tablets.** The video keeps the right size in the
+  small window, and coming back from it returns to the layout you left.
+- **The screen can turn off when a video ends or is paused (#50).** The
+  player kept the screen on for as long as it was open.
+- **Audio track: your pick is for that video only (#52, #53).** A dub you
+  picked once followed you to every later dubbed video. Now the next video
+  starts on its original language, like YouTube.
+- **Downloads keep the original audio language (#29),** also after Retry or
+  a resumed download. They sometimes came with a dub, such as Arabic.
+- **The "Original titles" setting works again (#45).**
+- **Playlist menus no longer offer "Block the channel" or "Add/Remove
+  from subscription group" (#56).** Neither did anything useful on a playlist.
+
+### Privacy
+
+- **Android backup and device transfer no longer copy your sign-in.** A
+  restored or transferred NewTube comes back signed out; your settings still
+  come along.
+- **The in-app Backup and restore zip no longer contains the sign-in tokens.**
+  Restoring a backup means signing in again.
+
+### Other
+
+- F-Droid submission: the app name in the source and the APK signing block
+  now pass F-Droid's checks. Nothing changes in the app.
+
 ## 1.15.0 — 2026-10-02 — Los Morancos Edition
 
 "Swipe up? — Up! And now swipe it down. — Down!" A fictional homage to Los

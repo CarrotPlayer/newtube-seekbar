@@ -4,6 +4,48 @@ Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 
+## 1.15.1 — 13-10-2026 — Edición José Mota
+
+"Si hay que salir de pantalla completa se sale, pero salir pa'ná es
+tontería." Homenaje ficticio a José Mota para una versión de arreglos de lo
+que ya tendría que funcionar. ¿Apagar la pantalla cuando el vídeo acaba?
+Antes era "hoy no, mañana"; ahora es hoy. Y el doblaje que eliges se queda en
+ese vídeo, que las gallinas que entran por las que salen.
+
+### Arreglado
+
+- **Salir de pantalla completa en tabletas (#44, #60).** En tabletas con
+  Android 16, Atrás, el botón de pantalla completa y deslizar hacia abajo no
+  hacían nada, y el reproductor se quedaba en pantalla completa. Ahora en una
+  tableta la pantalla completa no depende de girar la pantalla: funciona en
+  vertical y en horizontal.
+- **Imagen en imagen en tabletas.** El vídeo ocupa bien la ventana pequeña, y
+  al volver queda como lo dejaste.
+- **La pantalla se puede apagar cuando el vídeo acaba o está en pausa
+  (#50).** El reproductor la mantenía encendida mientras estuviera abierto.
+- **Pista de audio: lo que eliges vale solo para ese vídeo (#52, #53).** Un
+  doblaje elegido una vez te seguía a todos los vídeos doblados. Ahora el
+  siguiente vídeo empieza en su idioma original, como en YouTube.
+- **Las descargas mantienen el audio original (#29),** también tras
+  Reintentar o al reanudar. A veces llegaban dobladas, por ejemplo en árabe.
+- **El ajuste "Títulos originales" vuelve a funcionar (#45).**
+- **Los menús de las listas ya no ofrecen "Bloquear canal" ni "Añadir/quitar
+  canal del grupo de suscripción" (#56).** En una lista no servían para nada.
+
+### Privacidad
+
+- **La copia de seguridad de Android y la transferencia a otro móvil ya no
+  copian tu inicio de sesión.** NewTube restaurado o transferido empieza sin
+  sesión; tus ajustes sí viajan.
+- **El zip de Copia de seguridad de la app ya no lleva los
+  tokens de inicio de sesión.** Al restaurar una copia hay que volver a
+  iniciar sesión.
+
+### Otros
+
+- Solicitud a F-Droid: el nombre de la app en el código y el bloque de firma
+  del APK ya pasan las comprobaciones de F-Droid. En la app no cambia nada.
+
 ## 1.15.0 — 02-10-2026 — Edición Los Morancos
 
 "¿Desliza pa'rriba? — ¡Pa'rriba! ¿Y ahora pa'bajo? — ¡Pa'bajo!" Homenaje
