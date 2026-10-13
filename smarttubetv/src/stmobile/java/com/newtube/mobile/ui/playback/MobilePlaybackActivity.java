@@ -359,7 +359,7 @@ public class MobilePlaybackActivity extends MobileActivity
             (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
                 int width = right - left;
                 if (width > 0
-                        && getResources().getConfiguration().orientation
+                        && layoutOrientation()
                         == Configuration.ORIENTATION_PORTRAIT) {
                     applyPortraitVideoHeight(width);
                     updateInlineViewport(width);
@@ -494,7 +494,7 @@ public class MobilePlaybackActivity extends MobileActivity
         setupControls();
         setupWatchContent();
 
-        int orientation = getResources().getConfiguration().orientation;
+        int orientation = layoutOrientation();
         applyWatchLayoutForOrientation(orientation);
         applySystemBarsForOrientation(orientation);
         updateFullscreenIcon(orientation);
@@ -1117,7 +1117,7 @@ public class MobilePlaybackActivity extends MobileActivity
             int width = Math.round(config.screenWidthDp
                     * getResources().getDisplayMetrics().density);
             if (width > 0) {
-                lp.height = Math.round(width * 9f / 16f);
+                lp.height = inlineBoxHeight(width);
                 lp.weight = 0;
                 mVideoArea.setLayoutParams(lp);
             }
@@ -1421,7 +1421,7 @@ public class MobilePlaybackActivity extends MobileActivity
             // over a black page with no controls.
             logPip("enter-aborted-restored inPip=" + (isInPipModeNow() ? "y" : "n"));
             mPipStateStale = isInPipModeNow();
-            int orientation = getResources().getConfiguration().orientation;
+            int orientation = layoutOrientation();
             applyWatchLayoutForOrientation(orientation);
             applySystemBarsForOrientation(orientation);
             showControlsInternal(false);
@@ -1519,7 +1519,7 @@ public class MobilePlaybackActivity extends MobileActivity
             mPlaybackService.ensureForeground();
         }
 
-        applySystemBarsForOrientation(getResources().getConfiguration().orientation);
+        applySystemBarsForOrientation(layoutOrientation());
         if (mMorphStartPending) {
             // NEWTUBE(motion): the morph's first step runs after the window's first frame(s), and
             // the line above just painted the backdrop solid again: the page stays clear until
@@ -1786,9 +1786,10 @@ public class MobilePlaybackActivity extends MobileActivity
         }
 
         refreshContentInsets();
-        applyWatchLayoutForOrientation(newConfig.orientation);
-        applySystemBarsForOrientation(newConfig.orientation);
-        updateFullscreenIcon(newConfig.orientation);
+        int orientation = layoutOrientation(newConfig.orientation);
+        applyWatchLayoutForOrientation(orientation);
+        applySystemBarsForOrientation(orientation);
+        updateFullscreenIcon(orientation);
         onFullscreenSwipeConfigured();
         // The standing auto-enter params carry a sourceRectHint captured from the video box; after
         // a rotation that rect is stale (portrait box vs fullscreen), which degrades the
@@ -1850,7 +1851,7 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         updateDownloadPill();
         if (!mIsInPip) {
-            applySystemBarsForOrientation(getResources().getConfiguration().orientation);
+            applySystemBarsForOrientation(layoutOrientation());
         }
         if (mWatchScroll != null && scrollY > 0) {
             mWatchScroll.post(() -> mWatchScroll.scrollTo(0, scrollY));
@@ -1865,7 +1866,7 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         // NEWTUBE(motion): like YouTube - Back leaves fullscreen first, then minimizes.
         if (!mIsInPip && !mPipEnterPending
-                && getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                && layoutOrientation() == Configuration.ORIENTATION_LANDSCAPE) {
             mBackPreview = false;
             toggleFullscreen();
             return;
@@ -1905,7 +1906,7 @@ public class MobilePlaybackActivity extends MobileActivity
     private boolean canMinimizeByBack() {
         return mPlayer != null && mContainer != null && mVideoArea != null && !mIsInPip && !mPipEnterPending
                 && !mScrubbing && mMorphAnimator == null && mMorphFraction == 0f
-                && getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
+                && layoutOrientation() == Configuration.ORIENTATION_PORTRAIT;
     }
 
     private void onBackGestureStarted() {
@@ -1953,7 +1954,7 @@ public class MobilePlaybackActivity extends MobileActivity
     private boolean canAnimateClose() {
         return mContainer != null && mVideoArea != null && !mIsInPip && !mPipEnterPending
                 && mMorphAnimator == null && mMorphFraction == 0f
-                && getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT
+                && layoutOrientation() == Configuration.ORIENTATION_PORTRAIT
                 && !isTaskRoot() && getViewManager().hasParentView(this)
                 && !MiniPlayerBridge.isActive();
     }
@@ -2075,12 +2076,12 @@ public class MobilePlaybackActivity extends MobileActivity
      */
     @Override
     protected void applyFullscreenModeIfNeeded() {
-        applySystemBarsForOrientation(getResources().getConfiguration().orientation);
+        applySystemBarsForOrientation(layoutOrientation());
     }
 
     @Override
     protected boolean shouldInsetContentForSystemBars() {
-        return getResources().getConfiguration().orientation != Configuration.ORIENTATION_LANDSCAPE;
+        return layoutOrientation() != Configuration.ORIENTATION_LANDSCAPE;
     }
 
     /**
@@ -2367,7 +2368,7 @@ public class MobilePlaybackActivity extends MobileActivity
             return;
         }
         LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) mVideoArea.getLayoutParams();
-        int height = Math.round(width * 9f / 16f);
+        int height = inlineBoxHeight(width);
         if (lp.height != height || lp.weight != 0) {
             lp.height = height;
             lp.weight = 0;
@@ -2375,8 +2376,23 @@ public class MobilePlaybackActivity extends MobileActivity
         }
     }
 
+    /**
+     * The inline video box: 16:9 of the window's width, except in a landscape-shaped window (a
+     * tablet that left fullscreen without rotating), where a full-width 16:9 box would be taller
+     * than the screen and bury the watch page - there it stops at 60% of the window height.
+     */
+    private int inlineBoxHeight(int width) {
+        int height = Math.round(width * 9f / 16f);
+        Configuration config = getResources().getConfiguration();
+        if (config.orientation == Configuration.ORIENTATION_LANDSCAPE && config.screenHeightDp > 0) {
+            int cap = Math.round(config.screenHeightDp * getResources().getDisplayMetrics().density * 0.6f);
+            height = Math.min(height, cap);
+        }
+        return height;
+    }
+
     private boolean isLandscape() {
-        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        return layoutOrientation() == Configuration.ORIENTATION_LANDSCAPE;
     }
 
     /**
@@ -2394,7 +2410,7 @@ public class MobilePlaybackActivity extends MobileActivity
                 || isLandscape()) {
             return;
         }
-        mExoPlayerController.setInlineViewport(boxWidth, Math.round(boxWidth * 9f / 16f),
+        mExoPlayerController.setInlineViewport(boxWidth, inlineBoxHeight(boxWidth),
                 getResizeMode() != RESIZE_MODE_DEFAULT);
     }
 
@@ -2445,7 +2461,7 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         if (!entered) {
             // Refused: undo the pre-stripped layout so the watch page comes back.
-            int orientation = getResources().getConfiguration().orientation;
+            int orientation = layoutOrientation();
             applyWatchLayoutForOrientation(orientation);
             applySystemBarsForOrientation(orientation);
             if (mTimeBar != null) {
@@ -2757,10 +2773,10 @@ public class MobilePlaybackActivity extends MobileActivity
             // GONE/alpha state left by PiP; on some task-reparent exits the first PlayerView tap
             // is swallowed by the system transition, otherwise leaving the restored player with
             // no apparent controls.
-            int orientation = newConfig != null ? newConfig.orientation
-                    : getResources().getConfiguration().orientation;
+            int orientation = newConfig != null ? layoutOrientation(newConfig.orientation)
+                    : layoutOrientation();
             logPip("exit-layout newConfig=" + (newConfig != null ? newConfig.orientation : -1)
-                    + " resources=" + getResources().getConfiguration().orientation
+                    + " resources=" + layoutOrientation()
                     + " chosen=" + orientation);
             applyWatchLayoutForOrientation(orientation);
             applySystemBarsForOrientation(orientation);
@@ -3572,14 +3588,119 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     private void toggleFullscreen() {
+        int windowOrientation = getResources().getConfiguration().orientation;
         boolean toLandscape =
-                getResources().getConfiguration().orientation != Configuration.ORIENTATION_LANDSCAPE;
+                layoutOrientation() != Configuration.ORIENTATION_LANDSCAPE;
+        int target = toLandscape
+                ? Configuration.ORIENTATION_LANDSCAPE : Configuration.ORIENTATION_PORTRAIT;
+        if (mContainer != null) {
+            mContainer.removeCallbacks(mRotationFallback);
+        }
+        if (target == windowOrientation) {
+            // The window already has that shape: only a layout override kept the other layout
+            // (fullscreen/inline without a rotation), so dropping it is the whole toggle.
+            setLayoutOverride(Configuration.ORIENTATION_UNDEFINED);
+            armAutoHide();
+            return;
+        }
+        if (areOrientationRequestsIgnored()) {
+            // NEWTUBE(tablet): Android 16 ignores orientation requests on large screens (sw >=
+            // 600dp, targetSdk 36+), and every Android ignores them in multi-window. Asking for
+            // PORTRAIT there was a silent no-op, so a landscape tablet could never leave
+            // fullscreen - neither the button nor Back (#44, #60). Fullscreen becomes a layout
+            // of the current window instead.
+            setLayoutOverride(target);
+            armAutoHide();
+            return;
+        }
         setRequestedOrientation(toLandscape
                 ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        armOrientationHandBack(toLandscape
-                ? Configuration.ORIENTATION_LANDSCAPE : Configuration.ORIENTATION_PORTRAIT);
+        armOrientationHandBack(target);
+        // Any other policy that drops the request (an OEM's large-screen setting, a freeform
+        // window) leaves no rotation behind it: flip the layout in place instead.
+        mRotationFallbackTarget = target;
+        mRotationFallbackFrom = windowOrientation;
+        if (mContainer != null) {
+            mContainer.postDelayed(mRotationFallback, FULLSCREEN_ROTATION_WAIT_MS);
+        }
         armAutoHide();
+    }
+
+    private int mRotationFallbackTarget;
+    private int mRotationFallbackFrom;
+    private final Runnable mRotationFallback = () -> {
+        if (isFinishing() || mIsInPip || mPipEnterPending
+                || getResources().getConfiguration().orientation != mRotationFallbackFrom
+                || layoutOrientation() == mRotationFallbackTarget) {
+            return;
+        }
+        if (BuildConfig.DEBUG) {
+            NetPath.log("fullscreen rotation-ignored target=" + mRotationFallbackTarget);
+        }
+        setLayoutOverride(mRotationFallbackTarget);
+    };
+
+    /**
+     * NEWTUBE(tablet): the watch layout ("portrait" = inline, "landscape" = fullscreen) normally
+     * IS the window's orientation. Where the window cannot rotate on request, the fullscreen
+     * toggle overrides it: {@link #mLayoutOverride} is the layout shown while the window keeps
+     * the orientation it had when the override was set; a real rotation drops the override.
+     */
+    private int mLayoutOverride = Configuration.ORIENTATION_UNDEFINED;
+    private int mLayoutOverrideBase = Configuration.ORIENTATION_UNDEFINED;
+
+    private int layoutOrientation() {
+        return layoutOrientation(getResources().getConfiguration().orientation);
+    }
+
+    private int layoutOrientation(int windowOrientation) {
+        if (mLayoutOverride != Configuration.ORIENTATION_UNDEFINED) {
+            if (windowOrientation == mLayoutOverrideBase) {
+                return mLayoutOverride;
+            }
+            mLayoutOverride = Configuration.ORIENTATION_UNDEFINED; // the window rotated
+            mLayoutOverrideBase = Configuration.ORIENTATION_UNDEFINED;
+        }
+        return windowOrientation;
+    }
+
+    private void setLayoutOverride(int orientation) {
+        int window = getResources().getConfiguration().orientation;
+        if (orientation == window) {
+            orientation = Configuration.ORIENTATION_UNDEFINED;
+        }
+        mLayoutOverride = orientation;
+        mLayoutOverrideBase = orientation == Configuration.ORIENTATION_UNDEFINED
+                ? Configuration.ORIENTATION_UNDEFINED : window;
+        if (mIsInPip || mPipEnterPending) {
+            return;
+        }
+        int layout = layoutOrientation();
+        refreshContentInsets();
+        applyWatchLayoutForOrientation(layout);
+        applySystemBarsForOrientation(layout);
+        updateFullscreenIcon(layout);
+        onFullscreenSwipeConfigured();
+        if (mVideoArea != null) {
+            mVideoArea.post(this::updatePipActions);
+        }
+    }
+
+    /**
+     * Whether fullscreen is a layout of the current window rather than a rotation. On a large
+     * screen (sw >= 600dp) it always is: Android 16 ignores the request there (targetSdk 36+), and
+     * older tablets that honour it either letterbox the app into a portrait strip of the landscape
+     * display or rotate it - and {@link OrientationHandBack}'s angles assume a portrait-natural
+     * phone, so on a landscape-natural tablet the hand-back read "held upright" at 0 degrees and
+     * flipped the player straight back into fullscreen (API 35 Pixel Tablet emulator).
+     */
+    private boolean areOrientationRequestsIgnored() {
+        if (Build.VERSION.SDK_INT >= 24 && isInMultiWindowMode()) {
+            return true;
+        }
+        return getApplicationContext().getResources().getConfiguration()
+                .smallestScreenWidthDp >= 600;
     }
 
     /**
