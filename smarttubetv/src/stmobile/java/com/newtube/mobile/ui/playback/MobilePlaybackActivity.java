@@ -1393,10 +1393,40 @@ public class MobilePlaybackActivity extends MobileActivity
         mPlayer = null;
     }
 
+    private boolean isActivelyPlaying() {
+        if (mPlayer == null || !mPlayer.getPlayWhenReady()) {
+            return false;
+        }
+        int state = mPlayer.getPlaybackState();
+        return state == Player.STATE_READY || state == Player.STATE_BUFFERING;
+    }
+
+    /**
+     * SCREEN-ON (#50): drives the WINDOW flag directly. It used to be {@code View#setKeepScreenOn}
+     * on the PlayerView, which the window only reads back when a view-attribute recompute runs;
+     * after a minimize/restore the window kept KEEP_SCREEN_ON through every later pause. The window
+     * flag has no such indirection: on while playing/buffering, off otherwise and while stopped.
+     */
+    private void applyKeepScreenOn(boolean on) {
+        Window window = getWindow();
+        if (window == null) {
+            return;
+        }
+        if (on && !mIsStopped) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+        if (mPlayerView != null && mPlayerView.getKeepScreenOn()) {
+            mPlayerView.setKeepScreenOn(false); // never a second, view-level holder
+        }
+    }
+
     @Override
     protected void onStart() {
         super.onStart();
         mIsStopped = false;
+        applyKeepScreenOn(isActivelyPlaying());
         startProgressUpdates();
         if (mControlsVisible) {
             armAutoHide();
@@ -1556,6 +1586,7 @@ public class MobilePlaybackActivity extends MobileActivity
         super.onStop();
 
         mIsStopped = true;
+        applyKeepScreenOn(false); // a hidden window must not hold the screen; onStart re-applies
         stopProgressUpdates();
         cancelAutoHide();
         if (mExoPlayerController != null && mExoPlayerController.isHoldSpeedOn()) {
@@ -4421,10 +4452,8 @@ public class MobilePlaybackActivity extends MobileActivity
             // SCREEN-ON: hold the screen awake while actively playing/buffering (like the YouTube
             // app); paused or ended releases it so the system's own display timeout applies. This
             // replaces the TV ScreensaverManager dim, which is disabled on mobile.
-            if (mPlayerView != null) {
-                mPlayerView.setKeepScreenOn(playWhenReady
-                        && (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING));
-            }
+            applyKeepScreenOn(playWhenReady
+                    && (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING));
         }
 
         @Override
