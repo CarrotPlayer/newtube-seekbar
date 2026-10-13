@@ -370,8 +370,9 @@ public class MobileChannelActivity extends MobileActivity
         // Add missing tabs / fix titles in place; section order only ever grows by append.
         int index = 0;
         for (Section section : mSections.values()) {
-            String title = section.title != null && !section.title.isEmpty()
-                    ? section.title : getString(R.string.mobile_channel_tab_videos);
+            String title = section.title != null && !section.title.isEmpty() ? section.title
+                    : getString(ChannelTabShortcuts.isShortcutRow(section.videos) // NEWTUBE(#63)
+                            ? R.string.mobile_channel_tab_more : R.string.mobile_channel_tab_videos);
 
             TabLayout.Tab tab = index < mTabs.getTabCount() ? mTabs.getTabAt(index) : null;
             if (tab == null) {
