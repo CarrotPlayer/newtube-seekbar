@@ -194,8 +194,9 @@ public final class DownloadOptions {
 
     /**
      * What identifies an audio track across fresh format infos (links expire, the itag is shared
-     * by every language): the URL's language/variant tag plus YouTube's track id. Null for a
-     * video with a single, untagged audio track.
+     * by every language): the URL's language/variant tag plus YouTube's track id;
+     * {@link #UNTAGGED_TRACK} for a video with a single, untagged audio track, so that a stored
+     * null always means "not recorded" (items saved before 1.15.1). Null only for no format.
      */
     @Nullable
     public static String audioTrackKey(@Nullable MediaFormat format) {
@@ -204,10 +205,32 @@ public final class DownloadOptions {
         }
         String language = format.getLanguage();
         String id = format.getAudioTrackId();
-        if ((language == null || language.isEmpty()) && (id == null || id.isEmpty())) {
-            return null;
-        }
         return (language != null ? language : "") + "|" + (id != null ? id : "");
+    }
+
+    /** {@link #audioTrackKey} of an audio format with neither a language tag nor a track id. */
+    public static final String UNTAGGED_TRACK = "|";
+
+    /**
+     * Whether a kept audio part must be thrown away before fetching {@code resolvedTrack}: the
+     * fetcher resumes from the part's length, which is only right when the part holds a prefix
+     * of the very same stream. An unknown stored identity (pre-1.15.1 item), another variant,
+     * or a part longer than the stream all mean the bytes may be another language's.
+     */
+    static boolean mustRestartAudioPart(@Nullable String storedTrack, @Nullable String resolvedTrack,
+                                        long partBytes, long resolvedLength) {
+        if (partBytes <= 0) {
+            return false;
+        }
+        if (storedTrack == null || !storedTrack.equals(resolvedTrack)) {
+            return true;
+        }
+        return mustRestartPart(partBytes, resolvedLength);
+    }
+
+    /** A kept part longer than the stream it is resumed against cannot be a prefix of it. */
+    static boolean mustRestartPart(long partBytes, long resolvedLength) {
+        return partBytes > 0 && resolvedLength > 0 && partBytes > resolvedLength;
     }
 
     /**
