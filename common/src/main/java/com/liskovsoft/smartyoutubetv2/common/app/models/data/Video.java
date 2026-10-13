@@ -42,7 +42,8 @@ public final class Video {
     private static final float RESTORE_POSITION_PERCENTS = 10; // min value for immediately closed videos
     public int id;
     public String title;
-    public String deArrowTitle;
+    public String deArrowTitle; // DeArrow's crowd-sourced title (wins over everything)
+    public String unlocalizedTitle; // NEWTUBE(#45): the uploader's title, untranslated (Original titles)
     public CharSequence secondTitle;
     private String metadataTitle;
     private CharSequence metadataSecondTitle;
@@ -95,6 +96,9 @@ public final class Video {
     public String subscriberCount;
     public AudioLoudness loudness; // NEWTUBE(loudness): null = unknown, played at unity
     public boolean deArrowProcessed;
+    // NEWTUBE(#45): one flag per processor. They used to share deArrowProcessed, so DeArrow
+    // (which runs first) claimed every video and the Original titles step skipped them all.
+    public boolean unlocalizedTitleProcessed;
     public boolean isLiveEnd;
     public boolean isShuffled;
     public String searchQuery;
@@ -305,11 +309,12 @@ public final class Video {
     }
 
     public String getTitle() {
-        return deArrowTitle != null ? deArrowTitle : title;
+        return deArrowTitle != null ? deArrowTitle : unlocalizedTitle != null ? unlocalizedTitle : title;
     }
 
     public String getTitleFull() {
-        return deArrowTitle != null ? deArrowTitle : metadataTitle != null ? metadataTitle : title;
+        return deArrowTitle != null ? deArrowTitle : unlocalizedTitle != null ? unlocalizedTitle
+                : metadataTitle != null ? metadataTitle : title;
     }
 
     public CharSequence getSecondTitle() {
