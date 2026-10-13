@@ -115,6 +115,9 @@ final class DownloadJob {
         // meanwhile refused) resolves the same itags again from a fresh format info.
         if (mItem.videoUrl == null && mItem.audioUrl == null) {
             resolveUrls();
+        } else if (mItem.audioUrl != null) {
+            NetPath.log("download audio enqueue video=" + mItem.videoId + " itag=" + mItem.audioItag
+                    + " track=" + mItem.audioTrack);
         }
 
         for (int attempt = 1; ; attempt++) {
@@ -201,7 +204,10 @@ final class DownloadJob {
         if (video == null && mItem.videoItag != null) {
             video = findByItag(info.getUrlFormats(), mItem.videoItag);
         }
-        MediaFormat audio = mItem.audioItag != null ? findByItag(info.getAdaptiveFormats(), mItem.audioItag) : null;
+        // Not findByItag: every language variant of a dubbed video shares the audio itag, and
+        // the first one listed is often an auto-dub (issue #29). Same language as the picker chose.
+        MediaFormat audio = mItem.audioItag != null
+                ? DownloadOptions.pickAudio(info.getAdaptiveFormats(), mItem.audioItag, mItem.audioTrack) : null;
 
         if (mItem.videoItag != null && video == null) {
             throw new StreamFetcher.UrlRefusedException(0);
@@ -212,6 +218,16 @@ final class DownloadJob {
 
         mItem.videoUrl = video != null ? video.getUrl() : null;
         mItem.audioUrl = audio != null ? audio.getUrl() : null;
+        if (audio != null && mItem.audioTrack == null) {
+            mItem.audioTrack = DownloadOptions.audioTrackKey(audio);
+        }
+        if (audio != null) {
+            MediaFormat firstByItag = findByItag(info.getAdaptiveFormats(), mItem.audioItag);
+            NetPath.log("download audio resolve video=" + mItem.videoId + " itag=" + audio.getITag()
+                    + " lang=" + audio.getLanguage() + " track=" + audio.getAudioTrackId()
+                    + " wanted=" + mItem.audioTrack
+                    + " firstByItag=" + (firstByItag != null ? firstByItag.getLanguage() : null));
+        }
         mItem.videoLength = DownloadOptions.lengthOf(video);
         mItem.audioLength = DownloadOptions.lengthOf(audio);
     }

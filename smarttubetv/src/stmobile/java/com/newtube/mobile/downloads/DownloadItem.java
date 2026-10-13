@@ -31,6 +31,12 @@ public final class DownloadItem {
     @Nullable public final String qualityLabel;
     @Nullable public final String videoItag;
     @Nullable public final String audioItag;
+    /**
+     * Which language variant of {@link #audioItag} was picked ({@link DownloadOptions#audioTrackKey}):
+     * every dub shares the itag, so a re-resolve must match this too. Null for single-audio videos
+     * and items saved before 1.15.1 (those re-resolve to the original track).
+     */
+    @Nullable public volatile String audioTrack;
     public final long createdAt;
 
     public volatile int state = STATE_QUEUED;
@@ -74,6 +80,7 @@ public final class DownloadItem {
                 System.currentTimeMillis());
         item.videoUrl = option.video != null ? option.video.getUrl() : null;
         item.audioUrl = option.audio != null ? option.audio.getUrl() : null;
+        item.audioTrack = DownloadOptions.audioTrackKey(option.audio);
         item.videoLength = DownloadOptions.lengthOf(option.video);
         item.audioLength = DownloadOptions.lengthOf(option.audio);
         item.bytesTotal = option.totalBytes;
@@ -116,6 +123,7 @@ public final class DownloadItem {
         json.putOpt("qualityLabel", qualityLabel);
         json.putOpt("videoItag", videoItag);
         json.putOpt("audioItag", audioItag);
+        json.putOpt("audioTrack", audioTrack);
         json.put("createdAt", createdAt);
         json.put("state", state);
         json.put("bytesDone", bytesDone);
@@ -134,6 +142,7 @@ public final class DownloadItem {
                 optString(json, "author"), optString(json, "thumbUrl"), json.optInt("kind", DownloadOption.KIND_VIDEO),
                 optString(json, "qualityLabel"), optString(json, "videoItag"), optString(json, "audioItag"),
                 json.optLong("createdAt", 0));
+        item.audioTrack = optString(json, "audioTrack");
         item.state = json.optInt("state", STATE_FAILED);
         item.bytesDone = json.optLong("bytesDone", 0);
         item.bytesTotal = json.optLong("bytesTotal", -1);
