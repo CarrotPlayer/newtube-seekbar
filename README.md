@@ -278,8 +278,8 @@ SmartTube's original README is kept at [docs/UPSTREAM_README_SmartTube.md](docs/
 ## Translate
 
 NewTube's phone screens are in English and Spanish so far. You can translate them in your browser
-on **[Weblate](https://hosted.weblate.org/projects/newtube/)** (WEBLATE-URL-PLACEHOLDER: the
-project page goes live once it is approved), with no coding and no GitHub account needed. The
+on **[Weblate](https://hosted.weblate.org/projects/newtube/)**, with no coding and no GitHub
+account needed. The
 settings and messages inherited from SmartTube already exist in about 45 languages and just need
 their gaps filled. Weblate sends the translations here as pull requests, and each one ships in the
 next release. How it works and what to translate first: [TRANSLATING.md](TRANSLATING.md).
