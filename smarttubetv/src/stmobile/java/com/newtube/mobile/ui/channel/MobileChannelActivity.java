@@ -100,6 +100,8 @@ public class MobileChannelActivity extends MobileActivity
 
     /** Sections in delivery order; iteration order == tab order. */
     private final Map<Integer, Section> mSections = new LinkedHashMap<>();
+    /** NEWTUBE(shorts): sections arrived but the Shorts filter left nothing of them (#63). */
+    private boolean mShortsEmptied;
     /** Group id of the section shown in the grid (its tab is selected). */
     private int mActiveSectionId = -1;
     private int mLastPaginationTriggerCount = -1;
@@ -518,6 +520,9 @@ public class MobileChannelActivity extends MobileActivity
             boolean isNewSection = section == null;
             List<Video> shown = ShortsFilter.withoutShorts(group.getVideos()); // NEWTUBE(shorts)
             boolean content = group.getAction() != VideoGroup.ACTION_REMOVE && group.getAction() != VideoGroup.ACTION_SYNC;
+            int shortsDropped = (group.getVideos() != null ? group.getVideos().size() : 0)
+                    - (shown != null ? shown.size() : 0);
+            mShortsEmptied |= content && shortsDropped > 0;
             // ...and no Shorts tab: the channel's Shorts section (emptied here, or already by the
             // service under a stored "Hide shorts from a channel") never becomes a tab. Any other
             // section keeps its tab while it has more to load, even if this page was all Shorts
@@ -528,9 +533,6 @@ public class MobileChannelActivity extends MobileActivity
                         || group.getNextPageKey() == null || group.isEmpty())) {
                 return;
             }
-
-            int shortsDropped = (group.getVideos() != null ? group.getVideos().size() : 0)
-                    - (shown != null ? shown.size() : 0);
 
             switch (group.getAction()) {
                 case VideoGroup.ACTION_REPLACE:
@@ -639,6 +641,7 @@ public class MobileChannelActivity extends MobileActivity
     public void clear() {
         runOnUiThread(() -> {
             mSections.clear();
+            mShortsEmptied = false;
             mActiveSectionId = -1;
             mLastPaginationTriggerCount = -1;
             mLoadMoreFailedSectionId = -1;
@@ -666,8 +669,21 @@ public class MobileChannelActivity extends MobileActivity
             mProgressBar.setVisibility(show && !mSwipe.isRefreshing() ? View.VISIBLE : View.GONE);
             if (!show) {
                 mSwipe.setRefreshing(false);
+                showEmptyIfShortsLeftNothing();
             }
         });
+    }
+
+    /**
+     * NEWTUBE(shorts): the page loaded, but the Shorts filter left no card in any tab (a channel of
+     * only Shorts, or a Shorts list reached some other way) - the empty state, never a blank page
+     * (#63). ShortsFilter drops the tiles that lead to a Shorts list; this is the safety net.
+     */
+    private void showEmptyIfShortsLeftNothing() {
+        if (mShortsEmptied && !hasContent() && !mLoadState.isShowing()) {
+            mGrid.setVisibility(View.GONE);
+            mLoadState.show(LoadFailure.EMPTY);
+        }
     }
 
     /**
