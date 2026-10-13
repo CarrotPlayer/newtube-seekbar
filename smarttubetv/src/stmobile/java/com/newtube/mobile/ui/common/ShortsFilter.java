@@ -26,11 +26,17 @@ public final class ShortsFilter {
 
     /**
      * A card that is not a video but a way into a Shorts list - the channel's (or Subscriptions')
-     * "Shorts" tab or shelf served as a tile (#63). Opening it lands on a list whose every item is
-     * a Short, so after filtering the user saw a blank "Shorts" screen; the tile goes with them.
+     * "Shorts" tab served as a tile (#63). Opening it lands on a list whose every item is a Short,
+     * so after filtering the user saw a blank "Shorts" screen; the tile goes with them.
+     *
+     * <p>The title alone is not enough: a real channel or playlist may be called "Shorts". A tab
+     * tile is a nested list (MediaServiceCore's TabMediaItem/GuideMediaItem: {@code hasUploads()})
+     * with no video and no playlist behind it, while a channel card has no nested list and a
+     * playlist card has its playlist id - both are kept.
      */
     static boolean isShortsTile(Video video) {
-        return video.videoId == null && isShortsName(video.getTitle());
+        return video.videoId == null && video.playlistId == null && video.hasNestedItems()
+                && isShortsName(video.getTitle());
     }
 
     private static boolean isShortsName(CharSequence title) {

@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Application;
 
+import com.liskovsoft.mediaserviceinterfaces.data.MediaItem;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 
 import org.junit.Test;
@@ -16,6 +17,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.ConscryptMode;
 
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -76,15 +78,29 @@ public class ShortsFilterTest {
 
     @Test
     public void aShortsTabServedAsATileIsAShort() {
-        // #63: the channel's / Subscriptions' "Shorts" tab arrives as a card with no video; it
-        // opened a list of nothing but Shorts, i.e. a blank screen.
-        Video tile = new Video();
-        tile.title = " Shorts ";
-        tile.channelId = "UCabc";
-        assertTrue(ShortsFilter.isShort(tile));
+        // #63: the channel's / Subscriptions' "Shorts" tab arrives as a nested-list card with no
+        // video; it opened a list of nothing but Shorts, i.e. a blank screen.
+        Video tab = tile(" Shorts ", null, null);
+        assertTrue(ShortsFilter.isShort(tab));
+        assertTrue("guide-style tab with a browse id", ShortsFilter.isShort(tile("#Shorts", "UCabc", null)));
 
         Video a = video("a", false);
-        assertEquals(Arrays.asList(a), ShortsFilter.withoutShorts(Arrays.asList(tile, a)));
+        assertEquals(Arrays.asList(a), ShortsFilter.withoutShorts(Arrays.asList(tab, a)));
+    }
+
+    @Test
+    public void aChannelOrPlaylistNamedShortsIsKept() {
+        Video channel = new Video();
+        channel.title = "Shorts";
+        channel.channelId = "UCshorts";
+        assertFalse("a real channel named Shorts", ShortsFilter.isShort(channel));
+
+        Video playlist = new Video();
+        playlist.title = "#Shorts";
+        playlist.playlistId = "PLabc";
+        assertFalse("a playlist named #Shorts", ShortsFilter.isShort(playlist));
+
+        assertFalse("a nested playlist named #Shorts", ShortsFilter.isShort(tile("#Shorts", "UCabc", "PLabc")));
     }
 
     @Test
@@ -93,10 +109,36 @@ public class ShortsFilterTest {
         named.title = "Shorts";
         assertFalse(ShortsFilter.isShort(named));
 
-        Video channel = new Video();
-        channel.title = "Shorts and more";
-        channel.channelId = "UCabc";
-        assertFalse(ShortsFilter.isShort(channel));
+        assertFalse(ShortsFilter.isShort(tile("Shorts and more", null, null)));
+    }
+
+    /** A card backed by a MediaItem with nested uploads (a tab / guide tile). */
+    private static Video tile(String title, String channelId, String playlistId) {
+        Video video = new Video();
+        video.title = title;
+        video.channelId = channelId;
+        video.playlistId = playlistId;
+        video.mediaItem = (MediaItem) Proxy.newProxyInstance(MediaItem.class.getClassLoader(),
+                new Class<?>[] {MediaItem.class}, (proxy, method, args) -> {
+                    if ("hasUploads".equals(method.getName())) {
+                        return true;
+                    }
+                    Class<?> type = method.getReturnType();
+                    if (type == boolean.class) {
+                        return false;
+                    }
+                    if (type == int.class) {
+                        return 0;
+                    }
+                    if (type == long.class) {
+                        return 0L;
+                    }
+                    if (type == float.class) {
+                        return 0f;
+                    }
+                    return null;
+                });
+        return video;
     }
 
     private static Video video(String id, boolean isShorts) {
