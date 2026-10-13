@@ -29,9 +29,9 @@ any information about you or your usage.
   shared with, the developer.
 - **Tokens stay on your device.** Authentication tokens are stored in the
   app's local storage on your device. They are never transmitted to, or stored
-  by, the developer. Android's own device backup and phone-to-phone transfer
-  leave them out, so a restored or moved NewTube starts signed out. The app's
-  optional Backup & restore does copy them to the backup location you choose.
+  by, the developer. Neither Android's own device backup and phone-to-phone
+  transfer nor the app's own Backup & restore include them, so a phone
+  restored or moved that way starts signed out.
 - **Direct connection.** Video streams, search, and account data are fetched
   directly from YouTube/Google servers to your device. Your use of YouTube's
   services through NewTube is also subject to Google's and YouTube's own terms
