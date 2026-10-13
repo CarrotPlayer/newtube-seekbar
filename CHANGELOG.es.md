@@ -4,6 +4,20 @@ Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 
+## 1.15.3 — 13-10-2026 — Edición Berto Romero
+
+"No cambia nada, y esa es la noticia." Homenaje ficticio a Berto Romero para
+una versión que no vas a notar: un cambio de compilación camino de F-Droid.
+
+### Cambiado
+
+- **Una biblioteca menos dentro de la app.** Los vídeos se siguen cargando con
+  el mismo motor Cronet integrado (HTTP/3 y HTTP/2), ahora mediante una copia
+  propia del código Cronet de media3, así que la app ya no lleva una
+  biblioteca que declara Google Play Services. No cambia nada en cómo cargan
+  los vídeos.
+- **Las traducciones están abiertas en [Weblate](https://hosted.weblate.org/projects/newtube/).**
+
 ## 1.15.2 — 13-10-2026 — Edición Joaquín Reyes
 
 "Esto es un vídeo corto, ¿vale? Pues aquí no hay." Homenaje ficticio a

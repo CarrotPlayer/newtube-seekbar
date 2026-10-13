@@ -2,6 +2,19 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.15.3 — 2026-10-13 — Berto Romero Edition
+
+"Nothing changes, and that's the news." A fictional homage to Berto Romero,
+for a release you won't notice: a build change on the way to F-Droid.
+
+### Changed
+
+- **One less library inside the app.** Videos still stream over the same
+  built-in Cronet engine (HTTP/3 and HTTP/2), now through NewTube's own copy
+  of media3's Cronet code, so the app no longer carries a library that
+  declares Google Play Services. Nothing changes in how videos load.
+- **Translations are open on [Weblate](https://hosted.weblate.org/projects/newtube/).**
+
 ## 1.15.2 — 2026-10-13 — Joaquín Reyes Edition
 
 "A short video, you say? Well, round here there aren't any." A fictional
