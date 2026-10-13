@@ -4,6 +4,26 @@ Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 
+## 1.15.2 — 13-10-2026 — Edición Joaquín Reyes
+
+"Esto es un vídeo corto, ¿vale? Pues aquí no hay." Homenaje ficticio a
+Joaquín Reyes para un parche del mismo día: canales sin Shorts y unos cabos
+sueltos de la 1.15.1.
+
+### Arreglado
+
+- **Nada de Shorts en las páginas de canal (#63).** La tarjeta de acceso a
+  Shorts de la última pestaña de un canal ya no está (abría una página en
+  blanco), y esa pestaña ahora se llama "Más" en vez de un segundo "Vídeos".
+- **Descargas: un audio descargado a medias solo se reanuda si es del mismo
+  idioma.** Una descarga parada a mitad podía seguir con otra pista de audio.
+- **Los enlaces youtube.com/@usuario abren el canal,** y un canal abierto
+  desde un enlace muestra su nombre.
+- **Con un menú abierto sobre el minirreproductor, al pausar la pantalla se
+  puede apagar.**
+- **"Quitar de la lista" en tus propias listas, Ver más tarde incluida
+  (#36),** con Deshacer.
+
 ## 1.15.1 — 13-10-2026 — Edición José Mota
 
 "Si hay que salir de pantalla completa se sale, pero salir pa'ná es

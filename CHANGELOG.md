@@ -2,6 +2,26 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.15.2 — 2026-10-13 — Joaquín Reyes Edition
+
+"A short video, you say? Well, round here there aren't any." A fictional
+homage to Joaquín Reyes, for a same-day patch: channel pages without
+Shorts, and a few loose ends from 1.15.1.
+
+### Fixed
+
+- **No Shorts on channel pages (#63).** The Shorts shortcut tile in a
+  channel's last tab is gone (it opened a blank page), and that tab is now
+  labelled "More" instead of a second "Videos".
+- **Downloads: a partly downloaded audio file is only resumed if it is the
+  same language.** A download stopped halfway could otherwise carry on with
+  a different audio track.
+- **youtube.com/@handle links open the channel,** and a channel page opened
+  from a link shows the channel's name.
+- **With a menu open over the mini player, pausing lets the screen sleep.**
+- **"Remove from playlist" in your own playlists, Watch later included
+  (#36),** with Undo.
+
 ## 1.15.1 — 2026-10-13 — José Mota Edition
 
 "If you have to leave fullscreen, you leave. But leaving for nothing is
