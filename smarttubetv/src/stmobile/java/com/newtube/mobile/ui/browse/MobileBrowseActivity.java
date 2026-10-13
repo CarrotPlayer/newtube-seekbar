@@ -187,6 +187,21 @@ public class MobileBrowseActivity extends MobileActivity
     private ProgressBar mMiniProgress;
     /** 500ms UI ticker while the bar is visible: progress line, play/pause icon, liveness check. */
     private final Runnable mMiniPlayerTick = this::onMiniPlayerTick;
+    /**
+     * SCREEN-ON (#50): the card's screen-on hold follows the player's own events, not the 500 ms
+     * tick. onPause stops the tick but keeps the card up (frozen, audio playing) while a translucent
+     * window such as the card menu sits on top and this Activity never reaches onStop - a pause or
+     * end there must still let the screen go, and playing there must still hold it.
+     */
+    private final Player.Listener mMiniScreenOnListener = new Player.Listener() {
+        @Override
+        public void onEvents(Player player, Player.Events events) {
+            if (events.containsAny(Player.EVENT_PLAY_WHEN_READY_CHANGED, Player.EVENT_PLAYBACK_STATE_CHANGED)) {
+                setMiniKeepScreenOn(isMiniActivelyPlaying(player));
+            }
+        }
+    };
+    private Player mMiniScreenOnPlayer;
     private static final long MINI_TICK_MS = 500;
     /** NEWTUBE(motion): the longest the expanding player waits for this card to fold. */
     private static final long MINI_FOLD_WAIT_MS = 50;
@@ -681,6 +696,7 @@ public class MobileBrowseActivity extends MobileActivity
         stopMiniSwipe();
         mMiniPlayerBar.animate().cancel();
         mMiniPlayerBar.setVisibility(View.GONE);
+        unwatchMiniScreenOn();
         setMiniKeepScreenOn(false); // no card, no video on this screen
         mMiniPlayerBar.setAlpha(1f);
         mMiniPlayerBar.setScaleX(1f);
@@ -736,9 +752,31 @@ public class MobileBrowseActivity extends MobileActivity
         mMiniPlayPause.setImageResource(playing ? R.drawable.ic_player_pause : R.drawable.ic_player_play);
         // SCREEN-ON (#50): the docked card is a visible video; this window holds the screen while it
         // plays (the stopped player Activity no longer does) and lets go when it pauses.
-        setMiniKeepScreenOn(player.getPlayWhenReady()
+        watchMiniScreenOn(player);
+        setMiniKeepScreenOn(isMiniActivelyPlaying(player));
+    }
+
+    private static boolean isMiniActivelyPlaying(Player player) {
+        return player.getPlayWhenReady()
                 && (player.getPlaybackState() == Player.STATE_READY
-                    || player.getPlaybackState() == Player.STATE_BUFFERING));
+                    || player.getPlaybackState() == Player.STATE_BUFFERING);
+    }
+
+    /** Listen while the card is up (see mMiniScreenOnListener); foldMiniCard() stops it. */
+    private void watchMiniScreenOn(Player player) {
+        if (mMiniScreenOnPlayer == player) {
+            return;
+        }
+        unwatchMiniScreenOn();
+        player.addListener(mMiniScreenOnListener);
+        mMiniScreenOnPlayer = player;
+    }
+
+    private void unwatchMiniScreenOn() {
+        if (mMiniScreenOnPlayer != null) {
+            mMiniScreenOnPlayer.removeListener(mMiniScreenOnListener);
+            mMiniScreenOnPlayer = null;
+        }
     }
 
     private void setMiniKeepScreenOn(boolean on) {
@@ -1891,6 +1929,7 @@ public class MobileBrowseActivity extends MobileActivity
 
     @Override
     protected void onDestroy() {
+        unwatchMiniScreenOn(); // the shared player outlives this Activity
         mNavHandler.removeCallbacks(mNavRebuild);
         mNavHandler.removeCallbacks(mRunwayCheck);
         cancelFeedSwap(); // NEWTUBE(feed-swap)
