@@ -83,6 +83,8 @@ public class MobileChannelActivity extends MobileActivity
     private TabLayout mTabs;
     private ProgressBar mProgressBar;
     private TextView mTitleView;
+    /** The header holds a real channel name (from the card, or from the loaded videos). */
+    private boolean mTitleFromCard;
     private ImageButton mBackButton;
     private MobileMiniPlayerController mMiniPlayer;
     private boolean mAnimateMiniFromPlayer;
@@ -134,16 +136,41 @@ public class MobileChannelActivity extends MobileActivity
 
         mPresenter = ChannelPresenter.instance(this);
 
-        Video channel = mPresenter.getChannel();
-        if (channel != null) {
-            // Prefer the channel/author name (e.g. "Ibai") over the source item's own title
-            // (which, when a channel is opened from a video, is that video's title). Mirrors the
-            // TV ChannelFragment header (Helpers.firstNonNull(author, title)).
-            mTitleView.setText(Helpers.firstNonNull(channel.getAuthor(), channel.getTitle()));
-        }
+        applyChannelTitle();
 
         mPresenter.setView(this);
         mPresenter.onViewInitialized();
+    }
+
+    /**
+     * Prefer the channel/author name (e.g. "Ibai") over the source item's own title (which, when
+     * a channel is opened from a video, is that video's title). Mirrors the TV ChannelFragment
+     * header (Helpers.firstNonNull(author, title)). NEWTUBE: a channel opened from a link has no
+     * card; keep the default header until {@link #update} names it from the loaded videos.
+     */
+    private void applyChannelTitle() {
+        Video channel = mPresenter != null ? mPresenter.getChannel() : null;
+        String name = channel != null ? Helpers.firstNonNull(channel.getAuthor(), channel.getTitle()) : null;
+        mTitleFromCard = name != null;
+        mTitleView.setText(name != null ? name : getString(R.string.header_channels));
+    }
+
+    /** NEWTUBE: name a link-opened channel once its first videos arrive. */
+    private void maybeNameFromVideos(@Nullable List<Video> videos) {
+        if (mTitleFromCard || videos == null) {
+            return;
+        }
+        List<String> authors = new ArrayList<>();
+        for (Video video : videos) {
+            if (video != null) {
+                authors.add(video.getAuthor());
+            }
+        }
+        String name = ChannelTitle.fromAuthors(authors);
+        if (name != null) {
+            mTitleFromCard = true;
+            mTitleView.setText(name);
+        }
     }
 
     private void bindViews() {
@@ -535,6 +562,10 @@ public class MobileChannelActivity extends MobileActivity
                 return;
             }
 
+            if (content) {
+                maybeNameFromVideos(group.getVideos());
+            }
+
             switch (group.getAction()) {
                 case VideoGroup.ACTION_REPLACE:
                     section = new Section(id, group.getTitle());
@@ -649,6 +680,7 @@ public class MobileChannelActivity extends MobileActivity
             mPagingSectionId = -1;
             if (!mSwipe.isRefreshing()) {
                 mRestoreSectionTitle = null; // only a refresh's own clear carries the tab over
+                applyChannelTitle(); // NEWTUBE: another channel opened into this page
             }
             mSuppressTabCallback = true;
             mTabs.removeAllTabs();
