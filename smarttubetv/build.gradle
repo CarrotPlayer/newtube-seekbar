@@ -415,7 +415,7 @@ dependencies {
     // (CronetManager); the GMS provider is useless weight here. The exclude stays on the SAME line:
     // F-Droid's scanner reads build files line by line, and its pending rule (fdroid-suss !55) only
     // clears this coordinate when the play-services-cronet exclude sits next to it.
-    //stmobileImplementation('androidx.media3:media3-datasource-cronet:' + media3Version) { exclude group: 'com.google.android.gms', module: 'play-services-cronet' }
+    stmobileCompileOnly 'org.chromium.net:cronet-api:119.6045.31'
     stmobileImplementation dependencies.project(':doubletapplayerview-media3')
     stmobileImplementation dependencies.project(':sabr-media3')
     // NEWTUBE(update-flow): the phone's update sheet drives the updater directly (AppUpdates)
