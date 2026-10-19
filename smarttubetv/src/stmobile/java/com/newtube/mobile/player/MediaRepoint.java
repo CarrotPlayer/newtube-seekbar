@@ -175,7 +175,8 @@ public final class MediaRepoint {
         final String videoId;
         final Set<String> keys;
         private final Requester mRequester;
-        private volatile boolean mServed;
+        /** nowMs() of the open's first served request; -1 until then. */
+        private volatile long mFirstServedAtMs = -1;
         // Guarded by this.
         private final Map<String, String> mTargets = new HashMap<>();
         private final Set<String> mRefusedKeys = new HashSet<>();
@@ -185,6 +186,9 @@ public final class MediaRepoint {
         private boolean mFailed;
         private boolean mClosed;
         private int mSwaps;
+        /** The swap in flight (or last landed): a waiter only ever waits for its own one. */
+        private int mGeneration;
+        private boolean mLanded;
         private long mPendingSinceMs;
 
         Session(String videoId, Set<String> keys, Requester requester) {
@@ -232,6 +236,9 @@ public final class MediaRepoint {
             mTargets.putAll(targets);
             mGate = gate;
             mPending = false;
+            // Answered: a later swap only needs the files refused after this one.
+            mRefusedKeys.clear();
+            mLanded = true;
             notifyAll();
             return true;
         }
@@ -250,11 +257,24 @@ public final class MediaRepoint {
         }
 
         void onServed() {
-            mServed = true;
+            if (mFirstServedAtMs < 0) {
+                synchronized (this) {
+                    if (mFirstServedAtMs < 0) {
+                        mFirstServedAtMs = nowMs();
+                    }
+                }
+            }
         }
 
-        boolean wasServed() {
-            return mServed;
+        /**
+         * Whether a refusal of a request sent at {@code requestStartMs} may wait for a swap: only
+         * once the open was served before that request went out. Requests sent together at the
+         * start (audio and video) are the original answer's own readiness business (ReadinessGate,
+         * above this layer, retries them), not a wall.
+         */
+        boolean servedBefore(long requestStartMs) {
+            long servedAt = mFirstServedAtMs;
+            return servedAt >= 0 && servedAt < requestStartMs;
         }
 
         /**
@@ -268,6 +288,7 @@ public final class MediaRepoint {
                 throws InterruptedIOException {
             boolean request = false;
             long deadline;
+            int generation;
             synchronized (this) {
                 if (mClosed || mFailed) {
                     return null;
@@ -278,21 +299,31 @@ public final class MediaRepoint {
                     if (current != null && !current.equals(refusedTarget)) {
                         return current; // swapped while this request was on its way
                     }
+                    if (current == null && mLanded) {
+                        // A file the new answer does not have, still on the old answer's URL: the
+                        // old answer refused it, and asking again would blame the new one. Fails
+                        // this request alone; media3 drops that format and plays the others.
+                        mRefusedKeys.remove(key);
+                        return null;
+                    }
                     if (mSwaps >= MAX_SWAPS) {
                         return null;
                     }
                     mSwaps++;
+                    mGeneration++;
                     mPending = true;
                     mPendingSinceMs = nowMs();
                     request = true;
                 }
+                generation = mGeneration;
                 deadline = mPendingSinceMs + sSwapWaitMs;
             }
             if (request) {
                 mRequester.onSwapNeeded(this, refusedUri);
             }
             synchronized (this) {
-                while (mPending && !mClosed) {
+                // A later swap starting before this waiter wakes is not this waiter's to time out.
+                while (mPending && !mClosed && !mFailed && mGeneration == generation) {
                     long left = deadline - nowMs();
                     if (left <= 0) {
                         mPending = false;
@@ -343,6 +374,7 @@ public final class MediaRepoint {
             String target = session.target(key);
             long waitStartMs = -1;
             while (true) {
+                long requestStartMs = nowMs();
                 try {
                     long length = openAt(dataSpec, target, target != null ? session.gate() : null);
                     session.onServed();
@@ -353,7 +385,8 @@ public final class MediaRepoint {
                     }
                     return length;
                 } catch (IOException refused) {
-                    if (ReadinessGate.responseCode(refused) != 403 || !session.wasServed()) {
+                    if (ReadinessGate.responseCode(refused) != 403
+                            || !session.servedBefore(requestStartMs)) {
                         throw refused;
                     }
                     closeQuietly();

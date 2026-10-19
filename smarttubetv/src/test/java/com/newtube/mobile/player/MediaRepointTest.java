@@ -169,6 +169,15 @@ public class MediaRepointTest {
         }
     }
 
+    /** The refused request must go out after the first served one (ms clock). */
+    private static void pause() {
+        try {
+            Thread.sleep(3);
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     private static int status(IOException e) {
         return ReadinessGate.responseCode(e);
     }
@@ -217,6 +226,7 @@ public class MediaRepointTest {
 
         assertEquals(LENGTH, source.open(chunk(video, 0)));
         source.close();
+        pause();
         assertEquals(LENGTH, source.open(chunk(video, WALL_BYTE + 7)));
         source.close();
 
@@ -245,6 +255,7 @@ public class MediaRepointTest {
         DataSource audio = MediaRepoint.wrap(() -> gv).createDataSource();
         video.open(chunk(url("A", "248", "1791352668006159"), 0));
         video.close();
+        pause();
 
         List<Throwable> failures = new CopyOnWriteArrayList<>();
         Thread audioLoader = new Thread(() -> {
@@ -275,6 +286,7 @@ public class MediaRepointTest {
         assertThrows(IOException.class, () -> {
             source.open(chunk(video, 0));
             source.close();
+            pause();
             source.open(chunk(video, WALL_BYTE));
         });
         assertEquals(1, recovery.asked.get());
@@ -298,6 +310,7 @@ public class MediaRepointTest {
         IOException e = assertThrows(IOException.class, () -> {
             source.open(chunk(video, 0));
             source.close();
+            pause();
             source.open(chunk(video, WALL_BYTE));
         });
         assertEquals(403, status(e));
@@ -317,12 +330,53 @@ public class MediaRepointTest {
         IOException e = assertThrows(IOException.class, () -> {
             source.open(chunk(video, 0));
             source.close();
+            pause();
             recovery.next = answer("C", "248", "251");
             // B is refused too: the second swap goes to C, also refused, and no third is asked.
             source.open(chunk(video, WALL_BYTE));
         });
         assertEquals(403, status(e));
         assertEquals(MediaRepoint.MAX_SWAPS, recovery.asked.get());
+    }
+
+    @Test
+    public void aRequestSentTogetherWithTheFirstServedOneIsTheGatesNotAWall() throws IOException {
+        Googlevideo gv = new Googlevideo();
+        gv.walled.add("A");
+        Recovery recovery = new Recovery();
+        recovery.next = answer("B", "248", "251");
+        MediaRepoint.Session session = MediaRepoint.arm(VIDEO, answer("A", "248", "251"), recovery);
+        DataSource source = MediaRepoint.wrap(() -> gv).createDataSource();
+        // Served after this request went out: its refusal belongs to the answer's readiness gate.
+        long sentAt = MediaRepoint.nowMs();
+        pause();
+        session.onServed();
+        assertFalse(session.servedBefore(sentAt));
+        pause();
+        assertTrue(session.servedBefore(MediaRepoint.nowMs()));
+        assertEquals(0, recovery.asked.get());
+    }
+
+    @Test
+    public void aFileTheNewAnswerLacksFailsAloneWithoutANewSwap() throws IOException {
+        Googlevideo gv = new Googlevideo();
+        gv.walled.add("A");
+        Recovery recovery = new Recovery();
+        recovery.next = answer("B", "248", "251"); // no 247
+        MediaRepoint.arm(VIDEO, answer("A", "248", "251", "247"), recovery);
+        DataSource source = MediaRepoint.wrap(() -> gv).createDataSource();
+        source.open(chunk(url("A", "248", "1791352668006159"), 0));
+        source.close();
+        pause();
+        source.open(chunk(url("A", "248", "1791352668006159"), WALL_BYTE));
+        source.close();
+        assertEquals(1, recovery.asked.get());
+        IOException e = assertThrows(IOException.class,
+                () -> source.open(chunk(url("A", "247", "1791352668006159"), WALL_BYTE)));
+        assertEquals(403, status(e));
+        assertEquals(1, recovery.asked.get());
+        // The swapped files still play.
+        assertEquals(LENGTH, source.open(chunk(url("A", "251", "1791131996733842"), WALL_BYTE)));
     }
 
     @Test
@@ -337,6 +391,7 @@ public class MediaRepointTest {
         String video = url("A", "248", "1791352668006159");
         source.open(chunk(video, 0));
         source.close();
+        pause();
         List<Throwable> failures = new CopyOnWriteArrayList<>();
         Thread loader = new Thread(() -> {
             try {

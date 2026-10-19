@@ -8440,6 +8440,11 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     @Override
+    public boolean isRepointPending() {
+        return mExoPlayerController != null && mExoPlayerController.isRepointPending();
+    }
+
+    @Override
     public void setPositionMs(long positionMs) {
         mExoPlayerController.setPositionMs(positionMs);
     }

@@ -68,6 +68,8 @@ public interface PlayerEngine extends PlayerConstants {
     default boolean repointMedia(MediaItemFormatInfo formatInfo) { return false; }
     /** NEWTUBE(wall-swap): no answer is coming: the held refusal fails as before. */
     default void cancelRepoint() {}
+    /** NEWTUBE(wall-swap): a held refusal still waits for an answer. */
+    default boolean isRepointPending() { return false; }
     long getDurationMs();
     void setPlayWhenReady(boolean play);
     boolean getPlayWhenReady();

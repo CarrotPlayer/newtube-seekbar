@@ -54,6 +54,8 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
     private io.reactivex.rxjava3.disposables.Disposable mSwapAction;
     private String mSwapNotedVideoId;
     private boolean mSwapAnswerCached;
+    /** Which onMediaRefusedAhead a walk's callbacks belong to (a later one or a teardown retires them). */
+    private int mSwapToken;
     private VideoLoaderController mVideoLoaderController;
     // Auto-fix cap state: per controller instance (= per playback session), deliberately not static.
     private int mConsecutiveAutoFixCount;
@@ -308,6 +310,7 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
     @Override
     public void onFinish() {
         mBufferingDetector.reset();
+        disposeSwap(); // NEWTUBE(wall-swap): the open it would re-point is gone
         // Playback session ended: drop the dead-state listener so it can't leak or fire into a gone player.
         clearErrorCapped();
         // The activity is reused for the next video - never hand it a stale notice.
@@ -323,6 +326,7 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
     @Override
     public void onEngineReleased() {
         mBufferingDetector.reset();
+        disposeSwap(); // NEWTUBE(wall-swap): the open it would re-point is gone
         // A scheduled reload can't land after release (VideoLoaderController disposes its
         // callbacks), so drop the marker: a later re-open of the same video is a user action.
         // The count itself survives on purpose - restartEngine() fix cycles release+recreate the
@@ -558,6 +562,7 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
             return;
         }
         disposeSwap();
+        final int token = mSwapToken;
         final String videoId = video.videoId;
         final long startedAtMs = SystemClock.elapsedRealtime();
         VideoInfoService service = VideoInfoService.instance();
@@ -570,7 +575,16 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
         mSwapAnswerCached = false;
         NetPath.log(NetPath.context() + " wall-swap walk video=" + videoId + " refused=" + refusedClient
                 + " pos=" + getPlayer().getPositionMs());
+        walkForSwap(videoId, token, 1, startedAtMs);
+    }
+
+    /** NEWTUBE(wall-swap): one recovery walk for the held refusal; its answer re-points or gives up. */
+    private void walkForSwap(String videoId, int token, int attempt, long startedAtMs) {
+        VideoInfoService service = VideoInfoService.instance();
         mSwapAction = getMediaItemService().getFormatInfoObserve(videoId).subscribe(formatInfo -> {
+            if (token != mSwapToken) {
+                return; // retired: a teardown, an engine error, or a newer refusal
+            }
             mSwapAction = null;
             Video current = getVideo();
             if (getPlayer() == null || current == null || !videoId.equals(current.videoId)) {
@@ -580,19 +594,33 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
             boolean swapped = playable && getPlayer().repointMedia(formatInfo);
             mSwapAnswerCached = playable;
             NetPath.log(NetPath.context() + " wall-swap answer video=" + videoId
-                    + " client=" + service.servedClient(videoId)
+                    + " client=" + service.servedClient(videoId) + " attempt=" + attempt
                     + " ms=" + (SystemClock.elapsedRealtime() - startedAtMs)
                     + " playable=" + (playable ? "y" : "n") + " swapped=" + (swapped ? "y" : "n")
                     + " pos=" + getPlayer().getPositionMs());
             if (swapped) {
                 mSwapNotedVideoId = null; // handled: a later 403 is a new refusal
+            } else if (playable && attempt == 1 && getPlayer().isRepointPending()) {
+                // A playable answer without the refused files (WEB_EMBED answers SABR-only + HLS
+                // about one time in three): nothing refused it, so no blame - it goes last as the
+                // suspect, and the next source in the recovery order is asked while the buffer plays.
+                NetPath.log(NetPath.context() + " wall-swap rewalk video=" + videoId
+                        + " reason=other-files suspect=" + service.servedClient(videoId));
+                service.anchorRouteToVideo(videoId);
+                YouTubeServiceManager.instance().applyNoPlaybackFix();
+                mSwapAnswerCached = false;
+                walkForSwap(videoId, token, attempt + 1, startedAtMs);
             } else {
                 getPlayer().cancelRepoint();
             }
         }, error -> {
+            if (token != mSwapToken) {
+                return;
+            }
             mSwapAction = null;
-            NetPath.log(NetPath.context() + " wall-swap answer video=" + videoId + " error="
-                    + NetPath.throwableSummary(error) + " ms=" + (SystemClock.elapsedRealtime() - startedAtMs));
+            NetPath.log(NetPath.context() + " wall-swap answer video=" + videoId + " attempt=" + attempt
+                    + " error=" + NetPath.throwableSummary(error)
+                    + " ms=" + (SystemClock.elapsedRealtime() - startedAtMs));
             if (getPlayer() != null) {
                 getPlayer().cancelRepoint();
             }
@@ -600,6 +628,7 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
     }
 
     private void disposeSwap() {
+        mSwapToken++;
         if (mSwapAction != null) {
             mSwapAction.dispose();
             mSwapAction = null;

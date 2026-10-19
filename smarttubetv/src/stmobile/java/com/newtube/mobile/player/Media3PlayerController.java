@@ -183,9 +183,6 @@ public class Media3PlayerController implements Player.Listener {
      */
     @Nullable
     private String mRecoveryResumeVideoId;
-    private long mRecoveryResumeAtMs;
-    /** A recovery reload lands within this; a later resume of the video is a normal one. */
-    private static final long RECOVERY_RESUME_WINDOW_MS = 120_000;
     /** elapsedRealtime of this open's first audio media request, to quantify a snap's audio cost. */
     private long mAudioChunkStartedAtMs;
     /** Media start time of that request (its audio segment), to see if a snap crosses into the previous one. */
@@ -661,6 +658,8 @@ public class Media3PlayerController implements Player.Listener {
         }
         if (landed) {
             mReadinessAnswer = formatInfo;
+            // The wall's evidence is per answer: what the old one served says nothing about this one.
+            mMediaRequests.reset();
         }
         return landed;
     }
@@ -673,6 +672,12 @@ public class Media3PlayerController implements Player.Listener {
             }
         }
         return n;
+    }
+
+    /** NEWTUBE(wall-swap): a refused request of the watched open waits for an answer. */
+    public boolean isRepointPending() {
+        MediaRepoint.Session session = mRepoint;
+        return session != null && session.isPending();
     }
 
     /** NEWTUBE(wall-swap): no answer for the waiting open: its refusal surfaces as before. */
@@ -691,16 +696,17 @@ public class Media3PlayerController implements Player.Listener {
             return;
         }
         mRecoveryResumeVideoId = video.videoId;
-        mRecoveryResumeAtMs = android.os.SystemClock.elapsedRealtime();
     }
 
-    /** Consumes the recovery mark: whether this resume is the reload of a source error. */
+    /**
+     * Consumes the recovery mark: whether this resume is the reload of a source error. The mark
+     * lives until the next resume, however long the outage kept the reload away (the retry
+     * schedule runs minutes); a resume of another video drops it.
+     */
     private boolean isRecoveryResume() {
         String videoId = mRecoveryResumeVideoId;
         mRecoveryResumeVideoId = null;
-        return recoveryResumeExactEnabled() && videoId != null && videoId.equals(getVideoId())
-                && android.os.SystemClock.elapsedRealtime() - mRecoveryResumeAtMs
-                        < RECOVERY_RESUME_WINDOW_MS;
+        return recoveryResumeExactEnabled() && videoId != null && videoId.equals(getVideoId());
     }
 
     /** Always on in release; debug/benchmark builds can A/B it with {@code debug.arc.recovery_exact=0}. */
@@ -1524,6 +1530,9 @@ public class Media3PlayerController implements Player.Listener {
             DebugMediaShaper.disarmOneShotPoisonForRecovery();
         }
         if (mSabrSourceActive) {
+            if (mSabrWasFallback) {
+                noteRecoveryResume(); // its recovery may land on DASH
+            }
             int type = error instanceof ExoPlaybackException
                     ? ((ExoPlaybackException) error).type : ExoPlaybackException.TYPE_UNEXPECTED;
             if (mSabrWasFallback) {
