@@ -4,6 +4,30 @@ Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 
+## 1.16.1 — 19-10-2026 — Edición Dani Rovira
+
+"Ocho apellidos vascos no, ocho filas en un menú, y ahora se llega a todas."
+Homenaje ficticio a Dani Rovira, para los menús del reproductor que se quedan
+quietos con el móvil en horizontal.
+
+### Corregido
+
+- **Los menús del reproductor ya no se mueven en pantalla completa.** El menú
+  de ajustes ya no da un salto un par de segundos después de abrirse: las
+  barras del sistema siguen ocultas y los controles de detrás no se mueven
+  hasta que lo cierras.
+- **"Más" se desplaza en horizontal.** Se llega a todas las filas, la última
+  que cabe sale cortada por la mitad para que se note que la lista sigue, y
+  arrastrar la lista ya no cierra el menú.
+- **Calidad, Subtítulos y Velocidad** dejan fijos el título (y la fila de
+  abajo) mientras la lista se desplaza, y al pasar de un menú al siguiente
+  hay un fundido, sin que el vídeo asome en medio.
+- **La fila de Calidad muestra lo que se está reproduciendo** ("Automática
+  (720p)") en lugar de "Automática (1080p60)" siempre.
+- Detalles: los menús abiertos del todo conservan las esquinas redondeadas, el
+  de Repetición ya no tiene una barra de título vacía y girar el móvil con un
+  menú abierto lo cierra.
+
 ## 1.16.0 — 19-10-2026 — Edición Andreu Buenafuente
 
 "Buenas noches, y bienvenidos a una versión en la que la pantalla se pone

@@ -2,6 +2,27 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.16.1 — 2026-10-19 — Dani Rovira Edition
+
+"Eight rows in a menu, and now you can reach all of them." A fictional homage
+to Dani Rovira, for player menus that stay put with the phone sideways.
+
+### Fixed
+
+- **Player menus in fullscreen stay still.** The settings menu no longer
+  jumps a couple of seconds after it opens: the system bars stay hidden, and
+  the controls behind it don't move until it closes.
+- **More scrolls in landscape.** Every row is reachable, the last row on
+  screen is cut in half so you can tell the list goes on, and dragging the
+  list no longer closes the menu.
+- **Quality, Subtitles and Speed** keep their title (and their bottom row) in
+  place while the list scrolls, and going from one menu to the next fades
+  across without the video flashing up in between.
+- **The Quality row shows what's playing** ("Auto (720p)") instead of always
+  "Auto (1080p60)".
+- Smaller: menus keep their rounded corners when fully open, Repeat lost an
+  empty title bar, and turning the phone with a menu open closes it.
+
 ## 1.16.0 — 2026-10-19 — Andreu Buenafuente Edition
 
 "Good evening, and welcome to a release where the screen goes black on
