@@ -1232,6 +1232,8 @@ public class MobilePlaybackActivity extends MobileActivity
         // NOTE: stock EventLogger does NOT emit loadStarted/loadCompleted lines, so per-chunk
         // network timing is invisible with it alone - NetPathLoadListener (tag NetPath) fills
         // exactly that gap with one dense line per load event.
+        // NEWTUBE(quality-start): video rung switches, every build (a user's diagnostic log too).
+        mPlayer.addAnalyticsListener(new com.newtube.mobile.player.VideoRungLog());
         if (BuildConfig.DEBUG) {
             mPlayer.addAnalyticsListener(new androidx.media3.exoplayer.util.EventLogger());
             mPlayer.addAnalyticsListener(new NetPathLoadListener(this));
