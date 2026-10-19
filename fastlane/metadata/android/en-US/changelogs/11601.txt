@@ -1,1 +1,0 @@
-Fixed: player menus in fullscreen no longer jump after opening; the More menu scrolls in landscape and every row is reachable; Quality, Subtitles and Speed keep their title in place; menus hand over to the next one without a flash; the Quality row shows the quality actually playing.

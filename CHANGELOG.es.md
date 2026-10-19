@@ -4,13 +4,24 @@ Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 
-## 1.16.1 — 19-10-2026 — Edición Dani Rovira
+## 1.16.2 — 19-10-2026 — Edición Dani Rovira
 
 "Ocho apellidos vascos no, ocho filas en un menú, y ahora se llega a todas."
 Homenaje ficticio a Dani Rovira, para los menús del reproductor que se quedan
-quietos con el móvil en horizontal.
+quietos con el móvil en horizontal y los vídeos que se ven nítidos antes.
+(La 1.16.1 se etiquetó pero nunca se publicó; sus arreglos van aquí.)
 
 ### Corregido
+
+- **Los vídeos verticales se ven en 1080p.** Se quedaban en 480p, pusieras
+  la calidad que pusieras.
+- **La calidad máxima llega antes.** El arranque en baja calidad se sustituye
+  en cuanto la conexión da para más, y el 1080p aparece en unos 5 s con Wi-Fi
+  en lugar de unos 10.
+- **Sin tope de 720p en la página del vídeo** cuando los "Datos en segundo
+  plano" de NewTube están desactivados con datos móviles: Android lo comunica
+  igual que el Ahorro de datos, así que bajaba la imagen a quien solo quería
+  decir "no en segundo plano".
 
 - **Los menús del reproductor ya no se mueven en pantalla completa.** El menú
   de ajustes ya no da un salto un par de segundos después de abrirse: las

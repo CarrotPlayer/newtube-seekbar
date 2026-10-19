@@ -2,12 +2,23 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
-## 1.16.1 — 2026-10-19 — Dani Rovira Edition
+## 1.16.2 — 2026-10-19 — Dani Rovira Edition
 
 "Eight rows in a menu, and now you can reach all of them." A fictional homage
-to Dani Rovira, for player menus that stay put with the phone sideways.
+to Dani Rovira, for player menus that stay put with the phone sideways and
+videos that get sharp sooner. (1.16.1 was tagged but never published; its
+fixes ship here.)
 
 ### Fixed
+
+- **Vertical videos play in 1080p.** They were capped at 480p, whatever the
+  quality setting.
+- **Full quality arrives sooner.** The low-quality start of a video is
+  replaced once the connection allows more, so 1080p shows up in about 5 s on
+  Wi-Fi instead of about 10.
+- **No 720p cap on the watch page** when NewTube's "Background data" is off
+  on mobile data: Android reports that like Data Saver, so it capped the
+  picture for people who only meant "not in the background".
 
 - **Player menus in fullscreen stay still.** The settings menu no longer
   jumps a couple of seconds after it opens: the system bars stay hidden, and
