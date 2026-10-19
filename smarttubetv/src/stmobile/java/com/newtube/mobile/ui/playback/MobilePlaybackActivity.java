@@ -3728,10 +3728,20 @@ public class MobilePlaybackActivity extends MobileActivity
     }
 
     /**
-     * NEWTUBE(issue #69): whether the playing video is taller than wide. The selected track's
-     * format answers before the first frame; the last decoded size covers a format without one.
+     * NEWTUBE(issue #69): from a video change to that video's first frame, the player's size and
+     * format may still be the previous video's, so its shape is unknown (and the fullscreen button
+     * rotates, as it always did).
+     */
+    private boolean mVideoShapePending = true;
+
+    /**
+     * NEWTUBE(issue #69): whether the playing video is taller than wide; false while its shape is
+     * not known yet. The video track's format, else the last decoded size.
      */
     private boolean isVerticalVideo() {
+        if (mVideoShapePending) {
+            return false;
+        }
         float aspect = mVideoAspect;
         androidx.media3.common.Format format = mPlayer != null ? mPlayer.getVideoFormat() : null;
         if (format != null && format.width > 0 && format.height > 0) {
@@ -3742,6 +3752,37 @@ public class MobilePlaybackActivity extends MobileActivity
             }
         }
         return aspect > 0f && aspect < 1f;
+    }
+
+    /**
+     * NEWTUBE(issue #69): the new video's first frame is up, so its shape is known. A landscape
+     * video that an autoplay or a pick from Up next brought into a vertical one's upright
+     * fullscreen goes to landscape fullscreen, as its own button press would have: the request
+     * rotates the window, and that rotation drops the upright layout (layoutOrientation).
+     */
+    private void onVideoShapeKnown() {
+        if (!mVideoShapePending) {
+            return;
+        }
+        mVideoShapePending = false;
+        boolean upright = mLayoutOverride == Configuration.ORIENTATION_LANDSCAPE
+                && getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
+        if (!upright || isVerticalVideo() || mIsInPip || mPipEnterPending || isFinishing()
+                || areOrientationRequestsIgnored()) {
+            return;
+        }
+        float aspect = mVideoAspect;
+        if (mPlayer != null && mPlayer.getVideoSize().width > 0 && mPlayer.getVideoSize().height > 0) {
+            aspect = (float) mPlayer.getVideoSize().width / mPlayer.getVideoSize().height;
+        }
+        if (!(aspect >= 1f)) {
+            return; // still unknown
+        }
+        if (BuildConfig.DEBUG) {
+            NetPath.log("fullscreen upright-to-landscape aspect=" + aspect);
+        }
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        armOrientationHandBack(Configuration.ORIENTATION_LANDSCAPE);
     }
 
     /**
@@ -4543,6 +4584,7 @@ public class MobilePlaybackActivity extends MobileActivity
             // NEWTUBE(still-lift): the controller's AnalyticsListener saw this event first, so
             // OpenFirstFrame already knows whether it was this open's; the texture may have it.
             maybeLiftStillAtFrame();
+            onVideoShapeKnown();
         }
     };
 
@@ -8729,6 +8771,7 @@ public class MobilePlaybackActivity extends MobileActivity
         // title (bare error-reload Video) must not blank the controls title.
         boolean sameVideo = item != null && Helpers.equals(item.videoId, mWatchVideoId);
         if (!sameVideo) {
+            mVideoShapePending = true; // NEWTUBE(issue #69): known again at its first frame
             showPlaybackNotice(null);
             cancelHoldSpeed();
             // NEWTUBE(gestures): a drag held across an autoplay would have seeked the new video to
