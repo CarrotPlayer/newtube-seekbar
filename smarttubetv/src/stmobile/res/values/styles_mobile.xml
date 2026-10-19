@@ -164,6 +164,11 @@
     <style name="Widget.NewTube.BottomSheet" parent="Widget.MaterialComponents.BottomSheet.Modal">
         <item name="backgroundTint">?attr/newtubeColorSurface</item>
         <item name="shapeAppearanceOverlay">@style/ShapeAppearance.NewTube.BottomSheet</item>
+        <!-- NEWTUBE(sheet-landscape): MaterialComponents squares an EXPANDED sheet's corners
+             (Material3 turns this off), so every sheet that opened fully - the gear and its More
+             level - had square corners and the pickers that opened at their peek round ones.
+             Only a sheet that reaches the top of the screen squares off now, as Material 3. -->
+        <item name="shouldRemoveExpandedCorners">false</item>
     </style>
 
     <style name="ShapeAppearance.NewTube.BottomSheet" parent="">
