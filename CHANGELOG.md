@@ -2,6 +2,43 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.16.0 — 2026-10-19 — Andreu Buenafuente Edition
+
+"Good evening, and welcome to a release where the screen goes black on
+purpose." A fictional homage to Andreu Buenafuente, for pure black, upright
+vertical videos and a minute that no longer stutters.
+
+### New
+
+- **Pure black (#73, #74).** Settings › General › Pure black turns the dark
+  theme black (#000000) for OLED screens, also when the theme follows the
+  system. Sheets and cards stay one shade lighter so they still read as
+  raised. It applies live, no restart.
+- **Vertical videos go fullscreen upright (#69).** Fullscreen (button or
+  swipe up) on a portrait video now fills the screen in portrait instead of
+  rotating to landscape with black bars. Landscape videos still rotate.
+
+### Fixed
+
+- **The app opens on Android 7.0 again (#78).** Every Android 7.0 phone
+  closed NewTube right at launch, since the first public release.
+- **No pause and rewind at the one-minute mark (#84).** When YouTube refuses
+  a session at 60 seconds, the buffered video keeps playing while NewTube
+  fetches a working link for the same stream, so there's no stop and no jump
+  back. If that fails, the old recovery resumes at the exact second.
+- **⏮ goes back even with SponsorBlock.** After a restart, a second tap now
+  returns to the previous video even when SponsorBlock skipped an intro, and
+  the previous video resumes where you left it.
+- **Fullscreen on Android 11 (#68).** The first tap shows the player
+  controls, and the gesture bar no longer stays on screen.
+- **Audio tracks are labelled better:** "original", "dubbed" and audio
+  description tracks are told apart, and auto-translated subtitles are no
+  longer built from an auto-dubbed track. Search retries more reliably
+  (fixes from SmartTube upstream).
+- **Translations:** the app's own screens are now in Russian and
+  Simplified Chinese, and half in Romanian, thanks to the translators on
+  [Weblate](https://hosted.weblate.org/projects/newtube/).
+
 ## 1.15.3 — 2026-10-13 — Berto Romero Edition
 
 "Nothing changes, and that's the news." A fictional homage to Berto Romero,

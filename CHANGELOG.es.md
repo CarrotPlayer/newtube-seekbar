@@ -4,6 +4,46 @@ Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 
+## 1.16.0 — 19-10-2026 — Edición Andreu Buenafuente
+
+"Buenas noches, y bienvenidos a una versión en la que la pantalla se pone
+negra a propósito." Homenaje ficticio a Andreu Buenafuente, para el negro
+puro, los vídeos verticales de pie y un minuto que ya no tartamudea.
+
+### Nuevo
+
+- **Negro puro (#73, #74).** Configuración › General › Negro puro pone el
+  tema oscuro en negro (#000000) para pantallas OLED, también cuando el tema
+  sigue al del sistema. Los paneles y tarjetas quedan un tono más claros para
+  que se sigan distinguiendo. Se aplica al momento, sin reiniciar.
+- **Los vídeos verticales van a pantalla completa de pie (#69).** La
+  pantalla completa (botón o deslizar hacia arriba) en un vídeo vertical
+  ahora llena la pantalla en vertical en lugar de girar a horizontal con
+  barras negras. Los vídeos horizontales siguen girando.
+
+### Corregido
+
+- **La app vuelve a abrir en Android 7.0 (#78).** En todos los móviles con
+  Android 7.0 NewTube se cerraba nada más abrirlo, desde la primera versión
+  pública.
+- **Sin pausa ni rebobinado al minuto (#84).** Cuando YouTube corta una
+  sesión a los 60 segundos, el vídeo ya cargado sigue sonando mientras
+  NewTube consigue un enlace válido para el mismo stream, así que no hay
+  parón ni salto atrás. Si eso falla, la recuperación de siempre retoma en el
+  segundo exacto.
+- **⏮ vuelve atrás aunque haya SponsorBlock.** Tras reiniciar el vídeo, un
+  segundo toque vuelve al anterior aunque SponsorBlock se haya saltado una
+  intro, y el vídeo anterior sigue donde lo dejaste.
+- **Pantalla completa en Android 11 (#68).** El primer toque muestra los
+  controles y la barra de gestos ya no se queda en pantalla.
+- **Pistas de audio mejor etiquetadas:** se distinguen "original",
+  "doblada" y audiodescripción, y los subtítulos traducidos automáticamente
+  ya no salen de una pista doblada automáticamente. La búsqueda reintenta con
+  más fiabilidad (arreglos de SmartTube).
+- **Traducciones:** las pantallas propias de la app ya están en ruso y chino
+  simplificado, y a medias en rumano, gracias a quienes traducen en
+  [Weblate](https://hosted.weblate.org/projects/newtube/).
+
 ## 1.15.3 — 13-10-2026 — Edición Berto Romero
 
 "No cambia nada, y esa es la noticia." Homenaje ficticio a Berto Romero para
