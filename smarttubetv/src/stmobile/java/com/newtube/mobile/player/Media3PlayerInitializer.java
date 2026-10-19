@@ -36,8 +36,8 @@ import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerTweaksData;
  *       {@link #createTrackSelector()}),</li>
  *   <li>only while saving data (a metered network AND Android Data Saver on for this app, see
  *       {@link MeteredNetworkMonitor}), a forward-buffer ceiling that grows with watch time
- *       ({@link MeteredBufferLoadControl}) and a rung cap to the portrait inline box; on any
- *       network, a small-window rung cap for PiP / the mini card ({@link VideoViewportCap}).</li>
+ *       ({@link MeteredBufferLoadControl}); on any network, a small-window rung cap for PiP /
+ *       the mini card ({@link VideoViewportCap}).</li>
  * </ul>
  */
 public class Media3PlayerInitializer {
@@ -172,10 +172,9 @@ public class Media3PlayerInitializer {
         //   HIGHEST 50/120s -> 85s.
         BufferPreset preset = resolveBufferPreset();
 
-        // NEWTUBE(viewport): same stock AdaptiveTrackSelection knobs; the subclass only adds the
-        // PiP/mini-card rung cap and the data-saving inline-box cap (VideoViewportCap - a no-op
-        // in fullscreen, or unless metered + Data Saver). The cap is process-wide so it survives
-        // this engine restart's fresh selector.
+        // NEWTUBE(viewport): same stock AdaptiveTrackSelection knobs; the subclass adds the
+        // PiP/mini-card rung cap (VideoViewportCap, process-wide so it survives this engine
+        // restart's fresh selector) and the startup-chunk replacement.
         DefaultTrackSelector trackSelector = new DefaultTrackSelector(
                 mContext,
                 new ViewportCappedTrackSelection.Factory(

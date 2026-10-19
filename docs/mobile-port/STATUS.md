@@ -32,9 +32,9 @@ first chunk itself (5-7 s of video) at the cautious rung, plus one more when a c
 just inside the 5 s keep window (the vertical cells). 60 fps videos still open below 1080p60
 with a fresh hint (the 4 Mbps seed cap), left as is for start speed.
 
-Open decision: a user who turned NewTube's per-app "Background data" off gets the data-saving
-caps on mobile data (720p portrait box, 30 s buffer), because Android reports that exactly like
-Data Saver. The owner's own Pixel is set up that way.
+The portrait-box 720p cap while "saving data" is removed: Android reports a per-app "Background
+data: off" exactly like Data Saver, so it also capped people (the owner included) who only meant
+"not in the background". The data-saving buffer ceiling (30 s + played) stays. HANDOFF §38.
 
 ## Settings in short pages (#2) (2026-10-02, branch feat/settings-redesign, emulator)
 

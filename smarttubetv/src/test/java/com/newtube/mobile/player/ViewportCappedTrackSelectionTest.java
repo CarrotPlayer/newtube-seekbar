@@ -42,10 +42,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * The PiP / mini-card rung cap and the data-saving inline-box cap: media3's viewport retention rule,
+ * The PiP / mini-card rung cap: media3's viewport retention rule,
  * applied inside adaptive selection only (so the track set - and therefore the sample stream and
  * its buffer - never changes), with explicit picks, audio and media3's own switching rules
  * untouched.
@@ -68,20 +67,15 @@ public class ViewportCappedTrackSelectionTest {
     private static final Format V360 = video("v360", 360, 640, 500_000);
     private static final List<Format> VERTICAL = Arrays.asList(V1080, V720, V480, V360);
     private static final long DOWN_WINDOW_US = 62_500_000L; // HIGH preset midpoint
-    /** Pixel 9 portrait: the measured inline surface (`pip surface-available size=1080x608`). */
+    /** A 16:9 window as wide as a Pixel 9 (1080x608). */
     private static final int BOX_W = 1080;
     private static final int BOX_H = 608;
 
-    /** The monitor's gate: metered AND Data Saver on (see sharedCapFollowsTheDataSavingGate). */
-    private final AtomicBoolean saving = new AtomicBoolean(false);
-    private final VideoViewportCap cap = new VideoViewportCap(saving::get);
+    private final VideoViewportCap cap = new VideoViewportCap();
 
     @After
     public void tearDown() {
         VideoViewportCap.shared().clear("test");
-        VideoViewportCap.shared().clearInline("test");
-        MeteredNetworkMonitor.setMeteredForTest(null);
-        MeteredNetworkMonitor.setDataSaverForTest(null);
     }
 
     // ---------------------------------------------------------------------------------
@@ -157,14 +151,13 @@ public class ViewportCappedTrackSelectionTest {
     }
 
     // ---------------------------------------------------------------------------------
-    // Inline (portrait) box: rung choice
+    // The rule in other window shapes
     // ---------------------------------------------------------------------------------
 
     @Test
-    public void inlinePortraitBoxKeepsSevenTwentyP() {
-        // 1080p is 1920 wide for a 1080 px box; 720p (1280x720) already covers 1080x608.
+    public void aScreenWideSixteenByNineWindowKeepsSevenTwentyP() {
+        // A 1080x608 window (an enlarged PiP on a tablet): 720p (1280x720) already covers it.
         assertEquals(1280 * 720, VideoViewportCap.maxPixelsToRetain(LADDER, BOX_W, BOX_H));
-        assertEquals(1280 * 720, VideoViewportCap.maxPixelsToRetain(LADDER, BOX_W, BOX_H, true));
     }
 
     @Test
@@ -185,152 +178,9 @@ public class ViewportCappedTrackSelectionTest {
     }
 
     @Test
-    public void verticalVideoInTheInlineBoxIsLetterboxedUnlessTheModeCrops() {
-        // Fit: 1080x1920 shown in a 1080x608 box is 342x608 on screen -> 360x640 covers it.
+    public void verticalVideoInAWideWindowIsLetterboxed() {
+        // 1080x1920 shown in a 1080x608 window is 342x608 on screen -> 360x640 covers it.
         assertEquals(360 * 640, VideoViewportCap.maxPixelsToRetain(VERTICAL, BOX_W, BOX_H));
-        // Zoom/fill: the video covers the box (1080 wide, cropped) -> no rung below 1080x1920.
-        assertEquals(1080 * 1920, VideoViewportCap.maxPixelsToRetain(VERTICAL, BOX_W, BOX_H, true));
-    }
-
-    // ---------------------------------------------------------------------------------
-    // Inline (portrait) box: saving / not saving / fullscreen / PiP transitions
-    // ---------------------------------------------------------------------------------
-
-    @Test
-    public void inlineBoxCapsOnlyWhileSavingData() {
-        cap.setInline(BOX_W, BOX_H, false);
-        assertNull(cap.current()); // Wi-Fi, or cellular without Data Saver: never capped
-        saving.set(true);
-        VideoViewportCap.Viewport inline = cap.current();
-        assertEquals(VideoViewportCap.MODE_INLINE, inline.mode);
-        assertEquals(BOX_W, inline.width);
-        assertEquals(BOX_H, inline.height);
-        cap.onSavingChanged(true, "data-saver"); // logging only
-        saving.set(false);
-        assertNull(cap.current());
-        cap.onSavingChanged(false, "data-saver");
-    }
-
-    @Test
-    public void setInlineIsIdempotentAndFullscreenRemovesIt() {
-        saving.set(true);
-        cap.setInline(BOX_W, BOX_H, false);
-        VideoViewportCap.Viewport first = cap.current();
-        cap.setInline(BOX_W, BOX_H, false); // every layout pass repeats the box
-        assertSame(first, cap.current());
-        cap.setInline(BOX_W, BOX_H, true); // resize mode switched to zoom
-        assertNotSame(first, cap.current());
-        assertTrue(cap.current().cover);
-        cap.setInline(0, BOX_H, false); // unusable size is ignored, the box stays
-        assertEquals(BOX_W, cap.current().width);
-        cap.clearInline("fullscreen");
-        assertNull(cap.current());
-    }
-
-    @Test
-    public void smallWindowWinsOverTheInlineBoxAndHandsBackOnExit() {
-        saving.set(true);
-        cap.setInline(BOX_W, BOX_H, false);
-        cap.set("pip", 604, 340);
-        assertEquals("pip", cap.current().mode);
-        saving.set(false);
-        assertEquals("pip", cap.current().mode); // PiP caps whatever the network / Data Saver
-        cap.clear("pip-exit");
-        assertNull(cap.current()); // back inline, not saving data: no cap
-        saving.set(true);
-        assertEquals(VideoViewportCap.MODE_INLINE, cap.current().mode);
-    }
-
-    @Test
-    public void sharedCapFollowsTheDataSavingGate() {
-        VideoViewportCap shared = VideoViewportCap.shared();
-        shared.setInline(BOX_W, BOX_H, false);
-        MeteredNetworkMonitor.setMeteredForTest(true);
-        MeteredNetworkMonitor.setDataSaverForTest(false);
-        assertNull(shared.current()); // unlimited LTE reports metered: quality wins
-        MeteredNetworkMonitor.setDataSaverForTest(true);
-        assertEquals(VideoViewportCap.MODE_INLINE, shared.current().mode);
-        MeteredNetworkMonitor.setMeteredForTest(false); // Wi-Fi with Data Saver still on
-        assertNull(shared.current());
-    }
-
-    @Test
-    public void savingInlineCapPicksSevenTwentyPOnAFreshSelection() {
-        saving.set(true);
-        cap.setInline(BOX_W, BOX_H, false);
-        ExoTrackSelection selection = adaptive(LADDER);
-        select(selection, 0);
-        assertSame(P720, selection.getSelectedFormat());
-    }
-
-    @Test
-    public void notSavingInlineBoxIsStockAbr() {
-        cap.setInline(BOX_W, BOX_H, false);
-        ExoTrackSelection selection = adaptive(LADDER);
-        select(selection, 0);
-        assertSame(P1080, selection.getSelectedFormat());
-    }
-
-    @Test
-    public void stoppingSavingOrFullscreenLiftsTheInlineCapForNewChunks() {
-        saving.set(true);
-        cap.setInline(BOX_W, BOX_H, false);
-        ExoTrackSelection selection = adaptive(LADDER);
-        select(selection, 0);
-        assertSame(P720, selection.getSelectedFormat());
-
-        saving.set(false); // Wi-Fi or Data Saver off: an ordinary up-switch, 5 s guard included
-        select(selection, 4_999_999);
-        assertSame(P720, selection.getSelectedFormat());
-        select(selection, 5_000_000);
-        assertSame(P1080, selection.getSelectedFormat());
-
-        saving.set(true); // Data Saver back on: the next chunk is capped again
-        select(selection, 30_000_000);
-        assertSame(P720, selection.getSelectedFormat());
-
-        cap.clearInline("fullscreen");
-        select(selection, 30_000_000);
-        assertSame(P1080, selection.getSelectedFormat());
-    }
-
-    @Test
-    public void inlineCapDownSwitchLetsBufferedFullResolutionChunksPlayOut() {
-        ExoTrackSelection selection = adaptive(LADDER);
-        select(selection, 0);
-        assertSame(P1080, selection.getSelectedFormat());
-
-        saving.set(true); // Data Saver on mid-playback with ~30 s of 1080p already buffered
-        cap.setInline(BOX_W, BOX_H, false);
-        select(selection, 30_000_000);
-        assertSame(P720, selection.getSelectedFormat()); // NEW chunks at the box's rung
-        // ...and not one buffered 1080p chunk is dropped: media3 only discards chunks BELOW ideal.
-        List<MediaChunk> queue = chunks(P1080, 12);
-        assertEquals(queue.size(), selection.evaluateQueueSize(0, queue));
-    }
-
-    @Test
-    public void liftingTheInlineCapKeepsBuffered720pChunks() {
-        saving.set(true);
-        cap.setInline(BOX_W, BOX_H, false);
-        ExoTrackSelection selection = adaptive(LADDER);
-        select(selection, 0);
-        cap.clearInline("fullscreen");
-        // media3 refetches chunks > 25 s ahead only if they are at most 1279x719: 720p plays out.
-        List<MediaChunk> queue = chunks(P720, 12);
-        assertEquals(queue.size(), selection.evaluateQueueSize(0, queue));
-    }
-
-    @Test
-    public void explicitQualityPickIsNeverCappedInline() {
-        saving.set(true);
-        cap.setInline(BOX_W, BOX_H, false);
-        TrackGroup group = new TrackGroup(LADDER.toArray(new Format[0]));
-        ExoTrackSelection selection = factory().createTrackSelections(
-                new ExoTrackSelection.Definition[] {new ExoTrackSelection.Definition(group, 0)},
-                new FakeMeter(), new MediaPeriodId(new Object()), Timeline.EMPTY)[0];
-        assertTrue(selection instanceof FixedTrackSelection);
-        assertSame(P1080, selection.getSelectedFormat());
     }
 
     // ---------------------------------------------------------------------------------

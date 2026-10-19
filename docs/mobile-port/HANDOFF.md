@@ -1662,7 +1662,7 @@ reason=account-change`, `restore-auth-route-quarantine ... format=v3 ... probati
 `player-ring definitive-unplayable video= clients= reason-hash= attempts= skipped=`,
 `buffer-default aligned from=MEDIUM to=HIGH pass=v2` (logged by the process Android starts
 right after an install, often before a capture begins), `buffer-cap network metered= dataSaver=
-event= -> on|off`, `viewport inline size= metered= dataSaver= -> cap on|off reason=`,
+event= -> on|off`, (`viewport inline ...` until 2026-10-19, see §38),
 `startup-init-timeout adaptive budgetMs= early= reason=`, `... action=transport-failover from=cronet
 to=okhttp ... cronetStatus=`, `startup-failover okhttp answered|no-response|failed ... bypass=
 reason=`, `media-transport cronet-bypass ... evidence=okhttp-answered`, `okhttp-fallback active
@@ -2429,14 +2429,21 @@ obeyed". Three causes, all measured on the Pixel 9 with a benchmark `.check` bui
   needs ~7-11 Mbps of estimate. NOT changed: a 1080p60 first chunk is ~2.6 MB vs ~0.4 MB at 480p,
   about a second more before the first frame on LTE; the owner's priority is speed.
 
-**Not a bug, but it reads as one: "background data off" is Data Saver to the app.**
+**"Background data off" is Data Saver to the app, so the portrait-box cap is gone.**
 `ConnectivityManager.getRestrictBackgroundStatus()` answers ENABLED both for global Data Saver
 and for an app whose per-app "Background data" is off (`REJECT_METERED_BACKGROUND`; measured:
 the system's Restrict background was false while `.check`, once on that list, logged
 `dataSaver=y`). Public APIs cannot tell the two apart. So a user who turned background data off
-for NewTube gets the data-saving caps on mobile data: the portrait box capped at 720p
-(`VideoViewportCap` inline) and the 30 s cellular buffer. The owner's own Pixel has background
-data off for the daily app, `.debug` and ~40 other apps. Decision pending.
+for NewTube got the data-saving caps on mobile data: the portrait box capped at 720p (the quality
+row read "Auto (720p)") and the 30 s cellular buffer. The owner's own Pixel has background data
+off for the daily app, `.debug` and ~40 other apps. No public route to the global state exists:
+toggling Data Saver changes no readable setting (only the Quick Settings tile lists, emulator
+API 35), and `NetworkPolicyManager.getRestrictBackground` needs MANAGE_NETWORK_POLICY.
+Decision (owner delegated it, 2026-10-19): the portrait-box rung cap was removed
+(`VideoViewportCap` has only the PiP/mini window now; `setInline`/`clearInline`/
+`setInlineViewport` are gone), and the invisible part stays: the forward-buffer ceiling
+(`MeteredBufferLoadControl`, 30 s + played) still applies on metered + "Data Saver". The visible
+saving was small (1080p vs 720p in a 1080x608 box, ~2.4 vs ~1.8 Mbps) and it read as a bug.
 
 `rung fetch` / `rung show` (`VideoRungLog`) are logged in every build type, so a user's
 diagnostic log shows when quality went up. `debug.arc.startup_abr=stale` (debug/benchmark builds)
