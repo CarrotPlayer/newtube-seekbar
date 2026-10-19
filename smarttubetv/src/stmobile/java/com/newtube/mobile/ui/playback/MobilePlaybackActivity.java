@@ -3691,6 +3691,17 @@ public class MobilePlaybackActivity extends MobileActivity
             armAutoHide();
             return;
         }
+        if (toLandscape && windowOrientation == Configuration.ORIENTATION_PORTRAIT
+                && isVerticalVideo()) {
+            // NEWTUBE(issue #69): a vertical video goes fullscreen upright, filling the screen,
+            // like the official app; rotating it to landscape only pillarboxed it. The same
+            // in-place layout as a tablet's: leaving it is the toggle above, and turning the phone
+            // sideways (auto-rotate on) drops it for the landscape fullscreen.
+            releaseFullscreenRequest();
+            setLayoutOverride(target);
+            armAutoHide();
+            return;
+        }
         if (areOrientationRequestsIgnored()) {
             // NEWTUBE(tablet): Android 16 ignores orientation requests on large screens (sw >=
             // 600dp, targetSdk 36+), and every Android ignores them in multi-window. Asking for
@@ -3714,6 +3725,23 @@ public class MobilePlaybackActivity extends MobileActivity
             mContainer.postDelayed(mRotationFallback, FULLSCREEN_ROTATION_WAIT_MS);
         }
         armAutoHide();
+    }
+
+    /**
+     * NEWTUBE(issue #69): whether the playing video is taller than wide. The selected track's
+     * format answers before the first frame; the last decoded size covers a format without one.
+     */
+    private boolean isVerticalVideo() {
+        float aspect = mVideoAspect;
+        androidx.media3.common.Format format = mPlayer != null ? mPlayer.getVideoFormat() : null;
+        if (format != null && format.width > 0 && format.height > 0) {
+            float ratio = format.pixelWidthHeightRatio > 0f ? format.pixelWidthHeightRatio : 1f;
+            aspect = format.width * ratio / format.height;
+            if (format.rotationDegrees % 180 != 0) {
+                aspect = 1f / aspect;
+            }
+        }
+        return aspect > 0f && aspect < 1f;
     }
 
     /**
