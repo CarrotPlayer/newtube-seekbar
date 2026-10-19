@@ -2352,7 +2352,7 @@ public class MobilePlaybackActivity extends MobileActivity
                 // NEWTUBE(theme): black only behind the status bar; the navigation-bar band takes
                 // the white page's colour instead of drawing a black strip under it.
                 window.getDecorView().setBackground(new WatchBackdropDrawable(window.getDecorView(),
-                        Color.BLACK, getColorInt(R.color.mobile_color_background)));
+                        Color.BLACK, com.newtube.mobile.ui.common.ThemeMode.color(this, R.attr.newtubeColorBackground)));
             } else {
                 window.getDecorView().setBackgroundColor(Color.BLACK);
             }
