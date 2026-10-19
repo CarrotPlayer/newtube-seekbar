@@ -44,6 +44,16 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
      */
     private static final int MAX_CONSECUTIVE_AUTO_FIXES = 3;
     private final BufferingDetector mBufferingDetector = new BufferingDetector(this);
+    /**
+     * NEWTUBE(wall-swap): the recovery walk for a refused request the engine is holding (see
+     * {@link #onMediaRefusedAhead}), and the video whose refusal it already blamed and recorded.
+     * If the swap fails, the refusal reaches {@link #onEngineError} as a plain 403: the blame and
+     * the wall are not recorded twice, and an answer the walk already cached is what the reload
+     * plays.
+     */
+    private io.reactivex.rxjava3.disposables.Disposable mSwapAction;
+    private String mSwapNotedVideoId;
+    private boolean mSwapAnswerCached;
     private VideoLoaderController mVideoLoaderController;
     // Auto-fix cap state: per controller instance (= per playback session), deliberately not static.
     private int mConsecutiveAutoFixCount;
@@ -120,6 +130,8 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
             surfaceCappedError(error.getMessage(), error);
             return;
         }
+        // NEWTUBE(wall-swap): the reload below replaces a swap still in flight.
+        disposeSwap();
         Log.e(TAG, "Player error occurred: %s. Trying to fix…", type);
         long positionMs = getPlayer() != null ? getPlayer().getPositionMs() : -1;
         long durationMs = getPlayer() != null ? getPlayer().getDurationMs() : -1;
@@ -221,6 +233,8 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
             resetSamePositionWindow();
             clearErrorCapped();
             clearPlaybackNotice(); // a different video: the previous one's reason is not this one's
+            disposeSwap();
+            mSwapNotedVideoId = null;
         }
     }
 
@@ -442,13 +456,24 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
                 // A proven GVS 403 from an authenticated TV route is remembered against this
                 // default network. Recovery still remints immediately; later opens avoid selecting
                 // the same doomed carrier/client route first for a short self-healing window.
-                if (gvsForbidden) {
+                String videoId = getVideo() != null ? getVideo().videoId : null;
+                // NEWTUBE(wall-swap): a refusal the swap already blamed and recorded, which it could
+                // not answer (no answer in time, or one without the refused file).
+                boolean swapNoted = gvsForbidden && videoId != null && videoId.equals(mSwapNotedVideoId);
+                mSwapNotedVideoId = null;
+                if (gvsForbidden && !swapNoted) {
                     VideoInfoService.instance().markCurrentPlaybackRouteForbidden();
                     // NEWTUBE(wall-memory): before the reload is planned - this video's recovery
                     // asks the sources whose media 403'd on it last, and a wall is remembered.
                     noteMedia403();
                 }
-                YouTubeServiceManager.instance().applyNoPlaybackFix(); // Response code: 403
+                if (swapNoted && mSwapAnswerCached) {
+                    // The swap's walk already got a playable answer (HLS only, other files): the
+                    // reload plays it from the format cache instead of walking again.
+                    NetPath.log(NetPath.context() + " recovery-source swap-answer=reused");
+                } else {
+                    YouTubeServiceManager.instance().applyNoPlaybackFix(); // Response code: 403
+                }
                 freshUrlsRequested = true;
             }
             NetPath.log(NetPath.context() + " recovery-source http403="
@@ -511,6 +536,74 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
                 : freshUrlsRequested ? "remint-reload" : "reload")
                 + " attempt=" + mConsecutiveAutoFixCount
                 + " samePos=" + mSamePositionErrorCount);
+    }
+
+    /**
+     * NEWTUBE(wall-swap): the engine holds a request googlevideo refused past what the open played
+     * (the one-minute wall, a stale link) and keeps playing its buffer. The same steps as the 403
+     * branch of {@link #applyEngineErrorAction} (blame, wall memory, the recovery walk), but the
+     * answer goes to {@code repointMedia} instead of a reload, so neither the stop nor the rewind
+     * happens while the walk lands within the buffer. Anything else hands the refusal back to the
+     * engine, and it surfaces as an engine error into the ordinary path.
+     */
+    @Override
+    public void onMediaRefusedAhead() {
+        Video video = getVideo();
+        if (getPlayer() == null) {
+            return;
+        }
+        if (video == null || video.videoId == null || mErrorCapped || mTerminalSourceCapped
+                || !getPlayer().allowsAutomaticSourceRecovery()) {
+            getPlayer().cancelRepoint();
+            return;
+        }
+        disposeSwap();
+        final String videoId = video.videoId;
+        final long startedAtMs = SystemClock.elapsedRealtime();
+        VideoInfoService service = VideoInfoService.instance();
+        com.liskovsoft.youtubeapi.common.helpers.AppClient refusedClient = service.servedClient(videoId);
+        service.anchorRouteToVideo(videoId);
+        service.markCurrentPlaybackRouteForbidden();
+        noteMedia403();
+        YouTubeServiceManager.instance().applyNoPlaybackFix();
+        mSwapNotedVideoId = videoId;
+        mSwapAnswerCached = false;
+        NetPath.log(NetPath.context() + " wall-swap walk video=" + videoId + " refused=" + refusedClient
+                + " pos=" + getPlayer().getPositionMs());
+        mSwapAction = getMediaItemService().getFormatInfoObserve(videoId).subscribe(formatInfo -> {
+            mSwapAction = null;
+            Video current = getVideo();
+            if (getPlayer() == null || current == null || !videoId.equals(current.videoId)) {
+                return;
+            }
+            boolean playable = formatInfo != null && !formatInfo.isUnplayable();
+            boolean swapped = playable && getPlayer().repointMedia(formatInfo);
+            mSwapAnswerCached = playable;
+            NetPath.log(NetPath.context() + " wall-swap answer video=" + videoId
+                    + " client=" + service.servedClient(videoId)
+                    + " ms=" + (SystemClock.elapsedRealtime() - startedAtMs)
+                    + " playable=" + (playable ? "y" : "n") + " swapped=" + (swapped ? "y" : "n")
+                    + " pos=" + getPlayer().getPositionMs());
+            if (swapped) {
+                mSwapNotedVideoId = null; // handled: a later 403 is a new refusal
+            } else {
+                getPlayer().cancelRepoint();
+            }
+        }, error -> {
+            mSwapAction = null;
+            NetPath.log(NetPath.context() + " wall-swap answer video=" + videoId + " error="
+                    + NetPath.throwableSummary(error) + " ms=" + (SystemClock.elapsedRealtime() - startedAtMs));
+            if (getPlayer() != null) {
+                getPlayer().cancelRepoint();
+            }
+        });
+    }
+
+    private void disposeSwap() {
+        if (mSwapAction != null) {
+            mSwapAction.dispose();
+            mSwapAction = null;
+        }
     }
 
     /**

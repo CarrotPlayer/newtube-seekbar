@@ -8426,6 +8426,19 @@ public class MobilePlaybackActivity extends MobileActivity
         return mExoPlayerController != null ? mExoPlayerController.getMediaRequests().highestServedStartMs() : -1;
     }
 
+    /** NEWTUBE(wall-swap): the recovery walk's answer for an open waiting on a refused request. */
+    @Override
+    public boolean repointMedia(MediaItemFormatInfo formatInfo) {
+        return mExoPlayerController != null && mExoPlayerController.repointMedia(formatInfo);
+    }
+
+    @Override
+    public void cancelRepoint() {
+        if (mExoPlayerController != null) {
+            mExoPlayerController.cancelRepoint();
+        }
+    }
+
     @Override
     public void setPositionMs(long positionMs) {
         mExoPlayerController.setPositionMs(positionMs);
