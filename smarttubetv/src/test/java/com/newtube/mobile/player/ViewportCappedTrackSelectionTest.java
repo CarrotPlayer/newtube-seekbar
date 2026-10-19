@@ -447,6 +447,115 @@ public class ViewportCappedTrackSelectionTest {
         assertEquals(Integer.MAX_VALUE, parameters.viewportWidth);
     }
 
+    // ---- NEWTUBE(quality-start): startup chunks replaced once the quality goes up ----
+
+    @Test
+    public void startupChunksStayWhileTheSelectionHasNotSwitched() {
+        List<MediaChunk> queue = startupQueue(P480, 0, 5_000_000L, 10_000_000L);
+        assertEquals(queue.size(), ViewportCappedTrackSelection.startupDiscardIndex(
+                500_000L, queue, C.SELECTION_REASON_INITIAL, P1080, 1f));
+    }
+
+    @Test
+    public void startupChunksBeyondTheRetainWindowAreReplacedAfterAnUpSwitch() {
+        // 480p chunks at 0, 5 and 10 s, then the first 1080p one at 15 s; playing at 0.5 s.
+        List<MediaChunk> queue = startupQueue(P480, 0, 5_000_000L, 10_000_000L);
+        queue.add(chunk(P1080, C.SELECTION_REASON_ADAPTIVE, 15_000_000L));
+        // The chunk at 5 s starts 4.5 s ahead: it plays out; everything from 10 s is fetched again.
+        assertEquals(2, ViewportCappedTrackSelection.startupDiscardIndex(
+                500_000L, queue, C.SELECTION_REASON_ADAPTIVE, P1080, 1f));
+    }
+
+    @Test
+    public void verticalStartupChunksAreReplacedToo() {
+        // Stock media3 never drops these: 480x854 is taller than its 719 px discard bound.
+        List<MediaChunk> queue = startupQueue(V480, 0, 5_000_000L, 10_000_000L);
+        assertEquals(2, ViewportCappedTrackSelection.startupDiscardIndex(
+                500_000L, queue, C.SELECTION_REASON_ADAPTIVE, V1080, 1f));
+    }
+
+    @Test
+    public void chunksFromALaterDownSwitchAreNeverDropped() {
+        // A dip mid-video: those low chunks were chosen ADAPTIVE, and a long buffer is kept.
+        List<MediaChunk> queue = new ArrayList<>();
+        for (long start = 100_000_000L; start < 160_000_000L; start += 5_000_000L) {
+            queue.add(chunk(P480, C.SELECTION_REASON_ADAPTIVE, start));
+        }
+        assertEquals(queue.size(), ViewportCappedTrackSelection.startupDiscardIndex(
+                100_500_000L, queue, C.SELECTION_REASON_ADAPTIVE, P1080, 1f));
+    }
+
+    @Test
+    public void aSelectionThatHasNotDecidedYetDiscardsNothing() {
+        // Re-created by an audio/captions change: UNKNOWN, its top rung nominally "selected".
+        List<MediaChunk> queue = startupQueue(P480, 0, 5_000_000L, 10_000_000L);
+        assertEquals(queue.size(), ViewportCappedTrackSelection.startupDiscardIndex(
+                500_000L, queue, C.SELECTION_REASON_UNKNOWN, P1080, 1f));
+    }
+
+    @Test
+    public void evaluateQueueSizeReplacesStartupChunksAfterARealUpSwitch() {
+        MutableMeter meter = new MutableMeter(500_000L);
+        ExoTrackSelection selection = adaptive(LADDER, meter);
+        select(selection, 0, Collections.emptyList()); // first decision: INITIAL at the seed's rung
+        assertEquals(C.SELECTION_REASON_INITIAL, selection.getSelectionReason());
+        Format startup = selection.getSelectedFormat();
+        List<MediaChunk> queue = startupQueue(startup, 0, 5_000_000L, 10_000_000L, 15_000_000L);
+
+        meter.bitrate = 100_000_000L; // the first real transfers
+        select(selection, 20_000_000L, queue);
+        assertEquals(C.SELECTION_REASON_ADAPTIVE, selection.getSelectionReason());
+        assertEquals(P1080, selection.getSelectedFormat());
+        assertEquals(2, selection.evaluateQueueSize(500_000L, queue));
+    }
+
+    @Test
+    public void evaluateQueueSizeKeepsStartupChunksWhenTheUpSwitchNoLongerFits() {
+        MutableMeter meter = new MutableMeter(500_000L);
+        ExoTrackSelection selection = adaptive(LADDER, meter);
+        select(selection, 0, Collections.emptyList());
+        List<MediaChunk> queue = startupQueue(selection.getSelectedFormat(),
+                0, 5_000_000L, 10_000_000L, 15_000_000L);
+        meter.bitrate = 100_000_000L;
+        select(selection, 20_000_000L, queue);
+        assertEquals(P1080, selection.getSelectedFormat());
+
+        meter.bitrate = 500_000L; // collapsed before the next chunk request refreshed the choice
+        assertEquals(queue.size(), selection.evaluateQueueSize(500_000L, queue));
+    }
+
+    @Test
+    public void startupChunksAtTheSelectedRungOrAboveStay() {
+        List<MediaChunk> queue = startupQueue(P720, 0, 5_000_000L, 10_000_000L);
+        assertEquals(queue.size(), ViewportCappedTrackSelection.startupDiscardIndex(
+                500_000L, queue, C.SELECTION_REASON_ADAPTIVE, P720, 1f));
+        assertEquals(queue.size(), ViewportCappedTrackSelection.startupDiscardIndex(
+                500_000L, queue, C.SELECTION_REASON_ADAPTIVE, P480, 1f));
+    }
+
+    @Test
+    public void theRetainWindowIsPlayoutTimeAtHigherSpeeds() {
+        // At 2x, 5 s of playout is 10 s of media: the chunk at 10 s (9.5 s ahead) stays.
+        List<MediaChunk> queue = startupQueue(P480, 0, 5_000_000L, 10_000_000L, 15_000_000L);
+        assertEquals(3, ViewportCappedTrackSelection.startupDiscardIndex(
+                500_000L, queue, C.SELECTION_REASON_ADAPTIVE, P1080, 2f));
+    }
+
+    private static List<MediaChunk> startupQueue(Format format, long... startsUs) {
+        List<MediaChunk> queue = new ArrayList<>();
+        for (long start : startsUs) {
+            queue.add(chunk(format, C.SELECTION_REASON_INITIAL, start));
+        }
+        return queue;
+    }
+
+    private static MediaChunk chunk(Format format, int reason, long startUs) {
+        return new SingleSampleMediaChunk(new ByteArrayDataSource(new byte[1]),
+                new DataSpec(Uri.parse("https://media.invalid/" + startUs)), format,
+                reason, null, startUs, startUs + 5_000_000L, startUs / 5_000_000L,
+                C.TRACK_TYPE_VIDEO, format);
+    }
+
     // ---------------------------------------------------------------------------------
 
     private ViewportCappedTrackSelection.Factory factory() {
@@ -461,6 +570,21 @@ public class ViewportCappedTrackSelectionTest {
         return factory().createTrackSelections(
                 new ExoTrackSelection.Definition[] {new ExoTrackSelection.Definition(group, tracks)},
                 new FakeMeter(), new MediaPeriodId(new Object()), Timeline.EMPTY)[0];
+    }
+
+    private ExoTrackSelection adaptive(List<Format> formats, BandwidthMeter meter) {
+        TrackGroup group = new TrackGroup(formats.toArray(new Format[0]));
+        int[] tracks = new int[formats.size()];
+        for (int i = 0; i < tracks.length; i++) tracks[i] = i;
+        return factory().createTrackSelections(
+                new ExoTrackSelection.Definition[] {new ExoTrackSelection.Definition(group, tracks)},
+                meter, new MediaPeriodId(new Object()), Timeline.EMPTY)[0];
+    }
+
+    private static void select(ExoTrackSelection selection, long bufferedUs, List<MediaChunk> queue) {
+        MediaChunkIterator[] iterators = new MediaChunkIterator[selection.length()];
+        Arrays.fill(iterators, MediaChunkIterator.EMPTY);
+        selection.updateSelectedTrack(0, bufferedUs, C.TIME_UNSET, queue, iterators);
     }
 
     private static void select(ExoTrackSelection selection, long bufferedUs) {
@@ -485,6 +609,20 @@ public class ViewportCappedTrackSelectionTest {
     private static Format video(String id, int width, int height, int bitrate) {
         return new Format.Builder().setId(id).setSampleMimeType(MimeTypes.VIDEO_VP9)
                 .setWidth(width).setHeight(height).setAverageBitrate(bitrate).build();
+    }
+
+    /** A link whose estimate the test moves. */
+    private static final class MutableMeter implements BandwidthMeter {
+        long bitrate;
+
+        MutableMeter(long bitrate) {
+            this.bitrate = bitrate;
+        }
+
+        @Override public long getBitrateEstimate() { return bitrate; }
+        @Override public TransferListener getTransferListener() { return null; }
+        @Override public void addEventListener(Handler handler, EventListener listener) {}
+        @Override public void removeEventListener(EventListener listener) {}
     }
 
     /** Plenty of bandwidth: every choice below is the cap's or media3's rule, never the link's. */

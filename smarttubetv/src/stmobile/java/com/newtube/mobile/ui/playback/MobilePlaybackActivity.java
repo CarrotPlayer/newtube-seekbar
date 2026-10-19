@@ -4184,7 +4184,7 @@ public class MobilePlaybackActivity extends MobileActivity
 
         androidx.media3.common.Format playing = mPlayer != null ? mPlayer.getVideoFormat() : null;
         return playing != null && playing.height > 0
-                ? getString(R.string.mobile_quality_auto_current, qualityLabel(playing.height, playing.frameRate))
+                ? getString(R.string.mobile_quality_auto_current, qualityLabel(playing.width, playing.height, playing.frameRate))
                 : getString(R.string.mobile_quality_auto_short);
     }
 
@@ -7181,13 +7181,17 @@ public class MobilePlaybackActivity extends MobileActivity
 
     /** Distinct resolution rung of the current video: "1080p" / "1080p60" style. */
     private static String qualityLabel(FormatItem item) {
-        return qualityLabel(item.getHeight(), item.getFrameRate());
+        return qualityLabel(item.getWidth(), item.getHeight(), item.getFrameRate());
     }
 
-    /** A frame rate the stream does not state ({@code Format.NO_VALUE}) reads as a plain rung. */
-    private static String qualityLabel(int height, float frameRate) {
+    /**
+     * YouTube's name for the rung: its class, not its height (a vertical video's 1080x1920 is
+     * "1080p" and its 608x1080 is "480p", see VideoRung). A frame rate the stream does not state
+     * ({@code Format.NO_VALUE}) reads as a plain rung.
+     */
+    private static String qualityLabel(int width, int height, float frameRate) {
         boolean highFps = frameRate > 40;
-        return height + "p" + (highFps ? "60" : "");
+        return com.newtube.mobile.player.VideoRung.classHeight(width, height) + "p" + (highFps ? "60" : "");
     }
 
     /**

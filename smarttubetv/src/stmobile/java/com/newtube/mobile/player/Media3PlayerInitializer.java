@@ -186,9 +186,13 @@ public class Media3PlayerInitializer {
                         VideoViewportCap.shared()));
 
         // 1080p Auto ceiling, mobile default; an explicit user pick overrides it (the track
-        // adapter lifts the constraints when pinning a track).
+        // adapter lifts the constraints when pinning a track). Square, so it means "1080p" in
+        // both orientations: media3 checks width <= max AND height <= max with no rotation, and
+        // 1920x1080 left a vertical video's 1080p (1080x1920) and 720p (720x1280) out - vertical
+        // videos topped out at 608x1080, which YouTube calls 480p (VideoRung).
+        int ceiling = VideoRung.ceilingSide(1080);
         trackSelector.setParameters(trackSelector.buildUponParameters()
-                .setMaxVideoSize(1920, 1080)
+                .setMaxVideoSize(ceiling, ceiling)
                 .setExceedVideoConstraintsIfNecessary(true));
 
         return trackSelector;

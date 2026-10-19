@@ -30,7 +30,10 @@ import java.util.function.BooleanSupplier;
  * <p>Lifting the cap is an ordinary ABR up-switch. media3's {@code evaluateQueueSize} then drops
  * and refetches buffered chunks more than 25 s ahead ONLY if they are at most 1279x719 - so the
  * 360p/480p chunks of a normal PiP window are replaced, but 720p chunks from an enlarged PiP play
- * out, and the SABR source (empty {@code reevaluateBuffer}) never discards: its queue drains.</p>
+ * out, and the SABR source (empty {@code reevaluateBuffer}) never discards: its queue drains.
+ * (Chunks a selection loaded before its first switch are the exception: those are replaced from
+ * 5 s ahead, see {@link ViewportCappedTrackSelection#evaluateQueueSize} - which is the case of
+ * an engine restart while the window was small.)</p>
  *
  * <p>The rung chosen mirrors media3's own viewport rule
  * ({@code DefaultTrackSelector.getMaxVideoPixelsToRetainForViewport}, orientationMayChange=false):

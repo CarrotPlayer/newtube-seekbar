@@ -17,8 +17,8 @@ import com.liskovsoft.smartyoutubetv2.common.misc.NetPath;
  * <ul>
  *   <li>{@code rung fetch}: the first media chunk of a new rung finished loading
  *   ({@code pos} = where in the video that chunk starts);</li>
- *   <li>{@code rung show}: the decoder switched to a new rung, i.e. it reaches the screen now
- *   ({@code pos} = the playback position).</li>
+ *   <li>{@code rung show}: the decoder's input switched to a new rung ({@code pos} = the playback
+ *   position) - its first frame is rendered right after, not proven by this line.</li>
  * </ul>
  * Both carry the time since the open ({@code +ms}). A rung is its format id (the itag); a new
  * episode starts over.
