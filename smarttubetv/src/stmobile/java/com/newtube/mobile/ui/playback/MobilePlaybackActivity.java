@@ -2328,7 +2328,7 @@ public class MobilePlaybackActivity extends MobileActivity
         if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
             applyDisplayCutoutMode(true);
             // Immersive full-bleed video (PLAYER POLISH behaviour).
-            Helpers.makeActivityFullscreen2(this);
+            applyImmersiveSystemBars();
             if (ThemeMode.isLight(this)) {
                 // NEWTUBE(theme): all video - not the light portrait backdrop's white page band.
                 getWindow().getDecorView().setBackgroundColor(Color.BLACK);
@@ -2367,6 +2367,51 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         if (mWatchRoot != null) {
             ViewCompat.requestApplyInsets(mWatchRoot);
+        }
+    }
+
+    /**
+     * NEWTUBE(issue #68): fullscreen's hidden, sticky-immersive bars. A swipe from an edge shows
+     * them over the video for a moment; a tap is the player's and never shows them.
+     *
+     * <p>Was {@code Helpers.makeActivityFullscreen2}, which only told the insets controller - and
+     * on Android 11 that does not last. Android 11's ViewRootImpl rebuilds its window attributes
+     * from the Window's own copy on EVERY attribute change (that helper's own translucent flags
+     * right after, the cutout mode, KEEP_SCREEN_ON on play/pause) and drops the "behaviour set by
+     * the controller" flag doing it; the behaviour is then re-derived from the legacy
+     * systemUiVisibility flags, which held no IMMERSIVE_STICKY: BEHAVIOR_SHOW_BARS_BY_TOUCH. So
+     * the system ate the first tap to show the navigation bar (gesture pill) and left it shown
+     * for good (Mi A3; reproduced on an API 30 emulator: no {@code bhv=}, nav visible after one
+     * tap). Android 12 keeps the flag across attribute copies, so there the controller is enough.
+     * Android 11 gets the legacy flags too: the visibility is carried over every copy, so the
+     * re-derived behaviour is the sticky one.</p>
+     */
+    private void applyImmersiveSystemBars() {
+        Window window = getWindow();
+        View decor = window.getDecorView();
+        // Window flags first: on Android 11 a later attribute change resets the behaviour below.
+        window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+                | WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+        int legacy = View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false);
+            if (Build.VERSION.SDK_INT == 30) {
+                decor.setSystemUiVisibility(legacy);
+            }
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                controller.hide(WindowInsets.Type.systemBars());
+                controller.setSystemBarsBehavior(
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                // Bars swiped in over the video: light icons, whatever the page theme asked for.
+                controller.setSystemBarsAppearance(0,
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                                | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+            }
+        } else {
+            decor.setSystemUiVisibility(legacy);
         }
     }
 
@@ -3646,6 +3691,17 @@ public class MobilePlaybackActivity extends MobileActivity
             armAutoHide();
             return;
         }
+        if (toLandscape && windowOrientation == Configuration.ORIENTATION_PORTRAIT
+                && isVerticalVideo()) {
+            // NEWTUBE(issue #69): a vertical video goes fullscreen upright, filling the screen,
+            // like the official app; rotating it to landscape only pillarboxed it. The same
+            // in-place layout as a tablet's: leaving it is the toggle above, and turning the phone
+            // sideways (auto-rotate on) drops it for the landscape fullscreen.
+            releaseFullscreenRequest();
+            setLayoutOverride(target);
+            armAutoHide();
+            return;
+        }
         if (areOrientationRequestsIgnored()) {
             // NEWTUBE(tablet): Android 16 ignores orientation requests on large screens (sw >=
             // 600dp, targetSdk 36+), and every Android ignores them in multi-window. Asking for
@@ -3669,6 +3725,64 @@ public class MobilePlaybackActivity extends MobileActivity
             mContainer.postDelayed(mRotationFallback, FULLSCREEN_ROTATION_WAIT_MS);
         }
         armAutoHide();
+    }
+
+    /**
+     * NEWTUBE(issue #69): from a video change to that video's first frame, the player's size and
+     * format may still be the previous video's, so its shape is unknown (and the fullscreen button
+     * rotates, as it always did).
+     */
+    private boolean mVideoShapePending = true;
+
+    /**
+     * NEWTUBE(issue #69): whether the playing video is taller than wide; false while its shape is
+     * not known yet. The video track's format, else the last decoded size.
+     */
+    private boolean isVerticalVideo() {
+        if (mVideoShapePending) {
+            return false;
+        }
+        float aspect = mVideoAspect;
+        androidx.media3.common.Format format = mPlayer != null ? mPlayer.getVideoFormat() : null;
+        if (format != null && format.width > 0 && format.height > 0) {
+            float ratio = format.pixelWidthHeightRatio > 0f ? format.pixelWidthHeightRatio : 1f;
+            aspect = format.width * ratio / format.height;
+            if (format.rotationDegrees % 180 != 0) {
+                aspect = 1f / aspect;
+            }
+        }
+        return aspect > 0f && aspect < 1f;
+    }
+
+    /**
+     * NEWTUBE(issue #69): the new video's first frame is up, so its shape is known. A landscape
+     * video that an autoplay or a pick from Up next brought into a vertical one's upright
+     * fullscreen goes to landscape fullscreen, as its own button press would have: the request
+     * rotates the window, and that rotation drops the upright layout (layoutOrientation).
+     */
+    private void onVideoShapeKnown() {
+        if (!mVideoShapePending) {
+            return;
+        }
+        mVideoShapePending = false;
+        boolean upright = mLayoutOverride == Configuration.ORIENTATION_LANDSCAPE
+                && getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
+        if (!upright || isVerticalVideo() || mIsInPip || mPipEnterPending || isFinishing()
+                || areOrientationRequestsIgnored()) {
+            return;
+        }
+        float aspect = mVideoAspect;
+        if (mPlayer != null && mPlayer.getVideoSize().width > 0 && mPlayer.getVideoSize().height > 0) {
+            aspect = (float) mPlayer.getVideoSize().width / mPlayer.getVideoSize().height;
+        }
+        if (!(aspect >= 1f)) {
+            return; // still unknown
+        }
+        if (BuildConfig.DEBUG) {
+            NetPath.log("fullscreen upright-to-landscape aspect=" + aspect);
+        }
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        armOrientationHandBack(Configuration.ORIENTATION_LANDSCAPE);
     }
 
     /**
@@ -4470,6 +4584,7 @@ public class MobilePlaybackActivity extends MobileActivity
             // NEWTUBE(still-lift): the controller's AnalyticsListener saw this event first, so
             // OpenFirstFrame already knows whether it was this open's; the texture may have it.
             maybeLiftStillAtFrame();
+            onVideoShapeKnown();
         }
     };
 
@@ -8656,6 +8771,7 @@ public class MobilePlaybackActivity extends MobileActivity
         // title (bare error-reload Video) must not blank the controls title.
         boolean sameVideo = item != null && Helpers.equals(item.videoId, mWatchVideoId);
         if (!sameVideo) {
+            mVideoShapePending = true; // NEWTUBE(issue #69): known again at its first frame
             showPlaybackNotice(null);
             cancelHoldSpeed();
             // NEWTUBE(gestures): a drag held across an autoplay would have seeked the new video to
