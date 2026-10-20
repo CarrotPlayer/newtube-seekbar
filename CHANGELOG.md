@@ -2,6 +2,28 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.17.0 — 2026-10-20 — Florentino Fernández Edition
+
+"Every video now comes with a face, and none of them is an impression." A
+fictional homage to Florentino Fernández, for channel avatars on Home and
+Subscriptions.
+
+### New
+
+- **Channel avatars on Home and Subscriptions.** Each video shows its
+  channel's avatar next to the title, like YouTube. Tap the avatar to go
+  straight to the channel; tap anywhere else on the card to play. Avatars are
+  remembered, so they show up at once the next time. Mixes and playlists have
+  none.
+
+### Fixed
+
+- **A quick double tap on play/pause plays or pauses**, like YouTube. When
+  the controls were hidden, the second tap hid them again instead.
+- **Translations:** Romanian now covers almost all of the app's own screens,
+  thanks to the translators on
+  [Weblate](https://hosted.weblate.org/projects/newtube/).
+
 ## 1.16.2 — 2026-10-19 — Dani Rovira Edition
 
 "Eight rows in a menu, and now you can reach all of them." A fictional homage

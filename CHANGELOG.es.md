@@ -4,6 +4,28 @@ Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 
+## 1.17.0 — 20-10-2026 — Edición Florentino Fernández
+
+"Ahora cada vídeo lleva la cara de su canal, y ninguna es una imitación."
+Homenaje ficticio a Florentino Fernández, para los avatares de los canales en
+Inicio y Suscripciones.
+
+### Nuevo
+
+- **Avatares de los canales en Inicio y Suscripciones.** Cada vídeo muestra
+  el avatar de su canal junto al título, como en YouTube. Toca el avatar para
+  ir directo al canal; toca en cualquier otro sitio de la tarjeta para
+  reproducir. Los avatares se recuerdan, así que la próxima vez aparecen al
+  momento. Los mixes y las listas no llevan.
+
+### Corregido
+
+- **Un doble toque rápido en play/pausa reproduce o pausa**, como en YouTube.
+  Con los controles ocultos, el segundo toque los volvía a esconder.
+- **Traducciones:** el rumano ya cubre casi todas las pantallas propias de la
+  app, gracias a quienes traducen en
+  [Weblate](https://hosted.weblate.org/projects/newtube/).
+
 ## 1.16.2 — 19-10-2026 — Edición Dani Rovira
 
 "Ocho apellidos vascos no, ocho filas en un menú, y ahora se llega a todas."
