@@ -270,6 +270,8 @@
     <string name="unsubscribed_from_channel">Unsubscribed</string>
     <string name="mobile_player_settings">Settings</string>
     <string name="mobile_more_options_for">More options for %1$s</string>
+    <!-- NEWTUBE(feed-avatars): a Home/Subscriptions card's channel avatar, for TalkBack. -->
+    <string name="mobile_card_go_to_channel">Go to channel %1$s</string>
     <string name="mobile_comment_likes">%1$s likes</string>
     <string name="mobile_mini_close">Close player</string>
 

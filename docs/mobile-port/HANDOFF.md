@@ -2453,3 +2453,32 @@ without waiting 5 minutes.
 Pixel harness note: `cmd media_session volume --set` cannot unmute a stream that a 0 muted on
 Android 17; appbench restores with `cmd audio set-volume 3 <n>` now (one run had left the owner's
 media volume muted).
+
+## 39. Channel avatars on Home and Subscriptions cards (2026-10-20, 1.17.0)
+
+A 36 dp avatar left of each video card's title on Home and Subscriptions; tapping it opens the
+channel (same route as the card menu's "Open channel"), the rest of the card still plays. No other
+screen shows them (`VideoCardAdapter.setChannelAvatars`, set by `MobileBrowseActivity` when a
+section's new list commits, not before: the old section's cards would get them for a frame).
+Mixes and playlists (`playlistId != null`) have none: a mix's menu names no channel. The avatar is
+centred on the title + meta block (owner's call; YouTube top-aligns it).
+
+**The TV feeds carry no avatars, and a signed-in Home tile not even its channel.** Since ~Sep 2026
+a signed-in Home tile's long-press is a `showEngagementPanelEndpoint` (no `showMenuCommand`, so no
+`browseEndpoint` UC id anywhere in the tile); topic feeds and Subscriptions tiles still have it.
+`ChannelAvatars` (ui/common) works a card out in two steps, cheapest source first, every request
+anonymous (`addAuthSkip`):
+- video -> channel: the tile, else `video_channels.tsv`, else the tile's own menu
+  (`ContentService.getChannelIdFromMenu` = TV `get_panel`, ~1.2 KB gz, 70-260 ms on the Pixel).
+- channel -> avatar: the channel column of the last Subscriptions response
+  (`getSubscribedChannelAvatars`, every subscribed channel, no request), else
+  `channel_avatars.tsv`, else the header of the channel's YouTube Music page
+  (`getChannelAvatarUrl`, WEB_REMIX browse, 2-16 KB gz, 180-650 ms; the regular YouTube channel
+  page is ~180 KB). Same image as YouTube for 8/8 regular channels tested; an artist channel gets
+  its YouTube Music artist photo (a banner, cropped square by the `=s<px>-c` URL suffix).
+Lookups run for bound cards only, 2 threads, newest first, max 40 pending. "None" is remembered
+only from a 200 without the data (a channel that does not exist answers 200 with no header); any
+non-2xx throws and is retried after 60 s; 3 failures in a row pause that stage (menu or avatar)
+for 30 s. Avatars expire after 30 days (renewed by every Subscriptions response), "none" after 3.
+Nothing is per account. First Pixel run: six flings down Home = 13 menus + 11 avatars; the next
+launch painted every avatar from disk (also on the skeleton's circles).

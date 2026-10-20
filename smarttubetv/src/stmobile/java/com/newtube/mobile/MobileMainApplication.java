@@ -943,6 +943,8 @@ public class MobileMainApplication extends MainApplication {
         // or the next repaint shows the previous user's feed.
         FeedCache.init(this);
         MediaServiceManager.instance().addAccountListener(account -> FeedCache.clear());
+        // Channel avatars of the Home/Subscriptions cards (not per account: no clear on a switch).
+        com.newtube.mobile.ui.common.ChannelAvatars.init(this);
 
         // API PRECONNECT (mobile-only): warm the www.youtube.com TLS/H2 session the instant the
         // process starts. RetrofitOkHttpHelper's InnerTube client is built via newBuilder() off
