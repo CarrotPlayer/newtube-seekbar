@@ -4,6 +4,22 @@ Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 
+## 1.17.1 — 22-10-2026 — Edición Pepe Viyuela
+
+"Algo tropieza con la silla, se levanta, y la calidad sigue donde la dejaste."
+Homenaje ficticio a Pepe Viyuela, para un decodificador que se cae sin
+llevarse tus ajustes por delante.
+
+### Corregido
+
+- **Si el decodificador de vídeo no arranca, ya no baja tu calidad para
+  siempre.** Cuando el decodificador del móvil no podía arrancar (por ejemplo
+  justo al encender la pantalla, o si otra app lo tenía ocupado), NewTube
+  pasaba ese vídeo a 1080p AVC para recuperarse y lo guardaba como tu
+  formato, así que todos los vídeos siguientes quedaban limitados. Ahora el
+  cambio solo vale para el vídeo que falló; el siguiente vuelve a tu
+  elección. Lo mismo con el audio. Gracias al arreglo de SmartTube (#6326).
+
 ## 1.17.0 — 20-10-2026 — Edición Florentino Fernández
 
 "Ahora cada vídeo lleva la cara de su canal, y ninguna es una imitación."

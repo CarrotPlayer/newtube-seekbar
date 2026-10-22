@@ -2,6 +2,22 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.17.1 — 2026-10-22 — Pepe Viyuela Edition
+
+"Something trips over a chair, gets back up, and your quality is still where
+you left it." A fictional homage to Pepe Viyuela, for a decoder that stumbles
+without taking your settings down with it.
+
+### Fixed
+
+- **A video decoder that fails to start no longer lowers your quality for
+  good.** When the phone's decoder couldn't start (for example right after
+  the screen woke up, or with another app holding it), NewTube switched that
+  video to 1080p AVC to recover, and saved it as your format, so every later
+  video stayed capped. Now the fallback is only for the video that failed;
+  the next one starts on your choice again. Same for audio. Thanks to
+  SmartTube's fix (#6326).
+
 ## 1.17.0 — 2026-10-20 — Florentino Fernández Edition
 
 "Every video now comes with a face, and none of them is an impression." A
