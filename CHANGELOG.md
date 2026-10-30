@@ -24,6 +24,10 @@ shows you where it is going before you let go.
 
 ### Changed
 
+- **New launcher icon.** The app's own artwork (the play badge on its dark
+  square), packaged as an Android adaptive icon: the system applies its own
+  shape - circle, squircle or rounded square - over it, and it stays sharp on
+  every screen density.
 - **The info under a video is on two lines now:** the channel, then its views
   and date. Long titles and long channel names no longer push the date off the
   card, on Home, in search results and in "Next up".
