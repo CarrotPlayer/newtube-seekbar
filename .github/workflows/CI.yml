@@ -48,8 +48,36 @@ jobs:
       # No lint here: it used to add 4+ minutes to every nightly for a pre-existing backlog
       # (764 errors at the time of writing) and never blocked anything. Run it locally or in a
       # separate pull-request workflow; this workflow exists to publish a build.
+      #
+      # With a signing key, build the release APK. Without one, build the DEBUG APK: Android
+      # always signs debug builds (with the runner's debug key) and the .debug applicationId
+      # suffix lets it install next to the official app, instead of publishing a release APK
+      # with no certificate (which the package installer refuses).
       - name: Build with Gradle
-        run: ./gradlew clean assembleStmobileRelease
+        id: build
+        run: |
+          set -euo pipefail
+          if [ "${HAS_SIGNING_KEY}" = "true" ]; then
+            ./gradlew clean assembleStmobileRelease
+            echo "apk_dir=stmobileRelease" >> "$GITHUB_OUTPUT"
+            echo "label=" >> "$GITHUB_OUTPUT"
+            echo "variant=release" >> "$GITHUB_OUTPUT"
+          else
+            ./gradlew clean assembleStmobileDebug
+            echo "apk_dir=stmobileDebug" >> "$GITHUB_OUTPUT"
+            echo "label= (debug-signed)" >> "$GITHUB_OUTPUT"
+            echo "variant=debug" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Never publish an APK the phone will refuse: this fails the run if the certificate is
+      # missing (a misconfigured signing secret, say) instead of putting a broken file on the
+      # Releases page.
+      - name: Verify APK signature
+        run: |
+          set -euo pipefail
+          apk=$(ls "smarttubetv/build/outputs/renamed_apks/${{ steps.build.outputs.apk_dir }}"/NewTube_*_universal.apk)
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          "$apksigner" verify --print-certs "$apk"
 
       # The universal APK is attached straight to a GitHub pre-release, so the Releases page is
       # the download. It carries every ABI, so it also installs on 32-bit phones where the
@@ -59,13 +87,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           VERSION_NAME: ${{ steps.get_version.outputs.VERSION_NAME }}
+          APK_DIR: ${{ steps.build.outputs.apk_dir }}
+          LABEL: ${{ steps.build.outputs.label }}
+          VARIANT: ${{ steps.build.outputs.variant }}
         run: |
           set -euo pipefail
           tag="nightly-${GITHUB_RUN_NUMBER}"
-          apk=$(ls smarttubetv/build/outputs/renamed_apks/stmobileRelease/NewTube_*_universal.apk)
+          apk=$(ls "smarttubetv/build/outputs/renamed_apks/${APK_DIR}"/NewTube_*_universal.apk)
           echo "Publishing $apk as $tag"
-          if [ "${HAS_SIGNING_KEY}" != "true" ]; then
-            echo "::warning::SIGNING_KEY is not set: this APK is unsigned and will not install on a normal phone."
+          note_suffix=""
+          if [ "${VARIANT}" = "debug" ]; then
+            note_suffix=" Debug-signed build: it installs next to the official app as a separate .debug package. Add the SIGNING_KEY secret for a release-signed APK."
           fi
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$apk" --clobber
@@ -73,8 +105,8 @@ jobs:
             gh release create "$tag" "$apk" \
               --prerelease \
               --target "$GITHUB_SHA" \
-              --title "NewTube ${VERSION_NAME}" \
-              --notes "Automatic nightly build from commit ${GITHUB_SHA} (run ${GITHUB_RUN_NUMBER}). Universal APK (all ABIs). This is a pre-release: it is not served to the in-app updater; the stable build is the latest published release."
+              --title "NewTube ${VERSION_NAME}${LABEL}" \
+              --notes "Automatic nightly build from commit ${GITHUB_SHA} (run ${GITHUB_RUN_NUMBER}). Universal APK (all ABIs). This is a pre-release: it is not served to the in-app updater; the stable build is the latest published release.${note_suffix}"
           fi
           {
             echo "### Nightly pre-release"
