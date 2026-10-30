@@ -1,16 +1,37 @@
 name: Build Debug APK
 
+# NEWTUBE(deploy): the phone app ships ONE artifact from CI - the UNIVERSAL debug APK - and it is
+# attached to the "debug-latest" GitHub Release as an .apk, never wrapped in the .zip that a
+# workflow artifact downloads as.
+#
+# Signing: a debug build is always signed (AGP's auto-generated debug key), so it installs; but a
+# runner's debug key is NEW on every run, and an APK signed with a different key cannot replace an
+# installed one ("App not installed"). With the SIGNING_KEY secret configured, keystore.properties
+# is written here and smarttubetv/build.gradle signs the DEBUG build type with that same key (and
+# drops the .debug applicationId suffix), so the download installs over the previous build. The
+# signature is verified with apksigner before anything is published.
+#
+# No lint: it is not part of deploying this app (the release workflow's checks are enough).
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   workflow_dispatch:
+
+permissions:
+  contents: write # publish / update the debug release
+
+concurrency:
+  group: debug-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       HAS_SIGNING_KEY: ${{ secrets.SIGNING_KEY != '' }}
       HAS_VT_KEY: ${{ secrets.VIRUS_TOTAL_API_KEY != '' }}
+      RELEASE_TAG: debug-latest
 
     steps:
       - name: Checkout Code
@@ -25,38 +46,56 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Update Version Name
-        id: get_version
-        run: |
-          # Keep the original code to make the nightly and original builds interchangeable
-          sed -i "s/versionName \"\(.*\)\"/versionName \"\1-nightly-${{ github.run_number }}\"/" smarttubetv/build.gradle
-          echo "VERSION_NAME=$(grep "versionName" smarttubetv/build.gradle | head -n 1 | awk -F'"' '{print $2}')" >> $GITHUB_OUTPUT
-
+      # Same secrets the release workflow uses: with them in place the debug APK is signed with
+      # NewTube's own key (see the header), which is what lets it install over a previous build.
       - name: Configure Build Signing
         if: ${{ env.HAS_SIGNING_KEY == 'true' }}
         run: |
-          echo "storePassword=${{ secrets.KEY_STORE_PASSWORD }}" > keystore.properties
-          echo "keyAlias=${{ secrets.ALIAS }}" >> keystore.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
-          echo "storeFile=${{ github.workspace }}/key.jks" >> keystore.properties
-          echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > ${{ github.workspace }}/key.jks
-    
+          set -euo pipefail
+          {
+            echo "storePassword=${{ secrets.KEY_STORE_PASSWORD }}"
+            echo "keyAlias=${{ secrets.ALIAS }}"
+            echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
+            echo "storeFile=${{ github.workspace }}/key.jks"
+          } > keystore.properties
+          echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > "${{ github.workspace }}/key.jks"
+
+      - name: Warn when no signing key is configured
+        if: ${{ env.HAS_SIGNING_KEY != 'true' }}
+        run: |
+          echo "::warning::SIGNING_KEY is not set - the APK is signed with the runner's debug key. \
+          It installs, but Android refuses to update an existing install signed with another key."
+
       - name: Grant Gradle permissions
         run: chmod +x gradlew
 
-      - name: Lint with Gradle
-        run: ./gradlew lintStbetaRelease
+      # ONLY the universal debug APK: the ABI splits and the release/fdroid twins are not deployed
+      # from here (release.yml builds those, from a tag).
+      - name: Build the universal debug APK
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --stacktrace :smarttubetv:assembleStmobileDebug
+          mkdir -p dist
+          cp smarttubetv/build/outputs/renamed_apks/stmobileDebug/NewTube_*_universal.apk dist/
+          ls -l dist
 
-      - name: Upload Lint Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Remove the signing key
         if: always()
-        with:
-          name: lint-report
-          path: '**/build/reports/lint-results-*.html'
-          if-no-files-found: warn
+        run: rm -f keystore.properties "${{ github.workspace }}/key.jks"
 
-      - name: Build with Gradle
-        run: ./gradlew clean assembleStbetaRelease
+      - name: Check the APK is signed
+        run: |
+          set -euo pipefail
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/[0-9]* | sort -V | tail -1)/apksigner"
+          echo "Using $apksigner"
+          apk="$(ls dist/*.apk)"
+          out="$("$apksigner" verify --print-certs "$apk" 2>&1)" || {
+            echo "$out"
+            echo "::error::apksigner rejected $(basename "$apk") - it would not install."
+            exit 1
+          }
+          printf '%s\n' "$out"
+          (cd dist && sha256sum -- *.apk | tee SHA256SUMS)
 
       - name: VirusTotal Scan
         if: ${{ env.HAS_VT_KEY == 'true' }}
@@ -65,7 +104,7 @@ jobs:
         with:
           vt_api_key: ${{ secrets.VIRUS_TOTAL_API_KEY }}
           files: |
-            ./smarttubetv/build/outputs/apk/stbeta/release/*.apk
+            ./dist/*.apk
           request_rate: 4
 
       - name: VirusTotal Summary
@@ -78,41 +117,33 @@ jobs:
           echo "| Artifact Name | VirusTotal Status | Detailed Report |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
 
-          for apk in ./smarttubetv/build/outputs/apk/stbeta/release/*.apk; do
+          for apk in ./dist/*.apk; do
             filename=$(basename "$apk")
             sha256=$(sha256sum "$apk" | awk '{print $1}')
 
-            # Construct the dynamic badge URL using the hash
             badge_url="https://badges.cssnr.com/vt/id/$sha256?start=green&end=red&n=8"
             vt_link="https://www.virustotal.com/gui/file/$sha256"
 
             echo "| $filename | [![$filename]($badge_url)]($vt_link) | [View Report]($vt_link) |" >> $GITHUB_STEP_SUMMARY
           done
 
-      - name: Upload ARM64 APK
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: SmartTube_${{ steps.get_version.outputs.VERSION_NAME }}_arm64
-          path: ./smarttubetv/build/outputs/apk/stbeta/release/*_arm64-v8a.apk
-          if-no-files-found: error
-
-      - name: Upload ARMv7 APK
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: SmartTube_${{ steps.get_version.outputs.VERSION_NAME }}_armeabi-v7a
-          path: ./smarttubetv/build/outputs/apk/stbeta/release/*_armeabi-v7a.apk
-          if-no-files-found: error
-
-      - name: Upload Universal APK
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: SmartTube_${{ steps.get_version.outputs.VERSION_NAME }}_universal
-          path: ./smarttubetv/build/outputs/apk/stbeta/release/*_universal.apk
-          if-no-files-found: error
-
-      - name: Upload x86 APK
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: SmartTube_${{ steps.get_version.outputs.VERSION_NAME }}_x86
-          path: ./smarttubetv/build/outputs/apk/stbeta/release/*_x86.apk
-          if-no-files-found: error
+      # The deploy itself: the .apk goes straight into the release's assets (and SHA256SUMS beside
+      # it), replacing the previous debug build. The release is a prerelease, so it never takes
+      # "Latest" away from a real version.
+      - name: Publish the APK to the debug release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          notes="$(printf 'Automatic **debug** build of `%s` (run %s).\n\n* Universal APK - every supported ABI in one file.\n* Signed and verified with apksigner; installs over the previous debug build.\n* Not a release build: verbose logging is on.' \
+            "${GITHUB_SHA:0:7}" "$GITHUB_RUN_NUMBER")"
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/NewTube_*.apk dist/SHA256SUMS --clobber
+            gh release edit "$RELEASE_TAG" --notes "$notes"
+          else
+            gh release create "$RELEASE_TAG" dist/NewTube_*.apk dist/SHA256SUMS \
+              --prerelease --target "$GITHUB_SHA" \
+              --title "NewTube debug (universal APK)" --notes "$notes"
+          fi
+          gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name'

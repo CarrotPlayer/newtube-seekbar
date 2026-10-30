@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.newtube.mobile.ui.common.VideoMeta;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.utils.ClickbaitRemover;
@@ -127,6 +128,7 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
         private final TextView mBadge;
         private final ProgressBar mWatchProgress;
         private final TextView mTitle;
+        private final TextView mChannel;
         private final TextView mSubtitle;
         private Video mVideo;
 
@@ -139,6 +141,7 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
             mBadge = itemView.findViewById(R.id.related_badge);
             mWatchProgress = itemView.findViewById(R.id.related_watch_progress);
             mTitle = itemView.findViewById(R.id.related_title);
+            mChannel = itemView.findViewById(R.id.related_channel);
             mSubtitle = itemView.findViewById(R.id.related_subtitle);
 
             itemView.setOnClickListener(v -> {
@@ -177,17 +180,14 @@ public class RelatedVideoAdapter extends ListAdapter<Video, RelatedVideoAdapter.
 
             mTitle.setText(video.getTitle());
 
-            // Single subtitle line = "Channel • views • date" (Video.getSecondTitle()). Previously the
-            // channel showed twice - once as its own byline (getAuthor(), which is just the channel token
-            // extracted from the very same secondTitle) and again at the head of this metadata line, so
-            // the two lines were identical whenever views/date were absent. Fall back to the bare channel
-            // name when no secondTitle is available.
-            CharSequence subtitle = video.getSecondTitle();
-            if (subtitle == null || subtitle.length() == 0) {
-                subtitle = video.getAuthor();
-            }
-            if (subtitle != null && subtitle.length() > 0) {
-                mSubtitle.setText(subtitle);
+            // NEWTUBE(cards): two short lines instead of one - the channel, then "views • date"
+            // (VideoMeta strips the @handle and the "de"/"il y a" filler). A row with no channel
+            // leaves no gap: the stats line simply follows the title.
+            VideoMeta.Info info = VideoMeta.from(video);
+            mChannel.setText(info.channel);
+            mChannel.setVisibility(info.channel == null ? View.GONE : View.VISIBLE);
+            if (info.stats.length() > 0) {
+                mSubtitle.setText(info.stats);
                 mSubtitle.setVisibility(View.VISIBLE);
             } else {
                 mSubtitle.setVisibility(View.GONE);

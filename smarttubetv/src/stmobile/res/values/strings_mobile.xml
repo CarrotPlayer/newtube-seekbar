@@ -142,6 +142,32 @@
     <!-- The NW arrow on a suggestion row: puts the text into the field without searching. -->
     <string name="mobile_search_insert">Refine this search</string>
     <string name="mobile_search_clear">Clear search</string>
+    <!-- NEWTUBE(search-filters): the search screen's filter button and its bottom sheet (YouTube's
+         "Search filter"). Every category is one line of pills; the labels are the API's own words. -->
+    <string name="mobile_search_filter">Search filters</string>
+    <string name="mobile_search_filter_title">Search filter</string>
+    <string name="mobile_search_filter_reset">Reset</string>
+    <string name="mobile_search_filter_sort_by">Sort by</string>
+    <string name="mobile_search_filter_relevance">Relevance</string>
+    <string name="mobile_search_filter_popularity">Popularity</string>
+    <string name="mobile_search_filter_upload_date">Upload date</string>
+    <string name="mobile_search_filter_today">Today</string>
+    <string name="mobile_search_filter_this_week">This week</string>
+    <string name="mobile_search_filter_this_month">This month</string>
+    <string name="mobile_search_filter_this_year">This year</string>
+    <string name="mobile_search_filter_duration">Duration</string>
+    <string name="mobile_search_filter_under_4">Under 4 mins</string>
+    <string name="mobile_search_filter_between_4_20">4\u201320 mins</string>
+    <string name="mobile_search_filter_over_20">Over 20 mins</string>
+    <string name="mobile_search_filter_type">Type</string>
+    <string name="mobile_search_filter_videos">Videos</string>
+    <string name="mobile_search_filter_channels">Channels</string>
+    <string name="mobile_search_filter_playlists">Playlists</string>
+    <string name="mobile_search_filter_movies">Movies</string>
+    <string name="mobile_search_filter_features">Features</string>
+    <string name="mobile_search_filter_live">Live</string>
+    <string name="mobile_search_filter_4k">4K</string>
+    <string name="mobile_search_filter_hdr">HDR</string>
     <!-- Zero-result / failed search (the two are indistinguishable at this seam); tap = retry. -->
     <!-- SearchLoadState: an honest empty answer (no retry), and a failed search. -->
     <string name="mobile_search_no_results">No results for “%1$s”</string>
@@ -259,10 +285,13 @@
     <string name="mobile_you_pinned">Pinned</string>
     <string name="pin_unpin_from_sidebar">Pin to You</string>
     <string name="mobile_settings_experimental">Experimental</string>
-    <!-- NEWTUBE(gestures): Settings > Player, the switches for the optional player swipes (#12). -->
+    <!-- NEWTUBE(gestures): Settings > Player, the switches for the optional player swipes
+         (#12/#40). Brightness and volume are separate, one per side of the video. -->
     <string name="mobile_settings_gestures">Gestures</string>
-    <string name="mobile_settings_gesture_levels">Swipe for brightness and volume</string>
-    <string name="mobile_settings_gesture_levels_summary">Up and down on the left or right of the fullscreen video</string>
+    <string name="mobile_settings_gesture_brightness">Swipe for brightness</string>
+    <string name="mobile_settings_gesture_brightness_summary">Up and down on the left of the fullscreen video. All the way down turns automatic brightness on</string>
+    <string name="mobile_settings_gesture_volume">Swipe for volume</string>
+    <string name="mobile_settings_gesture_volume_summary">Up and down on the right of the fullscreen video</string>
     <string name="mobile_settings_gesture_seek">Swipe to seek</string>
     <string name="mobile_settings_gesture_seek_summary">Sideways on the video</string>
     <!-- Default-locale twins of the values-es overrides below (lint ExtraTranslation). -->

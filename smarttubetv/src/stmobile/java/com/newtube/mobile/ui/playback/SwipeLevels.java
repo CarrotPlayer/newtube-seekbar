@@ -27,7 +27,9 @@ import com.newtube.mobile.ui.common.Haptics;
  *   never the phone's setting: it holds while the player is fullscreen and the phone's own level
  *   comes back as soon as it is not (portrait, PiP, another screen). The swipe moves along the
  *   phone's own slider curve (AOSP BrightnessUtils), so half way up looks like half way up the
- *   quick-settings slider, not like the near-full glare a linear half is.</li>
+ *   quick-settings slider, not like the near-full glare a linear half is. Taken all the way DOWN to
+ *   0 the swipe hands the brightness back to the phone instead (automatic brightness: the window
+ *   stops forcing a level, the pill shows the auto glyph), and swiping back up returns to manual.</li>
  *   <li><b>Volume</b> is the media stream's, in the phone's own steps, without the system's
  *   volume panel (this pill replaces it). Each step ticks, as a chapter line does on the seek bar.</li>
  * </ul>
@@ -59,6 +61,11 @@ final class SwipeLevels {
 
     /** The level the swipes last set (perceptual 0..1) and when, for the whole app session. */
     private static float sBrightness = -1f;
+    /**
+     * NEWTUBE(gestures): the last brightness action was "auto" - a swipe taken all the way down to
+     * 0, where the player stops forcing a level and the phone's own (adaptive) brightness shows.
+     */
+    private static boolean sAuto;
     private static long sBrightnessAt;
 
     private final Window mWindow;
@@ -77,6 +84,8 @@ final class SwipeLevels {
     private boolean mSafeVolumeAsked;
     /** Brightness is applied to the window: the player is fullscreen and in front. */
     private boolean mBrightnessActive;
+    /** This brightness swipe bottomed out: the window no longer forces a level. */
+    private boolean mAutoBrightness;
 
     SwipeLevels(Context context, Window window, View hapticView, Pill pill) {
         mWindow = window;
@@ -157,8 +166,14 @@ final class SwipeLevels {
      */
     void setBrightnessActive(boolean active) {
         mBrightnessActive = active;
-        float level = rememberedBrightness();
-        applyWindowBrightness(active && level >= 0f ? gammaToLinear(level)
+        if (active && rememberedAuto()) {
+            mAutoBrightness = true;
+            applyAutoBrightness();
+            return;
+        }
+        mAutoBrightness = false;
+        float level = active ? rememberedBrightness() : -1f;
+        applyWindowBrightness(level >= 0f ? gammaToLinear(level)
                 : WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
     }
 
@@ -213,11 +228,30 @@ final class SwipeLevels {
     private void setBrightnessLevel(float level) {
         boolean bookend = (level <= 0f || level >= 1f) && level != mLevel;
         mLevel = level;
-        sBrightness = level;
-        sBrightnessAt = SystemClock.elapsedRealtime();
-        if (mBrightnessActive) {
-            applyWindowBrightness(gammaToLinear(level));
+
+        if (level <= 0f) {
+            // Bottomed out: automatic brightness. The window stops overriding the level, so the
+            // phone's own (adaptive) brightness takes over; a swipe back up returns to manual.
+            sBrightness = -1f;
+            sAuto = true;
+            sBrightnessAt = SystemClock.elapsedRealtime();
+            if (!mAutoBrightness) {
+                mAutoBrightness = true;
+                applyAutoBrightness();
+            }
+        } else {
+            sBrightness = level;
+            sAuto = false;
+            sBrightnessAt = SystemClock.elapsedRealtime();
+            if (mAutoBrightness) {
+                mAutoBrightness = false;
+                setSystemAutoBrightness(false);
+            }
+            if (mBrightnessActive) {
+                applyWindowBrightness(gammaToLinear(level));
+            }
         }
+
         if (bookend) {
             Haptics.tick(mHapticView); // the darkest and the brightest are boundaries, like a seek bar's ends
         }
@@ -242,10 +276,39 @@ final class SwipeLevels {
     }
 
     private static float rememberedBrightness() {
-        if (sBrightness < 0f || SystemClock.elapsedRealtime() - sBrightnessAt > BRIGHTNESS_MEMORY_MS) {
+        if (sAuto || sBrightness < 0f || SystemClock.elapsedRealtime() - sBrightnessAt > BRIGHTNESS_MEMORY_MS) {
             return -1f;
         }
         return sBrightness;
+    }
+
+    /** The last brightness action was a swipe to 0 (auto), recently enough to keep it. */
+    private static boolean rememberedAuto() {
+        return sAuto && SystemClock.elapsedRealtime() - sBrightnessAt <= BRIGHTNESS_MEMORY_MS;
+    }
+
+    /**
+     * Hand the brightness back to the phone: the window stops forcing a level (the phone's own,
+     * adaptive when enabled, shows through). Also puts the PHONE's slider in automatic mode where
+     * that is allowed - {@link Settings.System#SCREEN_BRIGHTNESS_MODE} needs WRITE_SETTINGS, which
+     * NewTube does not request, so on a stock install the window-side hand-off is all there is.
+     */
+    private void applyAutoBrightness() {
+        applyWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+        setSystemAutoBrightness(true);
+    }
+
+    private void setSystemAutoBrightness(boolean auto) {
+        try {
+            Settings.System.putInt(mWindow.getContext().getContentResolver(),
+                    Settings.System.SCREEN_BRIGHTNESS_MODE,
+                    auto ? Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+                            : Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+        } catch (SecurityException ignored) {
+            // Not permitted (WRITE_SETTINGS is not requested): the window hand-off above stands.
+        } catch (IllegalArgumentException ignored) {
+            // Some builds refuse the mode write outright; same fallback.
+        }
     }
 
     private void applyWindowBrightness(float value) {
@@ -294,6 +357,10 @@ final class SwipeLevels {
             }
             return level < 0.5f ? R.drawable.ic_player_volume_down
                     : R.drawable.ic_player_volume_up;
+        }
+        if (level <= 0f) {
+            // Bottomed out = automatic brightness (see setBrightnessLevel).
+            return R.drawable.ic_player_brightness_auto;
         }
         if (level < 1f / 3f) {
             return R.drawable.ic_player_brightness_low;

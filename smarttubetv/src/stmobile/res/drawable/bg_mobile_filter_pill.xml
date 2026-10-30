@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NEWTUBE(search-filters): the filter pill's surface, off/on (see the two shapes). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/bg_mobile_filter_pill_on" android:state_selected="true" />
+    <item android:drawable="@drawable/bg_mobile_filter_pill_off" />
+</selector>

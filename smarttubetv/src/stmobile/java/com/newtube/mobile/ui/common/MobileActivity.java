@@ -340,6 +340,20 @@ public abstract class MobileActivity extends MotherActivity {
         }
     }
 
+    /**
+     * NEWTUBE(mini-close): finish this activity WITHOUT any parent routing - for a screen the user
+     * is not looking at. The hidden playback activity behind a docked mini card is exactly that:
+     * minimizing removed it from ViewManager's stack, so popping it must not relaunch anything.
+     * Routed through {@link #finishReally()}, a mini-card X relaunched the player's registered
+     * parent (Home) over whatever screen the card was docked on, and closing the mini player took
+     * that screen with it (Search results fell back to Home).
+     */
+    protected void finishQuietly() {
+        // Harmless when the class isn't in the stack any more; fixes the order when it is.
+        getViewManager().removeTop(this);
+        super.finish();
+    }
+
     @Override
     public void finishReally() {
         // Mandatory line. Fix un-proper view order (especially for playback view).

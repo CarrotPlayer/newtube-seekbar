@@ -2,6 +2,48 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## 1.18.0 — 2026-10-30 — Eugenio Edition
+
+"You know that...?" A fictional homage to Eugenio, for a seek bar that now
+shows you where it is going before you let go.
+
+### New
+
+- **See the frame under your finger while you drag the seek bar.** The preview
+  appears right in the middle of the video - no floating bubble over the dot -
+  and follows the drag through the whole video. The last frame drawn stays on
+  screen while the next one loads, so a long drag never flashes black. Works on
+  the bar and on the sideways swipe-to-seek gesture.
+- **Search filters, like YouTube's.** A filter button now sits to the right of
+  the mic on the search screen: Sort by (Relevance, Popularity), Upload date,
+  Duration, Type (Videos, Channels, Playlists, Movies) and Features (Live, 4K,
+  HDR). Each category is a single line you scroll sideways - the pills never
+  wrap - and it opens in the same sheet as the Download menu. The button turns
+  red while a filter is active, and Reset clears them all.
+
+### Changed
+
+- **The info under a video is on two lines now:** the channel, then its views
+  and date. Long titles and long channel names no longer push the date off the
+  card, on Home, in search results and in "Next up".
+- **No more `@handles` under the title.** When the only channel token was the
+  official handle it duplicated the name above it, so handles are hidden - and
+  the views/date line moves up instead of leaving an empty row.
+- **Shorter stats:** "1,2 M de vues" is now "1,2 M vues" and "il y a 3
+  semaines" is "3 semaines" (same in every language NewTube knows).
+- **Brightness and volume swipes are separate switches** in Settings >
+  Playback > Gestures; a phone that does automatic brightness can keep the
+  volume swipe only, and the other way round.
+- **A brightness swipe taken all the way down turns automatic brightness on.**
+  The player hands the level back to the phone (and the pill's icon becomes the
+  auto-brightness one); swiping back up returns to manual.
+
+### Fixed
+
+- **Closing the mini player no longer closes the screen beneath it.** From
+  search results, the card's X sent the app back to Home; now it only stops the
+  video, and you stay exactly where you were.
+
 ## 1.17.1 — 2026-10-22 — Pepe Viyuela Edition
 
 "Something trips over a chair, gets back up, and your quality is still where

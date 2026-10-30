@@ -15,6 +15,7 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.app.PendingIntent;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
@@ -61,13 +62,17 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.request.target.CustomTarget;
+import com.bumptech.glide.request.transition.Transition;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.button.MaterialButton;
 import com.liskovsoft.smartyoutubetv2.tv.BuildConfig;
 import com.liskovsoft.mediaserviceinterfaces.LiveChatService;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItemMetadata;
+import com.liskovsoft.mediaserviceinterfaces.data.MediaItemStoryboard;
 import com.liskovsoft.sharedutils.rx.RxHelper;
+import com.liskovsoft.youtubeapi.service.YouTubeMediaItemService;
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
 import io.reactivex.rxjava3.disposables.Disposable;
 
@@ -213,6 +218,28 @@ public class MobilePlaybackActivity extends MobileActivity
     @Nullable private LevelBar mLevelBar;
     /** The controls faded aside for a seek-bar drag (setScrubChrome). */
     private boolean mScrubChromeHidden;
+
+    // NEWTUBE(seek-preview): the storyboard frame under the finger (see loadStoryboard and
+    // updateSeekPreview). The card + its bitmap are kept while the next sheet loads, so the
+    // preview never blinks back to the bare video mid-drag.
+    /** The preview card in the middle of the video box; null on a layout without it. */
+    @Nullable private View mSeekPreview;
+    @Nullable private ImageView mSeekPreviewImage;
+    @Nullable private MediaItemStoryboard mStoryboard;
+    @Nullable private Disposable mStoryboardAction;
+    /** The video this storyboard belongs to: a late answer for the previous one is dropped. */
+    @Nullable private String mStoryboardVideoId;
+    /** The sheet of {@link #mPreviewGroup}, and the group it was loaded for. */
+    @Nullable private Bitmap mPreviewSprite;
+    private int mPreviewSpriteGroup = -1;
+    /** The frame on screen (one reused bitmap) and the one the finger is asking for. */
+    @Nullable private Bitmap mPreviewTile;
+    private int mPreviewGroup = -1;
+    private int mPreviewShownFrame = -1;
+    private int mPreviewWantedFrame = -1;
+    /** Tickets the sprite requests, so a slow sheet for an old group can't land on the new one. */
+    private int mPreviewRequest;
+
     private ProgressBar mProgressBar;
     /** First-run only: "one-time setup" line under the spinner while the session is cold. */
     private TextView mSetupHint;
@@ -687,6 +714,8 @@ public class MobilePlaybackActivity extends MobileActivity
         mLiveChip = findViewById(R.id.mobile_player_live);
         mLiveChip.setOnClickListener(v -> jumpToLiveEdge());
         mTimeBar = findViewById(R.id.mobile_player_time_bar);
+        mSeekPreview = findViewById(R.id.mobile_seek_preview);
+        mSeekPreviewImage = findViewById(R.id.mobile_seek_preview_image);
         mBottomRow = findViewById(R.id.mobile_player_bottom_row);
         mTransport = findViewById(R.id.mobile_player_transport);
         mOptionsRow = findViewById(R.id.mobile_player_options);
@@ -1725,6 +1754,7 @@ public class MobilePlaybackActivity extends MobileActivity
         SystemPipBridge.detach(this);
 
         RxHelper.disposeActions(mLiveChatAction);
+        resetStoryboard(); // NEWTUBE(seek-preview): drop the sprite bitmap and the pending fetch
 
         // The only playback activity (singleInstance) is going away: no mini session can outlive it.
         MiniPlayerBridge.deactivate();
@@ -5435,17 +5465,21 @@ public class MobilePlaybackActivity extends MobileActivity
 
     /** Fullscreen: SWIPE_BRIGHTNESS / SWIPE_VOLUME for a swipe that began at {@code rawX}, if any. */
     private int levelSwipeAt(float rawX) {
-        if (!PlayerGesturePrefs.isLevelSwipesOn(this) || isCastOverlayShown()) {
+        if (mSwipeLevels == null || isCastOverlayShown()) {
             return PlayerContainerLayout.SWIPE_NONE;
         }
         int[] at = new int[2];
         mContainer.getLocationOnScreen(at);
         float width = Math.max(1, mContainer.getWidth());
         float x = (rawX - at[0]) / width;
-        if (x < LEVEL_ZONE && mSwipeLevels.canSwipe(SwipeLevels.BRIGHTNESS)) {
+        // NEWTUBE(gestures): brightness and volume are two independent switches now (#40), so one
+        // side can set its level while the other keeps YouTube's fullscreen pull.
+        if (x < LEVEL_ZONE && PlayerGesturePrefs.isBrightnessSwipeOn(this)
+                && mSwipeLevels.canSwipe(SwipeLevels.BRIGHTNESS)) {
             return SWIPE_BRIGHTNESS;
         }
-        if (x > 1f - LEVEL_ZONE && mSwipeLevels.canSwipe(SwipeLevels.VOLUME)) {
+        if (x > 1f - LEVEL_ZONE && PlayerGesturePrefs.isVolumeSwipeOn(this)
+                && mSwipeLevels.canSwipe(SwipeLevels.VOLUME)) {
             return SWIPE_VOLUME;
         }
         return PlayerContainerLayout.SWIPE_NONE;
@@ -6275,15 +6309,19 @@ public class MobilePlaybackActivity extends MobileActivity
         return true;
     }
 
-    /** X tapped on the Browse mini bar: stop playback and quietly retire this hidden activity. */
+    /**
+     * X tapped on a host's mini bar: stop playback and quietly retire this hidden activity.
+     *
+     * NEWTUBE(mini-close): the close action does nothing but close the mini player. This activity
+     * sits BEHIND whatever screen docks the card, so it finishes exactly as it is - no parent
+     * routing. Going through finishReally() relaunched the player's registered parent (Home) over
+     * that screen, so closing the card from Search results sent the whole app back to Home.
+     */
     void closeFromMiniPlayer() {
         if (mPresenter != null) {
             mPresenter.onFinish();
         }
-        // finishReally() (not finish()): Browse is already in the foreground; finish()'s root-screen
-        // branch would send the whole app to the background when the player was deep-linked (no
-        // parent view), yanking Browse away mid-scroll.
-        finishReally();
+        finishQuietly();
     }
 
     /** Live player accessor for the mini bar (package-private, see MiniPlayerBridge). */
@@ -6767,7 +6805,188 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void loadStoryboard() {
-        // TODO Wave N: storyboard thumbnail preview on the seek bar.
+        if (mSeekPreview == null) {
+            return;
+        }
+
+        Video video = getVideo();
+        // mWatchVideoId is the fallback: the reused controller can report the video a moment late.
+        String videoId = video != null && video.videoId != null ? video.videoId : mWatchVideoId;
+        if (videoId == null) {
+            return;
+        }
+
+        resetStoryboard();
+        mStoryboardVideoId = videoId;
+
+        // The spec normally comes free with the player's own /player result, and the service
+        // answers this from that same cached format info: no extra request in the common case.
+        // (MobileMainApplication deliberately skips the storyboard REFETCH.)
+        mStoryboardAction = YouTubeMediaItemService.instance().getStoryboardObserve(videoId)
+                .subscribe(storyboard -> {
+                    if (videoId.equals(mStoryboardVideoId)) {
+                        mStoryboard = storyboard;
+                    }
+                }, error -> {
+                    if (BuildConfig.DEBUG) {
+                        android.util.Log.d(NetPath.TAG, "storyboard unavailable video=" + videoId
+                                + " reason=" + error);
+                    }
+                });
+    }
+
+    private void resetStoryboard() {
+        RxHelper.disposeActions(mStoryboardAction);
+        mStoryboardAction = null;
+        mStoryboard = null;
+        mStoryboardVideoId = null; // a fetch still in flight for it must not land any more
+        mPreviewSprite = null;
+        mPreviewSpriteGroup = -1;
+        mPreviewTile = null;
+        mPreviewGroup = -1;
+        mPreviewShownFrame = -1;
+        mPreviewWantedFrame = -1;
+        mPreviewRequest++;
+        if (mSeekPreviewImage != null) {
+            mSeekPreviewImage.setImageDrawable(null);
+        }
+        if (mSeekPreview != null) {
+            mSeekPreview.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * NEWTUBE(seek-preview): the storyboard frame at {@code positionMs}, drawn in the video box.
+     *
+     * <p>The tiles live in sprite sheets ("storyboards"): the spec gives each sheet's duration and
+     * a {cols x rows} grid of frames, so the sheet is fetched once per group and the frame is cut
+     * out of it locally (one reused bitmap, no allocation per move). While the NEXT sheet is in
+     * flight the previous frame stays on screen - a drag from the middle of the video into the next
+     * sheet's range must not flash black - and a sheet that arrives late for a group nobody is
+     * looking at any more is dropped.</p>
+     */
+    private void updateSeekPreview(long positionMs) {
+        MediaItemStoryboard storyboard = mStoryboard;
+        if (mSeekPreview == null || mSeekPreviewImage == null || storyboard == null) {
+            return;
+        }
+
+        MediaItemStoryboard.Size size = storyboard.getGroupSize();
+        int groupDuration = storyboard.getGroupDurationMS();
+        int each = size.getDurationEachMS();
+        int cols = size.getColCount();
+        int rows = size.getRowCount();
+        if (groupDuration <= 0 || each <= 0 || cols <= 0 || rows <= 0) {
+            return; // live storyboards carry no per-frame duration: nothing to map a time onto
+        }
+
+        long position = Math.max(0L, positionMs);
+        int group = (int) (position / groupDuration);
+        int frame = (int) (position % groupDuration / each);
+        frame = Math.min(frame, cols * rows - 1);
+
+        if (group != mPreviewGroup) {
+            mPreviewGroup = group;
+            mPreviewShownFrame = -1;
+            loadStoryboardSheet(group, size);
+        }
+
+        mPreviewWantedFrame = frame;
+        drawStoryboardFrame(size);
+    }
+
+    /** Fetch one sprite sheet; the frame on screen stays until it is there. */
+    private void loadStoryboardSheet(int group, MediaItemStoryboard.Size size) {
+        MediaItemStoryboard storyboard = mStoryboard;
+        if (storyboard == null) {
+            return;
+        }
+
+        String url = storyboard.getGroupUrl(group);
+        if (url == null) {
+            return;
+        }
+
+        final int request = ++mPreviewRequest;
+        Glide.with(this)
+                .asBitmap()
+                .load(url)
+                // A sheet is worth keeping: a drag back and forth crosses the same groups again.
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .format(DecodeFormat.PREFER_RGB_565)
+                .dontAnimate()
+                .into(new CustomTarget<Bitmap>() {
+                    /** The bitmap this request handed over, to tell it from a newer sheet. */
+                    @Nullable private Bitmap mSheet;
+
+                    @Override
+                    public void onResourceReady(@NonNull Bitmap bitmap,
+                            @Nullable Transition<? super Bitmap> transition) {
+                        if (request != mPreviewRequest || isFinishing() || isDestroyed()) {
+                            return; // a newer sheet (or video) took over meanwhile
+                        }
+                        mSheet = bitmap;
+                        mPreviewSprite = bitmap;
+                        mPreviewSpriteGroup = group;
+                        mPreviewShownFrame = -1;
+                        drawStoryboardFrame(size);
+                    }
+
+                    @Override
+                    public void onLoadCleared(@Nullable Drawable placeholder) {
+                        // Glide let this sheet go (and may reuse its pixels): drop it from the
+                        // preview so the next move asks for the sheet again instead of cutting a
+                        // recycled bitmap. Only if it is still the one on screen.
+                        if (mSheet != null && mSheet == mPreviewSprite) {
+                            mPreviewSprite = null;
+                            mPreviewSpriteGroup = -1;
+                        }
+                        mSheet = null;
+                    }
+                });
+    }
+
+    /** Cut {@link #mPreviewWantedFrame} out of the loaded sheet into the preview card. */
+    private void drawStoryboardFrame(MediaItemStoryboard.Size size) {
+        Bitmap sprite = mPreviewSprite;
+        if (mSeekPreview == null || mSeekPreviewImage == null || sprite == null
+                || mPreviewSpriteGroup != mPreviewGroup || mPreviewWantedFrame < 0) {
+            return; // the sheet for this group is still loading: keep the frame already shown
+        }
+
+        if (mPreviewShownFrame != mPreviewWantedFrame) {
+            int cols = Math.max(1, size.getColCount());
+            int rows = Math.max(1, size.getRowCount());
+            // From the bitmap itself, not from the spec: Glide may have decoded it at another scale.
+            int tileWidth = sprite.getWidth() / cols;
+            int tileHeight = sprite.getHeight() / rows;
+            if (tileWidth <= 0 || tileHeight <= 0) {
+                return;
+            }
+
+            int frame = Math.min(mPreviewWantedFrame, cols * rows - 1);
+            int col = frame % cols;
+            int row = Math.min(frame / cols, rows - 1);
+
+            if (mPreviewTile == null || mPreviewTile.getWidth() != tileWidth
+                    || mPreviewTile.getHeight() != tileHeight) {
+                mPreviewTile = Bitmap.createBitmap(tileWidth, tileHeight, Bitmap.Config.ARGB_8888);
+            }
+
+            Rect source = new Rect(col * tileWidth, row * tileHeight,
+                    (col + 1) * tileWidth, (row + 1) * tileHeight);
+            new Canvas(mPreviewTile).drawBitmap(sprite, source,
+                    new Rect(0, 0, tileWidth, tileHeight), null);
+
+            mPreviewShownFrame = frame;
+            mSeekPreviewImage.setImageBitmap(mPreviewTile);
+        }
+
+        // Also on the same frame as the last drag: the card is hidden between drags, and it must
+        // come back even when the finger stops where it stopped last time.
+        if (mSeekPreview.getVisibility() != View.VISIBLE) {
+            mSeekPreview.setVisibility(View.VISIBLE);
+        }
     }
 
     @Override
@@ -6998,6 +7217,10 @@ public class MobilePlaybackActivity extends MobileActivity
 
     /** While scrubbing: the pill above the bar - the time under the finger, then its chapter. */
     private void updateScrubLabel(long positionMs) {
+        // NEWTUBE(seek-preview): the storyboard frame under the finger, first: it does not depend
+        // on the chapter pill being there.
+        updateSeekPreview(positionMs);
+
         if (mScrubChapterView == null) {
             return;
         }
@@ -7025,6 +7248,11 @@ public class MobilePlaybackActivity extends MobileActivity
             }
         }
         fadePill(mScrubChapterView, scrubbing);
+        // The preview belongs to the drag: it goes when the finger lifts (its bitmap is kept, so
+        // the next drag starts on the last frame instead of black).
+        if (!scrubbing && mSeekPreview != null) {
+            mSeekPreview.setVisibility(View.GONE);
+        }
     }
 
     /** The pill over the top of the video ({@code null} hides it). */
@@ -8971,6 +9199,8 @@ public class MobilePlaybackActivity extends MobileActivity
         boolean sameVideo = item != null && Helpers.equals(item.videoId, mWatchVideoId);
         if (!sameVideo) {
             mVideoShapePending = true; // NEWTUBE(issue #69): known again at its first frame
+            // NEWTUBE(seek-preview): the previous video's storyboard must not show on this one.
+            resetStoryboard();
             showPlaybackNotice(null);
             cancelHoldSpeed();
             // NEWTUBE(gestures): a drag held across an autoplay would have seeked the new video to

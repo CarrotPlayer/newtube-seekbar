@@ -21,6 +21,7 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.newtube.mobile.ui.common.ChannelAvatars;
+import com.newtube.mobile.ui.common.VideoMeta;
 import com.newtube.mobile.ui.playback.PlayerTransitionBridge;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
@@ -221,6 +222,7 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
         private final TextView mBadge;
         private final ProgressBar mWatchProgress;
         private final TextView mTitle;
+        private final TextView mChannel;
         private final TextView mMeta;
         private final View mOverflow;
         private final ImageView mAvatar; // null on layouts without one
@@ -236,6 +238,7 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             mBadge = itemView.findViewById(R.id.video_badge);
             mWatchProgress = itemView.findViewById(R.id.video_watch_progress);
             mTitle = itemView.findViewById(R.id.video_title);
+            mChannel = itemView.findViewById(R.id.video_channel);
             mMeta = itemView.findViewById(R.id.video_meta);
             mOverflow = itemView.findViewById(R.id.video_overflow);
             mAvatar = itemView.findViewById(R.id.video_channel_avatar);
@@ -276,10 +279,7 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
 
             mTitle.setText(video.getTitle());
 
-            // "Channel · 1.2M views · 3 weeks ago" like YouTube; author-only when the
-            // service didn't build the info line (e.g. some playlist rows).
-            CharSequence meta = video.getSecondTitle();
-            mMeta.setText(meta == null || meta.length() == 0 ? video.getAuthor() : meta);
+            bindMeta(video);
 
             bindBadge(context, video);
             bindProgress(video);
@@ -298,8 +298,8 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             Context context = itemView.getContext();
 
             mTitle.setText(video.getTitle());
-            CharSequence meta = video.getSecondTitle();
-            mMeta.setText(meta == null || meta.length() == 0 ? video.getAuthor() : meta);
+
+            bindMeta(video);
 
             bindBadge(context, video);
             bindProgress(video);
@@ -309,6 +309,21 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             if (thumbnailUrl == null ? mBoundThumbUrl != null : !thumbnailUrl.equals(mBoundThumbUrl)) {
                 bindThumbnail(context, video);
             }
+        }
+
+        /**
+         * NEWTUBE(cards): the two quiet lines under the title - the channel, then "views • date"
+         * (VideoMeta). A @handle is never shown, and a card whose channel token was one keeps the
+         * stats directly under the title instead of a blank line.
+         */
+        private void bindMeta(Video video) {
+            VideoMeta.Info info = VideoMeta.from(video);
+
+            mChannel.setText(info.channel);
+            mChannel.setVisibility(info.channel == null ? View.GONE : View.VISIBLE);
+
+            mMeta.setText(info.stats);
+            mMeta.setVisibility(info.stats.length() == 0 ? View.GONE : View.VISIBLE);
         }
 
         private void bindBadge(Context context, Video video) {

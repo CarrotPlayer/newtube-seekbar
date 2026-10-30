@@ -204,6 +204,42 @@ public class SearchPresenter extends BasePresenter<SearchView> implements VideoG
                 );
     }
 
+    // ---------------------------------------------------------------------------------
+    // Search filters (the phone's Search filter sheet)
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * NEWTUBE(search-filters): the {@link SearchOptions} bits the current search uses. The phone
+     * screen draws YouTube's filter page over them (MobileSearchActivity/SearchFilterSheet); the
+     * TV keeps its radio/checked settings dialog, which writes the same fields.
+     */
+    public int getSearchOptions() {
+        return mUploadDateOptions | mDurationOptions | mTypeOptions | mFeatureOptions | mSortingOptions;
+    }
+
+    /**
+     * NEWTUBE(search-filters): apply a whole filter selection at once and re-run the current query
+     * in place. Each group keeps a single value; the features are a bit set. Passing 0 clears
+     * everything (the sheet's Reset).
+     */
+    public void setSearchOptions(int options) {
+        mUploadDateOptions = options & (SearchOptions.UPLOAD_DATE_LAST_HOUR
+                | SearchOptions.UPLOAD_DATE_TODAY | SearchOptions.UPLOAD_DATE_THIS_WEEK
+                | SearchOptions.UPLOAD_DATE_THIS_MONTH | SearchOptions.UPLOAD_DATE_THIS_YEAR);
+        mDurationOptions = options & (SearchOptions.DURATION_UNDER_4
+                | SearchOptions.DURATION_BETWEEN_4_20 | SearchOptions.DURATION_OVER_20);
+        mTypeOptions = options & (SearchOptions.TYPE_VIDEO | SearchOptions.TYPE_CHANNEL
+                | SearchOptions.TYPE_PLAYLIST | SearchOptions.TYPE_MOVIE);
+        mFeatureOptions = options & (SearchOptions.FEATURE_LIVE | SearchOptions.FEATURE_4K
+                | SearchOptions.FEATURE_HDR);
+        mSortingOptions = options & (SearchOptions.SORT_BY_UPLOAD_DATE
+                | SearchOptions.SORT_BY_VIEW_COUNT | SearchOptions.SORT_BY_RATING);
+
+        if (mSearchText != null && getView() != null) {
+            loadSearchResult(mSearchText);
+        }
+    }
+
     private void continueGroup(VideoGroup group) {
         if (RxHelper.isAnyActionRunning(mScrollAction)) {
             return;

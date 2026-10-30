@@ -49,6 +49,8 @@
     <color name="mobile_color_inverse_ripple">#33FFFFFF</color>
     <!-- The unfilled part of a progress bar on a page or sheet (not over a picture). -->
     <color name="mobile_color_track">#1F000000</color>
+    <!-- NEWTUBE(search-filters): an unselected filter pill (the selected one is the inverse). -->
+    <color name="mobile_color_chip">#F2F2F2</color>
     <!-- Search box: a grey pill on the light top bar; the dark one keeps its old look. -->
     <color name="mobile_color_field">#F2F2F2</color>
     <!-- The page colour at 40%, for the playlist header's wash into the page. -->

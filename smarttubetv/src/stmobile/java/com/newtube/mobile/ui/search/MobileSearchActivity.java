@@ -92,6 +92,7 @@ public class MobileSearchActivity extends MobileActivity
     private ImageButton mBackButton;
     private ImageButton mClearButton;
     private ImageButton mMicButton;
+    private ImageButton mFilterButton;
     private RecyclerView mSuggestions;
     private SearchTagAdapter mTagAdapter;
     private RecyclerView mGrid;
@@ -161,6 +162,10 @@ public class MobileSearchActivity extends MobileActivity
         mPresenter = SearchPresenter.instance(this);
         mPresenter.setView(this);
         mPresenter.onViewInitialized();
+
+        // NEWTUBE(search-filters): YouTube's filter page for the query, right of the mic.
+        mFilterButton.setOnClickListener(v -> showSearchFilters());
+        updateFilterButton();
     }
 
     private void bindViews() {
@@ -168,6 +173,7 @@ public class MobileSearchActivity extends MobileActivity
         mBackButton = findViewById(R.id.mobile_search_back);
         mClearButton = findViewById(R.id.mobile_search_clear);
         mMicButton = findViewById(R.id.mobile_search_mic);
+        mFilterButton = findViewById(R.id.mobile_search_filter);
         mSuggestions = findViewById(R.id.mobile_search_suggestions);
         mGrid = findViewById(R.id.mobile_search_grid);
         // NEWTUBE(mini-inset): the last row can scroll clear of the docked mini-player card.
@@ -450,6 +456,36 @@ public class MobileSearchActivity extends MobileActivity
         boolean enterReleased = keyCode == KeyEvent.KEYCODE_ENTER
                 && keyAction == KeyEvent.ACTION_UP;
         return imeAction || enterReleased;
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Search filters
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * NEWTUBE(search-filters): the sheet holds the presenter's own {@link
+     * com.liskovsoft.mediaserviceinterfaces.data.SearchOptions}, so a pick re-runs the SAME query
+     * with YouTube's parameters (see SearchFilterSheet). The active filters also tint the button,
+     * so a filtered result page never looks like an unfiltered one.
+     */
+    private void showSearchFilters() {
+        if (mPresenter == null) {
+            return;
+        }
+        SearchFilterSheet.show(this, mPresenter.getSearchOptions(), options -> {
+            mPresenter.setSearchOptions(options);
+            updateFilterButton();
+        });
+    }
+
+    private void updateFilterButton() {
+        if (mFilterButton == null || mPresenter == null) {
+            return;
+        }
+        int colorRes = mPresenter.getSearchOptions() != 0
+                ? R.color.mobile_color_primary : R.color.mobile_color_on_surface;
+        mFilterButton.setImageTintList(
+                android.content.res.ColorStateList.valueOf(getColor(colorRes)));
     }
 
     // ---------------------------------------------------------------------------------
