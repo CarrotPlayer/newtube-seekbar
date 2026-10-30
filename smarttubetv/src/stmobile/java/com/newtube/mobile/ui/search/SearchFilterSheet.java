@@ -19,9 +19,11 @@ import com.liskovsoft.smartyoutubetv2.tv.R;
  * and every change reruns the current query immediately, exactly like YouTube: the sheet stays up
  * while the results behind it update.
  *
- * <p>Sort by, Upload date, Duration and Type are single-choice. Tapping the selected chip again
- * clears the group (0 = any), except Sort by where Relevance is the always-present default.
- * Features is multi-choice and ORs Live / 4K / HDR. Reset clears everything and reruns once.</p>
+ * <p>Every group is a single line inside its own HorizontalScrollView, so a narrow phone scrolls
+ * the pills sideways instead of wrapping them and making the sheet taller. Sort by, Upload date,
+ * Duration and Type are single-choice. Tapping the selected chip again clears the group (0 = any),
+ * except Sort by where Relevance is the always-present default. Features is multi-choice and ORs
+ * Live / 4K / HDR. Reset clears everything and reruns once.</p>
  */
 final class SearchFilterSheet {
 

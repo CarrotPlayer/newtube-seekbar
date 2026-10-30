@@ -373,6 +373,16 @@ public abstract class MobileActivity extends MotherActivity {
     }
 
     /**
+     * Finish only THIS Activity instance, skipping the back-stack/parent routing of
+     * {@link #finish()} and {@link #finishReally()}. For a window the user is not looking at -
+     * the hidden playback activity behind a docked mini-player card - whose close must leave
+     * whatever screen is in front (Home, Search, a channel) exactly where it is.
+     */
+    protected final void finishThisActivityOnly() {
+        super.finish();
+    }
+
+    /**
      * Replaces the TV window chrome wholesale. {@code MotherActivity.onResume()} used to call
      * {@code Helpers.makeActivityFullscreen2()} on every mobile screen (immersive-sticky, hidden
      * status bar, translucent flags, {@code decorFits=false}); subclasses then partially undid it,

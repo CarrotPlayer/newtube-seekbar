@@ -199,12 +199,16 @@
         <item name="ensureMinTouchTargetSize">false</item>
     </style>
 
-    <!-- NEWTUBE(search-filters): the section label above each chip group. -->
+    <!-- NEWTUBE(search-filters): the section label above each chip group. The 20dp start padding
+         is its own: the chip rows' inset lives on their HorizontalScrollView instead, so pills can
+         scroll under the sheet's margin to the real screen edge. -->
     <style name="MobileSearchFilterLabel">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">18dp</item>
         <item name="android:layout_marginBottom">10dp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:textColor">@color/mobile_color_on_surface</item>
         <item name="android:textSize">16sp</item>

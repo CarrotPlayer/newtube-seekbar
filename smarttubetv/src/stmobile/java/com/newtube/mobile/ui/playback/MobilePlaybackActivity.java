@@ -6346,15 +6346,21 @@ public class MobilePlaybackActivity extends MobileActivity
         return true;
     }
 
-    /** X tapped on the Browse mini bar: stop playback and quietly retire this hidden activity. */
+    /**
+     * X tapped on a mini bar: stop playback and quietly retire this hidden activity.
+     *
+     * <p>Deliberately NOT {@link #finishReally()}: its parent routing is for a screen the user is
+     * looking at. This activity is invisible behind whichever host shows the card (Home, Search,
+     * a channel), and routing a parent there popped the HOST's back stack - closing the card over
+     * the search results sent the phone back to Home. Closing the mini player must only close the
+     * mini player: finish this instance where it is and leave the visible screen untouched.</p>
+     */
     void closeFromMiniPlayer() {
         if (mPresenter != null) {
             mPresenter.onFinish();
         }
-        // finishReally() (not finish()): Browse is already in the foreground; finish()'s root-screen
-        // branch would send the whole app to the background when the player was deep-linked (no
-        // parent view), yanking Browse away mid-scroll.
-        finishReally();
+        getViewManager().removeTop(this); // already popped when docked; harmless if it is not there
+        finishThisActivityOnly();
     }
 
     /** Live player accessor for the mini bar (package-private, see MiniPlayerBridge). */
