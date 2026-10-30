@@ -165,7 +165,6 @@ public class MobileSearchActivity extends MobileActivity
 
         // NEWTUBE(search-filters): YouTube's filter page for the query, right of the mic.
         mFilterButton.setOnClickListener(v -> showSearchFilters());
-        updateFilterButton();
     }
 
     private void bindViews() {
@@ -465,27 +464,14 @@ public class MobileSearchActivity extends MobileActivity
     /**
      * NEWTUBE(search-filters): the sheet holds the presenter's own {@link
      * com.liskovsoft.mediaserviceinterfaces.data.SearchOptions}, so a pick re-runs the SAME query
-     * with YouTube's parameters (see SearchFilterSheet). The active filters also tint the button,
-     * so a filtered result page never looks like an unfiltered one.
+     * with YouTube's parameters (see SearchFilterSheet).
      */
     private void showSearchFilters() {
         if (mPresenter == null) {
             return;
         }
-        SearchFilterSheet.show(this, mPresenter.getSearchOptions(), options -> {
-            mPresenter.setSearchOptions(options);
-            updateFilterButton();
-        });
-    }
-
-    private void updateFilterButton() {
-        if (mFilterButton == null || mPresenter == null) {
-            return;
-        }
-        int colorRes = mPresenter.getSearchOptions() != 0
-                ? R.color.mobile_color_primary : R.color.mobile_color_on_surface;
-        mFilterButton.setImageTintList(
-                android.content.res.ColorStateList.valueOf(getColor(colorRes)));
+        SearchFilterSheet.show(this, mPresenter.getSearchOptions(),
+                options -> mPresenter.setSearchOptions(options));
     }
 
     // ---------------------------------------------------------------------------------

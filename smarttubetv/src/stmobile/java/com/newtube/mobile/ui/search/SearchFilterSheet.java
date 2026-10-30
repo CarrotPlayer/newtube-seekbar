@@ -16,6 +16,9 @@ import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.liskovsoft.mediaserviceinterfaces.data.SearchOptions;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * NEWTUBE(search-filters): YouTube's "Search filter" sheet for the phone search screen, in the
  * same window as the Download drawer (see sheet_mobile_search_filters).
@@ -37,7 +40,8 @@ import com.liskovsoft.smartyoutubetv2.tv.R;
  * the real screen edge instead of being clipped at the sheet's margin.</p>
  *
  * <p>Tapping a pill applies it at once and closes the sheet, like YouTube's and like the Download
- * drawer; Reset clears every filter and searches again.</p>
+ * drawer. Reset clears every filter but KEEPS the sheet open, with the pills back on their
+ * defaults, so the next pick is one tap away.</p>
  */
 final class SearchFilterSheet {
 
@@ -123,7 +127,22 @@ final class SearchFilterSheet {
     private final Context mContext;
     private final BottomSheetDialog mDialog;
     private final Listener mListener;
+    /** Every pill on screen, so Reset can clear the selection without rebuilding the sheet. */
+    private final List<Pill> mPills = new ArrayList<>();
     private int mOptions;
+
+    /** One built pill: its category, its view and the {@link SearchOptions} value it stands for. */
+    private static final class Pill {
+        final Section section;
+        final TextView view;
+        final int value;
+
+        Pill(Section section, TextView view, int value) {
+            this.section = section;
+            this.view = view;
+            this.value = value;
+        }
+    }
 
     private SearchFilterSheet(Context context, int options, Listener listener) {
         mContext = context;
@@ -147,7 +166,7 @@ final class SearchFilterSheet {
             addSection(list, section);
         }
 
-        content.findViewById(R.id.mobile_search_filter_reset).setOnClickListener(v -> apply(0));
+        content.findViewById(R.id.mobile_search_filter_reset).setOnClickListener(v -> reset());
 
         mDialog.show();
     }
@@ -210,17 +229,39 @@ final class SearchFilterSheet {
         pill.setClickable(true);
         pill.setFocusable(true);
         pill.setForeground(selectableItemBackground());
-        pill.setOnClickListener(v -> apply(section.select(mOptions, value)));
+        pill.setOnClickListener(v -> pick(section.select(mOptions, value)));
+        mPills.add(new Pill(section, pill, value));
         return pill;
     }
 
-    private void apply(int options) {
-        mDialog.dismiss();
-        if (options == mOptions) {
-            return; // nothing picked (or Reset on an already clean search): no reload
-        }
+    /** A pill: apply it and close the sheet. */
+    private void pick(int options) {
+        int before = mOptions;
         mOptions = options;
-        mListener.onSearchOptions(options);
+        refreshPills();
+        mDialog.dismiss();
+        if (options != before) {
+            mListener.onSearchOptions(options);
+        }
+    }
+
+    /**
+     * Reset: clear every filter, put the pills back on their defaults and LEAVE THE SHEET OPEN -
+     * a reset is the start of a new pick, not the end of the visit.
+     */
+    private void reset() {
+        if (mOptions == 0) {
+            return; // nothing to clear
+        }
+        mOptions = 0;
+        refreshPills();
+        mListener.onSearchOptions(0);
+    }
+
+    private void refreshPills() {
+        for (Pill pill : mPills) {
+            pill.view.setSelected(pill.section.isSelected(mOptions, pill.value));
+        }
     }
 
     private android.graphics.drawable.Drawable selectableItemBackground() {

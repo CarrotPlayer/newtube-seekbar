@@ -220,11 +220,10 @@ public class MobilePlaybackActivity extends MobileActivity
     private boolean mScrubChromeHidden;
 
     // NEWTUBE(seek-preview): the storyboard frame under the finger (see loadStoryboard and
-    // updateSeekPreview). The card + its bitmap are kept while the next sheet loads, so the
-    // preview never blinks back to the bare video mid-drag.
-    /** The preview card in the middle of the video box; null on a layout without it. */
-    @Nullable private View mSeekPreview;
-    @Nullable private ImageView mSeekPreviewImage;
+    // updateSeekPreview). It fills the video box, and the frame + its bitmap are kept while the
+    // next sheet loads, so the preview never blinks back to the bare video mid-drag.
+    /** The preview over the whole video box; null on a layout without it. */
+    @Nullable private ImageView mSeekPreview;
     @Nullable private MediaItemStoryboard mStoryboard;
     @Nullable private Disposable mStoryboardAction;
     /** The video this storyboard belongs to: a late answer for the previous one is dropped. */
@@ -715,7 +714,6 @@ public class MobilePlaybackActivity extends MobileActivity
         mLiveChip.setOnClickListener(v -> jumpToLiveEdge());
         mTimeBar = findViewById(R.id.mobile_player_time_bar);
         mSeekPreview = findViewById(R.id.mobile_seek_preview);
-        mSeekPreviewImage = findViewById(R.id.mobile_seek_preview_image);
         mBottomRow = findViewById(R.id.mobile_player_bottom_row);
         mTransport = findViewById(R.id.mobile_player_transport);
         mOptionsRow = findViewById(R.id.mobile_player_options);
@@ -6847,16 +6845,14 @@ public class MobilePlaybackActivity extends MobileActivity
         mPreviewShownFrame = -1;
         mPreviewWantedFrame = -1;
         mPreviewRequest++;
-        if (mSeekPreviewImage != null) {
-            mSeekPreviewImage.setImageDrawable(null);
-        }
         if (mSeekPreview != null) {
+            mSeekPreview.setImageDrawable(null);
             mSeekPreview.setVisibility(View.GONE);
         }
     }
 
     /**
-     * NEWTUBE(seek-preview): the storyboard frame at {@code positionMs}, drawn in the video box.
+     * NEWTUBE(seek-preview): the storyboard frame at {@code positionMs}, filling the video box.
      *
      * <p>The tiles live in sprite sheets ("storyboards"): the spec gives each sheet's duration and
      * a {cols x rows} grid of frames, so the sheet is fetched once per group and the frame is cut
@@ -6864,10 +6860,14 @@ public class MobilePlaybackActivity extends MobileActivity
      * flight the previous frame stays on screen - a drag from the middle of the video into the next
      * sheet's range must not flash black - and a sheet that arrives late for a group nobody is
      * looking at any more is dropped.</p>
+     *
+     * <p>Only the bar's own drag gets a preview: the sideways swipe on the video keeps its pill
+     * (NEWTUBE(gestures), its own switch) and nothing more.</p>
      */
     private void updateSeekPreview(long positionMs) {
         MediaItemStoryboard storyboard = mStoryboard;
-        if (mSeekPreview == null || mSeekPreviewImage == null || storyboard == null) {
+        if (mSeekPreview == null || storyboard == null
+                || (mTimeBar != null && mTimeBar.isSwipeScrubbing())) {
             return;
         }
 
@@ -6946,10 +6946,16 @@ public class MobilePlaybackActivity extends MobileActivity
                 });
     }
 
-    /** Cut {@link #mPreviewWantedFrame} out of the loaded sheet into the preview card. */
+    /** Cut {@link #mPreviewWantedFrame} out of the loaded sheet into the preview. */
     private void drawStoryboardFrame(MediaItemStoryboard.Size size) {
+        // A sheet that lands after the finger left - or during the swipe gesture - must not make
+        // the preview pop up by itself: the next drag on the bar draws it.
+        if (!mScrubbing || (mTimeBar != null && mTimeBar.isSwipeScrubbing())) {
+            return;
+        }
+
         Bitmap sprite = mPreviewSprite;
-        if (mSeekPreview == null || mSeekPreviewImage == null || sprite == null
+        if (mSeekPreview == null || sprite == null
                 || mPreviewSpriteGroup != mPreviewGroup || mPreviewWantedFrame < 0) {
             return; // the sheet for this group is still loading: keep the frame already shown
         }
@@ -6979,10 +6985,10 @@ public class MobilePlaybackActivity extends MobileActivity
                     new Rect(0, 0, tileWidth, tileHeight), null);
 
             mPreviewShownFrame = frame;
-            mSeekPreviewImage.setImageBitmap(mPreviewTile);
+            mSeekPreview.setImageBitmap(mPreviewTile);
         }
 
-        // Also on the same frame as the last drag: the card is hidden between drags, and it must
+        // Also on the same frame as the last drag: the preview is hidden between drags, and it must
         // come back even when the finger stops where it stopped last time.
         if (mSeekPreview.getVisibility() != View.VISIBLE) {
             mSeekPreview.setVisibility(View.VISIBLE);

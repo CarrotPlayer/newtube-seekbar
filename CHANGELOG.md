@@ -9,17 +9,18 @@ shows you where it is going before you let go.
 
 ### New
 
-- **See the frame under your finger while you drag the seek bar.** The preview
-  appears right in the middle of the video - no floating bubble over the dot -
-  and follows the drag through the whole video. The last frame drawn stays on
-  screen while the next one loads, so a long drag never flashes black. Works on
-  the bar and on the sideways swipe-to-seek gesture.
+- **See the frame under your finger while you drag the seek bar.** The picture
+  at that point fills the whole video box - no small bubble, nothing floating
+  over the dot - and follows the drag through the whole video. The last frame
+  drawn stays on screen while the next one loads, so a long drag never flashes
+  black. Only the bar's own drag shows it: the sideways swipe on the video
+  keeps its own pill.
 - **Search filters, like YouTube's.** A filter button now sits to the right of
   the mic on the search screen: Sort by (Relevance, Popularity), Upload date,
   Duration, Type (Videos, Channels, Playlists, Movies) and Features (Live, 4K,
   HDR). Each category is a single line you scroll sideways - the pills never
-  wrap - and it opens in the same sheet as the Download menu. The button turns
-  red while a filter is active, and Reset clears them all.
+  wrap - and it opens in the same sheet as the Download menu. Reset clears them
+  all and leaves the sheet open.
 
 ### Changed
 

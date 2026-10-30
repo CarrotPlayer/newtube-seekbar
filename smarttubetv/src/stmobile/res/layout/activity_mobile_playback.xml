@@ -334,34 +334,23 @@
 
             </FrameLayout>
 
-            <!-- NEWTUBE(seek-preview): the storyboard frame under the finger, drawn plainly in
-                 the middle of the video box while the bar is dragged (no floating window over the
-                 dot). Above the controls overlay (so its scrims never dim it) but below the bar,
-                 the time pill and the top pill, which stay readable. The bitmap is only replaced
-                 once the next storyboard sheet is loaded
-                 (MobilePlaybackActivity.updateSeekPreview), so it never flashes black. -->
-            <com.google.android.material.card.MaterialCardView
+            <!-- NEWTUBE(seek-preview): while the bar is dragged, the storyboard frame under the
+                 finger FILLS the video box - no small floating card, no window over the dot.
+                 Above the controls overlay (so its scrims never dim it) but below the bar and the
+                 time pill, which stay readable. The bitmap is only replaced once the next
+                 storyboard sheet is loaded (MobilePlaybackActivity.updateSeekPreview), so it never
+                 flashes black. Only the bar's own drag shows it: the sideways swipe on the video
+                 (NEWTUBE(gestures)) keeps its pill and nothing more. -->
+            <ImageView
                 android:id="@+id/mobile_seek_preview"
-                android:layout_width="160dp"
-                android:layout_height="90dp"
-                android:layout_gravity="center"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@android:color/black"
                 android:clickable="false"
+                android:contentDescription="@null"
                 android:focusable="false"
-                android:visibility="gone"
-                app:cardBackgroundColor="@android:color/black"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="6dp"
-                app:strokeWidth="0dp"
-                tools:visibility="visible">
-
-                <ImageView
-                    android:id="@+id/mobile_seek_preview_image"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:contentDescription="@null"
-                    android:scaleType="fitCenter" />
-
-            </com.google.android.material.card.MaterialCardView>
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
 
             <!-- NEWTUBE(seek bar): the seek bar, YouTube-style - outside the controls overlay so that
                  in portrait it stays on the video's bottom edge as a thin progress line while the
