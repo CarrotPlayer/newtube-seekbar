@@ -3,6 +3,30 @@
 Cambios visibles para el usuario, en español. El historial completo de
 versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
+## Sin publicar
+
+### Nuevo
+
+- **Vista previa del storyboard mientras arrastras la barra de reproducción.**
+  El fotograma bajo el dedo ocupa ahora toda la zona del vídeo, sin una
+  ventana pequeña encima de la barra. La última imagen se mantiene mientras
+  llega la siguiente, así que la vista previa nunca parpadea en negro, y un
+  vídeo cuyo storyboard llega un poco tarde también acaba teniéndola.
+
+### Cambiado
+
+- **Las tarjetas de vídeo ahora se leen: título, luego canal, luego vistas y
+  fecha.** Inicio, Buscar, las páginas de canal y A continuación ponen el
+  nombre del canal en su propia línea y las vistas/fecha en la siguiente, así
+  que una línea larga ya no empuja la fecha fuera de la pantalla. Un
+  `@usuario` suelto no se muestra nunca junto al nombre del canal (ni en su
+  lugar), y la última línea pierde el relleno (en francés: "3 semaines" en vez
+  de "il y a 3 semaines", "1,2 M vues" en vez de "1,2 M de vues").
+
+### Entre bastidores
+
+- El flujo de CI publica ahora solo el APK **arm64-v8a**; las demás ABI ya no
+  se suben ni se analizan.
 
 ## 1.17.1 — 22-10-2026 — Edición Pepe Viyuela
 

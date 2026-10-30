@@ -75,6 +75,18 @@
                 app:yt_animationDuration="500"
                 app:yt_seekSeconds="10" />
 
+            <!-- NEWTUBE(storyboard): the seek-preview frame. While the bar is dragged it covers
+                 the video box (no popup above the scrubber); it stays below the controls overlay
+                 so the time pill and the bottom scrim remain readable, and it is only made
+                 visible once a tile has actually arrived - an unloaded storyboard shows the real
+                 video instead of a black box. -->
+            <com.newtube.mobile.ui.playback.StoryboardPreviewView
+                android:id="@+id/mobile_player_storyboard"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@android:color/black"
+                android:visibility="gone" />
+
             <!-- Custom controls overlay. clickable so taps on empty space hide it. -->
             <FrameLayout
                 android:id="@+id/mobile_controls_root"

@@ -669,12 +669,12 @@ public class MobileMainApplication extends MainApplication {
         // Evidence and the dormant web-pot-only variant (one line here re-enables it):
         // VideoInfoService.rotateAnonymousIdentity.
 
-        // STORYBOARD TRIM (mobile-only): the touch UI has no seek-preview thumbnails yet
-        // (MobilePlaybackActivity.loadStoryboard is a stub), but a winning client without a
-        // storyboard spec fires a deferred IOS /player per non-live open purely to refetch that
-        // spec. Skip the refetch until the UI consumes storyboards; specs that arrive free with
-        // an extended-HLS fetch are still applied.
-        VideoInfoService.setSkipStoryboardEnrichment(true);
+        // STORYBOARD ENRICHMENT: the touch UI now draws the seek-preview storyboard
+        // (MobilePlaybackActivity.loadStoryboard + StoryboardPreviewController). A winning client
+        // without a storyboard spec used to be left alone (each miss fired a deferred IOS /player
+        // purely to refetch that spec); the preview needs it, so let the service do that one
+        // background refetch. Specs that arrive free with an extended-HLS fetch still apply too.
+        VideoInfoService.setSkipStoryboardEnrichment(false);
 
         // FEED FIRST-PAINT (mobile-only): emit the Subscriptions grid after ONE /browse instead
         // of blocking behind the TV pre-combine loop (up to 10 serial continuations gathering

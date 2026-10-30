@@ -125,12 +125,32 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toBottomOf="@id/video_thumbnail_frame" />
 
-        <!-- One quiet meta line: "Channel · 1.2M views · 3 weeks ago" (falls back to channel). -->
+        <!-- NEWTUBE(card-meta): the channel name on its own line under the title. Handles
+             (@name) are filtered out by VideoCardAdapter/CardMeta - a card never shows the
+             channel twice. GONE when the service only delivered a handle. -->
+        <TextView
+            android:id="@+id/video_channel_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:layout_marginEnd="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/mobile_color_on_surface_secondary"
+            android:textSize="13sp"
+            app:layout_constraintEnd_toStartOf="@id/video_overflow"
+            app:layout_constraintStart_toStartOf="@id/video_title"
+            app:layout_constraintTop_toBottomOf="@id/video_title"
+            tools:text="Channel name" />
+
+        <!-- One quiet views + date line. The channel is the line above, so it is stripped from
+             this one (see CardMeta); long localized dates stay on one line thanks to the shorter
+             "3 weeks" / "1.2M views" forms. -->
         <TextView
             android:id="@+id/video_meta"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="2dp"
             android:layout_marginEnd="4dp"
             android:layout_marginBottom="10dp"
             android:ellipsize="end"
@@ -140,8 +160,9 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/video_overflow"
             app:layout_constraintStart_toStartOf="@id/video_title"
-            app:layout_constraintTop_toBottomOf="@id/video_title"
-            tools:text="Channel name · 1.2M views · 3 weeks ago" />
+            app:layout_constraintTop_toBottomOf="@id/video_channel_name"
+            app:layout_goneMarginTop="3dp"
+            tools:text="1.2M views  •  3 weeks" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

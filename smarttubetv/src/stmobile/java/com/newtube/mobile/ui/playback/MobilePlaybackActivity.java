@@ -200,6 +200,23 @@ public class MobilePlaybackActivity extends MobileActivity
      * video's bottom edge as a thin progress line while the controls are hidden.
      */
     private PlayerTimeBar mTimeBar;
+    /**
+     * NEWTUBE(storyboard): the storyboard frame under the finger, drawn in the video box itself
+     * (the phone has no popup above the scrubber). Null until {@link #bindViews()}.
+     */
+    @Nullable private StoryboardPreviewController mStoryboardPreview;
+    @Nullable private Disposable mStoryboardAction;
+    /** The video whose storyboard has been asked for (one request per video). */
+    @Nullable private String mStoryboardVideoId;
+    /**
+     * A winning client without a storyboard spec gets one from a deferred IOS /player
+     * ({@code VideoInfoService.applyFixesAsync}), which can land a few seconds after playback
+     * starts; the storyboard is re-read at these delays until it appears.
+     */
+    private static final long[] STORYBOARD_RETRY_DELAYS_MS = {2_000, 3_000, 5_000};
+    private int mStoryboardRetryAttempt;
+    @Nullable private String mStoryboardRetryVideoId;
+    private final Runnable mStoryboardRetry = this::retryStoryboard;
     /** The row on the bar: time, current chapter, fullscreen. */
     @Nullable private View mBottomRow;
     /** Previous / play-pause / next, and the top-right options: they step aside while scrubbing. */
@@ -687,6 +704,8 @@ public class MobilePlaybackActivity extends MobileActivity
         mLiveChip = findViewById(R.id.mobile_player_live);
         mLiveChip.setOnClickListener(v -> jumpToLiveEdge());
         mTimeBar = findViewById(R.id.mobile_player_time_bar);
+        mStoryboardPreview = new StoryboardPreviewController(
+                findViewById(R.id.mobile_player_storyboard));
         mBottomRow = findViewById(R.id.mobile_player_bottom_row);
         mTransport = findViewById(R.id.mobile_player_transport);
         mOptionsRow = findViewById(R.id.mobile_player_options);
@@ -963,18 +982,21 @@ public class MobilePlaybackActivity extends MobileActivity
                 endUserSeekBurst();
                 cancelAutoHide();
                 updateScrubLabel(position);
+                showStoryboardPreview(position);
                 setScrubChrome(true);
             }
 
             @Override
             public void onScrubMove(TimeBar timeBar, long position) {
                 updateScrubLabel(position);
+                showStoryboardPreview(position);
             }
 
             @Override
             public void onScrubStop(TimeBar timeBar, long position, boolean canceled) {
                 mScrubbing = false;
                 setScrubChrome(false);
+                hideStoryboardPreview();
                 if (!canceled) {
                     setTextIfChanged(mPositionView, formatTime(position));
                     updateChapterButton(position);
@@ -1609,6 +1631,7 @@ public class MobilePlaybackActivity extends MobileActivity
         applyKeepScreenOn(false); // a hidden window must not hold the screen; onStart re-applies
         stopProgressUpdates();
         cancelAutoHide();
+        hideStoryboardPreview(); // a scrub cannot survive the window going away
         if (mExoPlayerController != null && mExoPlayerController.isHoldSpeedOn()) {
             endHoldSpeed(); // the finger's lift can't reach a stopped window
         }
@@ -1725,6 +1748,13 @@ public class MobilePlaybackActivity extends MobileActivity
         SystemPipBridge.detach(this);
 
         RxHelper.disposeActions(mLiveChatAction);
+        RxHelper.disposeActions(mStoryboardAction);
+        Utils.removeCallbacks(mStoryboardRetry);
+        mStoryboardRetryVideoId = null;
+        if (mStoryboardPreview != null) {
+            mStoryboardPreview.clear();
+            mStoryboardPreview = null;
+        }
 
         // The only playback activity (singleInstance) is going away: no mini session can outlive it.
         MiniPlayerBridge.deactivate();
@@ -2570,6 +2600,7 @@ public class MobilePlaybackActivity extends MobileActivity
     private void applyPipVideoOnlyLayout() {
         cancelAutoHide();
         hideControls();
+        hideStoryboardPreview(); // no preview frame in the pinned window
         // NEWTUBE(hold-speed): a hold does not follow the video into PiP (no touch ends it there).
         cancelHoldSpeed();
         // NEWTUBE(seek bar): the pills beside the controls go at once, not on a fade that the
@@ -3558,6 +3589,9 @@ public class MobilePlaybackActivity extends MobileActivity
         if (mPresenter != null) {
             mPresenter.onControlsShown(false);
         }
+        // A storyboard frame belongs to the dragged bar only: if the chrome ever goes away while
+        // one is up, it goes with it.
+        hideStoryboardPreview();
     }
 
     private void armAutoHide() {
@@ -6767,7 +6801,88 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void loadStoryboard() {
-        // TODO Wave N: storyboard thumbnail preview on the seek bar.
+        // NEWTUBE(storyboard): the metadata is in, so the /player result behind it holds the
+        // storyboard spec. Ask for it once per video; the preview only draws when the bar is
+        // dragged, and a video without a storyboard just leaves the real picture up.
+        Video video = getVideo();
+        if (video == null || video.videoId == null) {
+            video = mWatchVideo;
+        }
+        if (video == null || video.videoId == null) {
+            return;
+        }
+
+        final String videoId = video.videoId;
+        if (Helpers.equals(videoId, mStoryboardVideoId)) {
+            return;
+        }
+        mStoryboardVideoId = videoId;
+        mStoryboardRetryAttempt = 0;
+        Utils.removeCallbacks(mStoryboardRetry);
+        mStoryboardRetryVideoId = null;
+        requestStoryboard(videoId);
+    }
+
+    /**
+     * Fetch the storyboard spec through the format cache. On mobile the winning client's response
+     * may lack the spec and {@code VideoInfoService} fills it from a deferred IOS {@code /player};
+     * the first read can therefore be empty. The retries pick up the enriched spec (the format
+     * copy reads {@code VideoInfo} lazily).
+     */
+    private void requestStoryboard(String videoId) {
+        RxHelper.disposeActions(mStoryboardAction);
+        mStoryboardAction = YouTubeServiceManager.instance().getMediaItemService()
+                .getStoryboardObserve(videoId)
+                .subscribe(storyboard -> runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()
+                            || !Helpers.equals(videoId, mStoryboardVideoId)) {
+                        return;
+                    }
+                    mStoryboardRetryAttempt = STORYBOARD_RETRY_DELAYS_MS.length;
+                    if (mStoryboardPreview != null) {
+                        long position = mExoPlayerController != null
+                                ? mExoPlayerController.getPositionMs() : 0;
+                        mStoryboardPreview.setStoryboard(storyboard, videoId, Math.max(0, position));
+                    }
+                }), error -> runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()
+                            || !Helpers.equals(videoId, mStoryboardVideoId)) {
+                        return;
+                    }
+                    if (mStoryboardRetryAttempt < STORYBOARD_RETRY_DELAYS_MS.length) {
+                        long delay = STORYBOARD_RETRY_DELAYS_MS[mStoryboardRetryAttempt++];
+                        mStoryboardRetryVideoId = videoId;
+                        Utils.removeCallbacks(mStoryboardRetry);
+                        Utils.postDelayed(mStoryboardRetry, delay);
+                    } else {
+                        android.util.Log.d("NetPath", "storyboard unavailable video=" + videoId
+                                + " reason=" + error.getMessage());
+                    }
+                }));
+    }
+
+    private void retryStoryboard() {
+        String videoId = mStoryboardRetryVideoId;
+        mStoryboardRetryVideoId = null;
+        if (videoId == null || !Helpers.equals(videoId, mStoryboardVideoId)
+                || isFinishing() || isDestroyed()) {
+            return;
+        }
+        requestStoryboard(videoId);
+    }
+
+    /** The bar is under the finger: put the storyboard frame at {@code positionMs} up. */
+    private void showStoryboardPreview(long positionMs) {
+        if (mStoryboardPreview != null) {
+            mStoryboardPreview.show(positionMs);
+        }
+    }
+
+    /** The drag ended: the video comes back (the last frame is kept for the next drag). */
+    private void hideStoryboardPreview() {
+        if (mStoryboardPreview != null) {
+            mStoryboardPreview.hide();
+        }
     }
 
     @Override
@@ -7763,6 +7878,10 @@ public class MobilePlaybackActivity extends MobileActivity
             if (mWatchScroll != null) {
                 mWatchScroll.scrollTo(0, 0);
             }
+            // NEWTUBE(storyboard): start the spec fetch now (joins the player's /player flight),
+            // independent of the old TV "preview while seeking" mode - the phone has no UI for it.
+            // PlayerUIController's onMetadata call later is a no-op for the same video.
+            loadStoryboard();
         }
 
         // Never blank a previously shown title on a SAME-video rebind: error-reloads re-enter with
@@ -7772,25 +7891,23 @@ public class MobilePlaybackActivity extends MobileActivity
             mWatchTitle.setText(item.getTitleFull());
         }
         updateDownloadPill();
-        // Channel name has the same bare-reload-Video blanking problem as the title above.
-        if (isNewVideo || !TextUtils.isEmpty(item.getAuthor())) {
-            mWatchChannelName.setText(item.getAuthor());
+        // Channel name has the same bare-reload-Video blanking problem as the title above. A card
+        // that only carries the @handle alias leaves the row empty until metadata brings the real
+        // name (the rule everywhere: no bare handles in video info).
+        String channel = com.newtube.mobile.ui.common.CardMeta.channel(item);
+        if (isNewVideo || channel != null) {
+            mWatchChannelName.setText(channel);
         }
 
         // Fallback meta line until the metadata load returns a clean "views • date". The
-        // second-title leads with the channel name, which the channel row right below repeats -
-        // strip it so the line reads "1.4M views • 10 months ago" like YouTube's.
-        CharSequence second = item.getSecondTitleFull();
-        if (mWatchMeta.length() == 0 && !TextUtils.isEmpty(second)) {
-            String line = second.toString();
-            String author = item.getAuthor();
-            if (!TextUtils.isEmpty(author) && line.startsWith(author)) {
-                String stripped = line.substring(author.length()).replaceFirst("^\\s*[•·]\\s*", "");
-                if (!stripped.isEmpty()) {
-                    line = stripped;
-                }
+        // second-title leads with the channel name, which the channel row right below repeats;
+        // CardMeta strips it (and any @handle alias) and shortens the date.
+        if (mWatchMeta.length() == 0) {
+            CharSequence stats = com.newtube.mobile.ui.common.CardMeta.statsLine(
+                    item, item.getSecondTitleFull());
+            if (stats != null) {
+                mWatchMeta.setText(stats);
             }
-            mWatchMeta.setText(line.replaceFirst("(?i)(published|premiered|streamed live) on ", ""));
         }
 
         if (!TextUtils.isEmpty(item.likeCount)) {
@@ -8973,6 +9090,16 @@ public class MobilePlaybackActivity extends MobileActivity
             mVideoShapePending = true; // NEWTUBE(issue #69): known again at its first frame
             showPlaybackNotice(null);
             cancelHoldSpeed();
+            // A new video's storyboard replaces the old one's: drop the frame and the request now,
+            // so a late answer can never paint the previous video under a finger.
+            RxHelper.disposeActions(mStoryboardAction);
+            Utils.removeCallbacks(mStoryboardRetry);
+            mStoryboardRetryVideoId = null;
+            mStoryboardRetryAttempt = 0;
+            mStoryboardVideoId = null;
+            if (mStoryboardPreview != null) {
+                mStoryboardPreview.clear();
+            }
             // NEWTUBE(gestures): a drag held across an autoplay would have seeked the new video to
             // the old one's spot (the bar's and a swipe's alike): it ends here, seeking nothing.
             if (mTimeBar != null) {

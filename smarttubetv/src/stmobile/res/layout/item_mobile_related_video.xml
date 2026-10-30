@@ -81,19 +81,29 @@
             android:textSize="15sp"
             tools:text="A related video title that can wrap onto two lines" />
 
-        <!-- Single subtitle line: "Channel • views • date" (Video.getSecondTitle()). The former
-             separate channel byline was dropped - it duplicated the channel token already at the
-             head of this line (see RelatedVideoAdapter.bind). -->
+        <!-- NEWTUBE(card-meta): channel name on its own line (handles filtered out), then views
+             + date. Previously both lived in one line that ran off the row's edge. -->
         <TextView
-            android:id="@+id/related_subtitle"
+            android:id="@+id/related_channel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="3dp"
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/mobile_color_on_surface_secondary"
             android:textSize="13sp"
-            tools:text="Channel name • 1.2M views • 2 days ago" />
+            tools:text="Channel name" />
+
+        <TextView
+            android:id="@+id/related_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/mobile_color_on_surface_secondary"
+            android:textSize="12sp"
+            tools:text="1.2M views  •  2 days" />
 
     </LinearLayout>
 

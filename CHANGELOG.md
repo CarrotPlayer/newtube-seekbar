@@ -2,6 +2,30 @@
 
 All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
+## Unreleased
+
+### New
+
+- **Storyboard previews while you drag the seek bar.** The frame under your
+  finger now fills the video box itself, with no small popup above the
+  scrubber. The last frame stays on screen while the next one loads, so the
+  preview never flashes black, and a video whose storyboard arrives a little
+  late still gets one.
+
+### Changed
+
+- **Video cards now read title, then channel, then views and date.** Home,
+  Search, channel pages and Up next put the channel name on its own line and
+  views/date on the next one, so a long line no longer pushes the date off the
+  screen. A bare `@handle` is never shown next to (or instead of) the channel
+  name, and the last line drops the filler: "3 semaines" instead of "il y a
+  3 semaines", "1,2 M vues" instead of "1,2 M de vues".
+
+### Behind the scenes
+
+- The CI workflow now publishes only the **arm64-v8a** APK; the other ABIs are
+  no longer uploaded or scanned.
+
 ## 1.17.1 — 2026-10-22 — Pepe Viyuela Edition
 
 "Something trips over a chair, gets back up, and your quality is still where

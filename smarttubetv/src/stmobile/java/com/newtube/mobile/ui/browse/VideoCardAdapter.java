@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.newtube.mobile.ui.common.CardMeta;
 import com.newtube.mobile.ui.common.ChannelAvatars;
 import com.newtube.mobile.ui.playback.PlayerTransitionBridge;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
@@ -221,6 +222,9 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
         private final TextView mBadge;
         private final ProgressBar mWatchProgress;
         private final TextView mTitle;
+        /** NEWTUBE(card-meta): the channel name line (handles are filtered out by CardMeta). */
+        private final TextView mChannel;
+        /** Views + date, the last line of the card. */
         private final TextView mMeta;
         private final View mOverflow;
         private final ImageView mAvatar; // null on layouts without one
@@ -236,6 +240,7 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             mBadge = itemView.findViewById(R.id.video_badge);
             mWatchProgress = itemView.findViewById(R.id.video_watch_progress);
             mTitle = itemView.findViewById(R.id.video_title);
+            mChannel = itemView.findViewById(R.id.video_channel_name);
             mMeta = itemView.findViewById(R.id.video_meta);
             mOverflow = itemView.findViewById(R.id.video_overflow);
             mAvatar = itemView.findViewById(R.id.video_channel_avatar);
@@ -276,10 +281,9 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
 
             mTitle.setText(video.getTitle());
 
-            // "Channel · 1.2M views · 3 weeks ago" like YouTube; author-only when the
-            // service didn't build the info line (e.g. some playlist rows).
-            CharSequence meta = video.getSecondTitle();
-            mMeta.setText(meta == null || meta.length() == 0 ? video.getAuthor() : meta);
+            // NEWTUBE(card-meta): channel name on its own line, then views + date - the service's
+            // single "Channel • views • date" line used to run off the card's edge.
+            bindMeta(video);
 
             bindBadge(context, video);
             bindProgress(video);
@@ -298,8 +302,7 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             Context context = itemView.getContext();
 
             mTitle.setText(video.getTitle());
-            CharSequence meta = video.getSecondTitle();
-            mMeta.setText(meta == null || meta.length() == 0 ? video.getAuthor() : meta);
+            bindMeta(video);
 
             bindBadge(context, video);
             bindProgress(video);
@@ -308,6 +311,32 @@ public class VideoCardAdapter extends ListAdapter<Video, RecyclerView.ViewHolder
             String thumbnailUrl = thumbnailUrl(context, video);
             if (thumbnailUrl == null ? mBoundThumbUrl != null : !thumbnailUrl.equals(mBoundThumbUrl)) {
                 bindThumbnail(context, video);
+            }
+        }
+
+        /**
+         * NEWTUBE(card-meta): Title / channel / views+date, three lines. The channel name is its
+         * own line; the views+date line keeps whatever the service's info line holds once the
+         * channel and its {@code @handle} alias are removed. A missing part collapses (GONE), so
+         * a handle-only card does not leave a blank line behind.
+         */
+        private void bindMeta(Video video) {
+            String channel = CardMeta.channel(video);
+            if (channel != null) {
+                mChannel.setText(channel);
+                mChannel.setVisibility(View.VISIBLE);
+            } else {
+                mChannel.setText(null);
+                mChannel.setVisibility(View.GONE);
+            }
+
+            CharSequence stats = CardMeta.stats(video);
+            if (stats != null) {
+                mMeta.setText(stats);
+                mMeta.setVisibility(View.VISIBLE);
+            } else {
+                mMeta.setText(null);
+                mMeta.setVisibility(View.GONE);
             }
         }
 
