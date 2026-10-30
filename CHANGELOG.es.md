@@ -12,6 +12,14 @@ versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
   ventana pequeña encima de la barra. La última imagen se mantiene mientras
   llega la siguiente, así que la vista previa nunca parpadea en negro, y un
   vídeo cuyo storyboard llega un poco tarde también acaba teniéndola.
+- **Los gestos de brillo y volumen tienen cada uno su interruptor.** Ajustes >
+  Reproductor > Gestos puede desactivar un lado del vídeo a pantalla completa
+  sin el otro. Deslizar el brillo hasta abajo del todo activa el brillo
+  automático, con su propio icono; al subir de nuevo vuelve al manual.
+- **Filtros de búsqueda.** Un botón de filtro a la derecha del micrófono abre
+  la hoja de filtros de YouTube: relevancia/popularidad, fecha de subida,
+  duración, tipo y directo/4K/HDR. Las opciones se combinan, vuelven a lanzar
+  la búsqueda actual al momento y Restablecer las borra.
 
 ### Cambiado
 

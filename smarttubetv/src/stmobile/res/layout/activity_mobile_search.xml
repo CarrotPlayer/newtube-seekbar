@@ -3,7 +3,8 @@
   Touch Search screen (Wave 4b).
 
   Toolbar = back arrow + a rounded EditText (IME action = search) + a mic button for
-  voice input. Below the toolbar, a horizontally-scrolling strip of tag SUGGESTION chips
+  voice input + the filter (tune) button that opens YouTube's search filter sheet. Below the
+  toolbar, a horizontally-scrolling strip of tag SUGGESTION chips
   (fed live as the user types, via SearchPresenter's MediaServiceSearchTagProvider), and
   under that a single Material RecyclerView GRID of results (reuses VideoCardAdapter and
   the same runtime span-count math + onScrollEnd pagination as the Home/Channel grids).
@@ -80,6 +81,16 @@
             android:contentDescription="@string/mobile_search_voice"
             android:padding="12dp"
             android:src="@drawable/ic_mobile_mic" />
+
+        <!-- YouTube's filter sheet: sort, upload date, duration, type and features. -->
+        <ImageButton
+            android:id="@+id/mobile_search_filter"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/mobile_search_filter"
+            android:padding="12dp"
+            android:src="@drawable/ic_mobile_filter" />
 
     </LinearLayout>
 

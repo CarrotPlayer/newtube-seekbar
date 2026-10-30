@@ -30,6 +30,13 @@
     <color name="mobile_color_background_scrim">#660F0F0F</color>
     <color name="mobile_color_navigation_bar">#0F0F0F</color>
 
+    <!-- NEWTUBE(search-filters): dark chips; the selected one is the inverse (white on near-black).
+         The fill matches the reference sheet: a clear step above the #1E1E1E surface. -->
+    <color name="mobile_color_filter_chip">#444444</color>
+    <color name="mobile_color_filter_chip_text">#FFFFFF</color>
+    <color name="mobile_color_filter_chip_selected">#FFFFFF</color>
+    <color name="mobile_color_filter_chip_selected_text">#0F0F0F</color>
+
     <!-- The shared edit dialogs keep the library's AppDialog colours (sharedutils / common). -->
     <color name="dialog_bg_color">#101010</color>
     <color name="dialog_text_color">#a1a1a6</color>

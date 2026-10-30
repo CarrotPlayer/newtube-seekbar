@@ -139,9 +139,35 @@
     <string name="mobile_search_hint">Search for videos</string>
     <string name="mobile_search_button">Search</string>
     <string name="mobile_search_voice">Voice search</string>
+    <string name="mobile_search_filter">Search filters</string>
     <!-- The NW arrow on a suggestion row: puts the text into the field without searching. -->
     <string name="mobile_search_insert">Refine this search</string>
     <string name="mobile_search_clear">Clear search</string>
+
+    <!-- Search filters sheet, matching YouTube's filter sheet (English, as the base UI). -->
+    <string name="mobile_search_filter_title">Search filter</string>
+    <string name="mobile_search_filter_reset">Reset</string>
+    <string name="mobile_search_filter_sort_by">Sort by</string>
+    <string name="mobile_search_filter_relevance">Relevance</string>
+    <string name="mobile_search_filter_popularity">Popularity</string>
+    <string name="mobile_search_filter_upload_date">Upload date</string>
+    <string name="mobile_search_filter_today">Today</string>
+    <string name="mobile_search_filter_this_week">This week</string>
+    <string name="mobile_search_filter_this_month">This month</string>
+    <string name="mobile_search_filter_this_year">This year</string>
+    <string name="mobile_search_filter_duration">Duration</string>
+    <string name="mobile_search_filter_under_4">Under 4 mins</string>
+    <string name="mobile_search_filter_4_to_20">4–20 mins</string>
+    <string name="mobile_search_filter_over_20">Over 20 mins</string>
+    <string name="mobile_search_filter_type">Type</string>
+    <string name="mobile_search_filter_videos">Videos</string>
+    <string name="mobile_search_filter_channels">Channels</string>
+    <string name="mobile_search_filter_playlists">Playlists</string>
+    <string name="mobile_search_filter_movies">Movies</string>
+    <string name="mobile_search_filter_features">Features</string>
+    <string name="mobile_search_filter_live">Live</string>
+    <string name="mobile_search_filter_4k">4K</string>
+    <string name="mobile_search_filter_hdr">HDR</string>
     <!-- Zero-result / failed search (the two are indistinguishable at this seam); tap = retry. -->
     <!-- SearchLoadState: an honest empty answer (no retry), and a failed search. -->
     <string name="mobile_search_no_results">No results for “%1$s”</string>
@@ -263,8 +289,16 @@
     <string name="mobile_settings_gestures">Gestures</string>
     <string name="mobile_settings_gesture_levels">Swipe for brightness and volume</string>
     <string name="mobile_settings_gesture_levels_summary">Up and down on the left or right of the fullscreen video</string>
+    <string name="mobile_settings_gesture_brightness">Swipe for brightness</string>
+    <string name="mobile_settings_gesture_brightness_summary">Up and down on the left of the fullscreen video. All the way down turns on auto brightness</string>
+    <string name="mobile_settings_gesture_volume">Swipe for volume</string>
+    <string name="mobile_settings_gesture_volume_summary">Up and down on the right of the fullscreen video</string>
     <string name="mobile_settings_gesture_seek">Swipe to seek</string>
     <string name="mobile_settings_gesture_seek_summary">Sideways on the video</string>
+    <!-- Brightness 0 hands the screen to auto brightness; changing system brightness needs the
+         special "Modify system settings" grant, requested with this Snackbar action. -->
+    <string name="mobile_auto_brightness_permission">At 0, brightness uses auto brightness. Allow NewTube to change system settings?</string>
+    <string name="mobile_auto_brightness_allow">Allow</string>
     <!-- Default-locale twins of the values-es overrides below (lint ExtraTranslation). -->
     <string name="subscribed_to_channel">Subscribed</string>
     <string name="unsubscribed_from_channel">Unsubscribed</string>

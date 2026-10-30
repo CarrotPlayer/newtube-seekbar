@@ -11,6 +11,14 @@ All notable user-facing changes to NewTube, the phone app built on SmartTube.
   scrubber. The last frame stays on screen while the next one loads, so the
   preview never flashes black, and a video whose storyboard arrives a little
   late still gets one.
+- **Brightness and volume swipes have their own switches.** Settings > Player >
+  Gestures can turn either side of the fullscreen video off without the other.
+  Swiping brightness all the way down now turns on auto brightness, with its
+  own auto-brightness icon; moving back up returns to manual.
+- **Search filters.** A filter button right of the microphone opens YouTube's
+  filter sheet: Relevance/Popularity, upload date, duration, type and
+  Live/4K/HDR. The choices combine, rerun the current search immediately, and
+  Reset clears them.
 
 ### Changed
 

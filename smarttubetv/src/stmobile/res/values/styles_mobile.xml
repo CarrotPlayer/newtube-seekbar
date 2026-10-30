@@ -179,6 +179,37 @@
         <item name="cornerSizeBottomRight">0dp</item>
     </style>
 
+    <!-- NEWTUBE(search-filters): YouTube's filter pill. No check icon, no all-caps, a 36dp pill
+         that wraps in a ChipGroup; the fill and label selectors invert when checked.
+         chipStart/EndPadding are the OUTER paddings: the chip adds textStartPadding (8dp) and
+         textEndPadding (6dp) inside them, so 4/6 gives the reference's ~12dp each side. The
+         16dp that was here made every pill ~22dp too wide, wrapping the Type row. -->
+    <style name="Widget.NewTube.SearchFilterChip" parent="Widget.MaterialComponents.Chip.Filter">
+        <item name="android:textColor">@color/mobile_filter_chip_text</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="chipBackgroundColor">@color/mobile_filter_chip_bg</item>
+        <item name="chipStrokeWidth">0dp</item>
+        <item name="chipCornerRadius">18dp</item>
+        <item name="chipMinHeight">36dp</item>
+        <item name="chipStartPadding">4dp</item>
+        <item name="chipEndPadding">6dp</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="ensureMinTouchTargetSize">false</item>
+    </style>
+
+    <!-- NEWTUBE(search-filters): the section label above each chip group. -->
+    <style name="MobileSearchFilterLabel">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">18dp</item>
+        <item name="android:layout_marginBottom">10dp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/mobile_color_on_surface</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
     <!--
       Player window transitions. A card launch suppresses OPEN and animates the tapped thumbnail
       itself; applying a second whole-window transform would make that morph feel like a route

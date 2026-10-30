@@ -167,6 +167,45 @@ public class SearchPresenter extends BasePresenter<SearchView> implements VideoG
         loadSearchResult(searchText);
     }
 
+    // NEWTUBE(search-filters): the phone's filter sheet drives the same options as the TV dialog
+    // (appendFilterByDateCategory and friends), so both paths search with one set of values.
+
+    public int getUploadDateOptions() {
+        return mUploadDateOptions;
+    }
+
+    public int getDurationOptions() {
+        return mDurationOptions;
+    }
+
+    public int getTypeOptions() {
+        return mTypeOptions;
+    }
+
+    public int getFeatureOptions() {
+        return mFeatureOptions;
+    }
+
+    public int getSortingOptions() {
+        return mSortingOptions;
+    }
+
+    /** Replaces every search filter and reruns the current query (from the search field). */
+    public void applySearchFilters(int uploadDateOptions, int durationOptions, int typeOptions,
+            int featureOptions, int sortingOptions) {
+        mUploadDateOptions = uploadDateOptions;
+        mDurationOptions = durationOptions;
+        mTypeOptions = typeOptions;
+        mFeatureOptions = featureOptions;
+        mSortingOptions = sortingOptions;
+        loadSearchResult();
+    }
+
+    public boolean hasActiveSearchFilters() {
+        return (mUploadDateOptions | mDurationOptions | mTypeOptions | mFeatureOptions
+                | mSortingOptions) != 0;
+    }
+
     private void loadSearchResult(String searchText) {
         Log.d(TAG, "Start search for '%s'", searchText);
 

@@ -123,6 +123,7 @@ public class SwipeLevelsTest {
         assertEquals(R.drawable.ic_player_volume_off, SwipeLevels.iconFor(SwipeLevels.VOLUME, 0f));
         assertEquals(R.drawable.ic_player_volume_down, SwipeLevels.iconFor(SwipeLevels.VOLUME, 0.3f));
         assertEquals(R.drawable.ic_player_volume_up, SwipeLevels.iconFor(SwipeLevels.VOLUME, 0.8f));
+        assertEquals(R.drawable.ic_player_brightness_auto, SwipeLevels.iconFor(SwipeLevels.BRIGHTNESS, 0f));
         assertEquals(R.drawable.ic_player_brightness_low, SwipeLevels.iconFor(SwipeLevels.BRIGHTNESS, 0.1f));
         assertEquals(R.drawable.ic_player_brightness_medium, SwipeLevels.iconFor(SwipeLevels.BRIGHTNESS, 0.5f));
         assertEquals(R.drawable.ic_player_brightness_high, SwipeLevels.iconFor(SwipeLevels.BRIGHTNESS, 0.9f));

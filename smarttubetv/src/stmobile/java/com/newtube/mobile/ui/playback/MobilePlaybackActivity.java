@@ -5,6 +5,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.app.PictureInPictureParams;
 import android.app.RemoteAction;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -20,9 +21,11 @@ import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Rational;
 import android.util.SparseIntArray;
@@ -132,6 +135,7 @@ import com.newtube.mobile.ui.common.Haptics;
 import com.newtube.mobile.ui.common.MagneticDrag;
 import com.newtube.mobile.ui.common.MobileActivity;
 import com.newtube.mobile.ui.common.MobileSheets;
+import com.newtube.mobile.ui.common.MobileSnackbar;
 import com.newtube.mobile.ui.common.Motion;
 import com.newtube.mobile.ui.common.ThemeMode;
 import com.newtube.mobile.ui.common.ThemeRefresh;
@@ -781,7 +785,8 @@ public class MobilePlaybackActivity extends MobileActivity
         mContainer.setSwipeListener(this);
         // Only let a swipe begin over the video box, so the watch content scrolls freely.
         mContainer.setDragStartBoundView(mVideoArea);
-        mSwipeLevels = new SwipeLevels(this, getWindow(), mContainer, new SwipeLevels.Pill() {
+        mSwipeLevels = new SwipeLevels(this, getWindow(), mContainer,
+                this::onAutoBrightnessPermissionNeeded, new SwipeLevels.Pill() {
             /**
              * Shown or fading in. Every move of the finger updates the level, and a fade restarted
              * that often never gets past its first frame: the pill stayed invisible until the
@@ -1502,6 +1507,10 @@ public class MobilePlaybackActivity extends MobileActivity
         }
         mPipEnterPending = false;
         updateSwipeBrightness(); // NEWTUBE(gestures): after an undone PiP entry is cleared above
+        if (mSwipeLevels != null) {
+            // Back from the "Modify system settings" grant: apply auto brightness at 0 now.
+            mSwipeLevels.onWriteSettingsPermissionChanged();
+        }
         if (!mIsInPip && mTimeBar != null && mTimeBar.getVisibility() != View.VISIBLE) {
             // NEWTUBE(seek bar): PiP hid the bar (applyPipVideoOnlyLayout); an entry undone before
             // any mode callback (above) came back without it.
@@ -5469,17 +5478,19 @@ public class MobilePlaybackActivity extends MobileActivity
 
     /** Fullscreen: SWIPE_BRIGHTNESS / SWIPE_VOLUME for a swipe that began at {@code rawX}, if any. */
     private int levelSwipeAt(float rawX) {
-        if (!PlayerGesturePrefs.isLevelSwipesOn(this) || isCastOverlayShown()) {
+        if (isCastOverlayShown()) {
             return PlayerContainerLayout.SWIPE_NONE;
         }
         int[] at = new int[2];
         mContainer.getLocationOnScreen(at);
         float width = Math.max(1, mContainer.getWidth());
         float x = (rawX - at[0]) / width;
-        if (x < LEVEL_ZONE && mSwipeLevels.canSwipe(SwipeLevels.BRIGHTNESS)) {
+        if (x < LEVEL_ZONE && PlayerGesturePrefs.isBrightnessSwipeOn(this)
+                && mSwipeLevels.canSwipe(SwipeLevels.BRIGHTNESS)) {
             return SWIPE_BRIGHTNESS;
         }
-        if (x > 1f - LEVEL_ZONE && mSwipeLevels.canSwipe(SwipeLevels.VOLUME)) {
+        if (x > 1f - LEVEL_ZONE && PlayerGesturePrefs.isVolumeSwipeOn(this)
+                && mSwipeLevels.canSwipe(SwipeLevels.VOLUME)) {
             return SWIPE_VOLUME;
         }
         return PlayerContainerLayout.SWIPE_NONE;
@@ -5670,6 +5681,32 @@ public class MobilePlaybackActivity extends MobileActivity
     private void updateSwipeBrightness() {
         if (mSwipeLevels != null) {
             mSwipeLevels.setBrightnessActive(isLandscape() && !mIsInPip && !mPipEnterPending);
+        }
+    }
+
+    /**
+     * NEWTUBE(gestures): brightness 0 means auto brightness, which needs the "Modify system
+     * settings" grant. Offered once, as a Snackbar over the video; the next swipe to 0 applies it.
+     */
+    private void onAutoBrightnessPermissionNeeded() {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        MobileSnackbar.show(this,
+                getString(R.string.mobile_auto_brightness_permission),
+                getString(R.string.mobile_auto_brightness_allow),
+                this::openAutoBrightnessPermission);
+    }
+
+    private void openAutoBrightnessPermission() {
+        // Leave for a system screen on purpose: do not turn the video into a PiP window on the way.
+        mSuppressAutoPip = true;
+        try {
+            startActivity(new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                    Uri.parse("package:" + getPackageName())));
+        } catch (ActivityNotFoundException ignored) {
+            // No such screen on this build: the swipe still hands the window back to the system.
+            mSuppressAutoPip = false;
         }
     }
 

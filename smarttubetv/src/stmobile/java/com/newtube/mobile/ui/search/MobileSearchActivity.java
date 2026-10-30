@@ -73,7 +73,9 @@ import java.util.List;
  *   <li>The mic button runs {@link RecognizerIntent#ACTION_RECOGNIZE_SPEECH} via
  *       {@code startActivityForResult}; the recognized text is dropped into the field and
  *       searched. If voice is unavailable (e.g. emulator) it simply falls back to text input
- *       without crashing.</li>
+ *       without crashing. The tune button to its right opens {@link SearchFilterSheet} - YouTube's
+ *       sort / upload date / duration / type / features filters - which reruns the query on every
+ *       change.</li>
  * </ul>
  */
 public class MobileSearchActivity extends MobileActivity
@@ -92,6 +94,7 @@ public class MobileSearchActivity extends MobileActivity
     private ImageButton mBackButton;
     private ImageButton mClearButton;
     private ImageButton mMicButton;
+    private ImageButton mFilterButton;
     private RecyclerView mSuggestions;
     private SearchTagAdapter mTagAdapter;
     private RecyclerView mGrid;
@@ -151,6 +154,7 @@ public class MobileSearchActivity extends MobileActivity
 
         mBackButton.setOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
         mMicButton.setOnClickListener(v -> startVoiceRecognition());
+        mFilterButton.setOnClickListener(v -> openSearchFilters());
         // Clear the query, keep editing: focus stays, history rows replace the suggestions.
         mClearButton.setOnClickListener(v -> {
             setQueryText("");
@@ -168,6 +172,7 @@ public class MobileSearchActivity extends MobileActivity
         mBackButton = findViewById(R.id.mobile_search_back);
         mClearButton = findViewById(R.id.mobile_search_clear);
         mMicButton = findViewById(R.id.mobile_search_mic);
+        mFilterButton = findViewById(R.id.mobile_search_filter);
         mSuggestions = findViewById(R.id.mobile_search_suggestions);
         mGrid = findViewById(R.id.mobile_search_grid);
         // NEWTUBE(mini-inset): the last row can scroll clear of the docked mini-player card.
@@ -551,6 +556,25 @@ public class MobileSearchActivity extends MobileActivity
 
     private int computeSpanCount() {
         return com.newtube.mobile.ui.common.MobileGrid.computeSpanCount(this);
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Search filters
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * NEWTUBE(search-filters): YouTube's filter sheet. The keyboard goes away first, so the sheet
+     * opens over the results rather than over the IME; the presenter reruns the current query as
+     * each chip changes.
+     */
+    private void openSearchFilters() {
+        if (mPresenter == null || isFinishing()) {
+            return;
+        }
+        mSearchInput.clearFocus();
+        hideKeyboard();
+        mSuggestions.setVisibility(View.GONE); // the sheet filters the results, not the suggestions
+        SearchFilterSheet.show(this, mPresenter);
     }
 
     // ---------------------------------------------------------------------------------

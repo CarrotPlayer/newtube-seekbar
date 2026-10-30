@@ -27,7 +27,9 @@ import com.newtube.mobile.ui.common.Haptics;
  *   never the phone's setting: it holds while the player is fullscreen and the phone's own level
  *   comes back as soon as it is not (portrait, PiP, another screen). The swipe moves along the
  *   phone's own slider curve (AOSP BrightnessUtils), so half way up looks like half way up the
- *   quick-settings slider, not like the near-full glare a linear half is.</li>
+ *   quick-settings slider, not like the near-full glare a linear half is. All the way down hands
+ *   the screen to the system's auto brightness - and the pill's icon says so - and moving off 0
+ *   puts the system back to manual.</li>
  *   <li><b>Volume</b> is the media stream's, in the phone's own steps, without the system's
  *   volume panel (this pill replaces it). Each step ticks, as a chapter line does on the seek bar.</li>
  * </ul>
@@ -57,6 +59,14 @@ final class SwipeLevels {
         void hideLevel();
     }
 
+    /**
+     * Brightness 0 wants the system's auto brightness, which is a system setting: the host asks
+     * for the "Modify system settings" grant the first time it is needed.
+     */
+    interface AutoBrightnessPermission {
+        void onPermissionNeeded();
+    }
+
     /** The level the swipes last set (perceptual 0..1) and when, for the whole app session. */
     private static float sBrightness = -1f;
     private static long sBrightnessAt;
@@ -64,6 +74,8 @@ final class SwipeLevels {
     private final Window mWindow;
     private final View mHapticView;
     private final Pill mPill;
+    @Nullable
+    private final AutoBrightnessPermission mAutoBrightnessPermission;
     @Nullable
     private final AudioManager mAudio;
     private final Runnable mHidePill;
@@ -77,11 +89,22 @@ final class SwipeLevels {
     private boolean mSafeVolumeAsked;
     /** Brightness is applied to the window: the player is fullscreen and in front. */
     private boolean mBrightnessActive;
+    /** The brightness is at 0, which means auto brightness (see {@link #enterAutoBrightness}). */
+    private boolean mAutoAtZero;
+    /**
+     * The 0 end currently owns auto brightness - this player switched the system's auto mode on,
+     * or the phone already had it on. Leaving 0 puts the system back to manual either way.
+     */
+    private boolean mAutoModeApplied;
+    /** The permission Snackbar was offered once; do not nag on every swipe to 0. */
+    private boolean mAutoPermissionAsked;
 
-    SwipeLevels(Context context, Window window, View hapticView, Pill pill) {
+    SwipeLevels(Context context, Window window, View hapticView,
+            @Nullable AutoBrightnessPermission autoBrightnessPermission, Pill pill) {
         mWindow = window;
         mHapticView = hapticView;
         mPill = pill;
+        mAutoBrightnessPermission = autoBrightnessPermission;
         mAudio = (AudioManager) context.getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
         mHidePill = mPill::hideLevel;
     }
@@ -111,6 +134,17 @@ final class SwipeLevels {
             mStartLevel = (mVolumeStep - min) / (float) Math.max(1, maxVolume() - min);
         } else {
             mStartLevel = currentBrightness();
+            if (mStartLevel <= 0f) {
+                // The last brightness was 0 (auto): a new swipe starts there and leaving 0 must
+                // put the system back to manual.
+                mAutoAtZero = true;
+                enterAutoBrightness();
+                if (mBrightnessActive) {
+                    applyWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+                }
+            } else {
+                mAutoAtZero = false;
+            }
         }
         mLevel = mStartLevel;
         showPill();
@@ -158,8 +192,34 @@ final class SwipeLevels {
     void setBrightnessActive(boolean active) {
         mBrightnessActive = active;
         float level = rememberedBrightness();
-        applyWindowBrightness(active && level >= 0f ? gammaToLinear(level)
-                : WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+        if (!active) {
+            applyWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+            return;
+        }
+        if (level == 0f) {
+            // Remembered at 0: the window must let the system's auto brightness through again.
+            mAutoAtZero = true;
+            enterAutoBrightness();
+            applyWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+        } else if (level > 0f) {
+            mAutoAtZero = false;
+            applyWindowBrightness(gammaToLinear(level));
+        } else {
+            applyWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+        }
+    }
+
+    /**
+     * Back from the "Modify system settings" screen: if the brightness is still at 0 and the
+     * grant just arrived, turn auto brightness on now instead of waiting for another swipe.
+     */
+    void onWriteSettingsPermissionChanged() {
+        if (mAutoAtZero) {
+            enterAutoBrightness();
+            if (mBrightnessActive) {
+                applyWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------------
@@ -212,15 +272,87 @@ final class SwipeLevels {
 
     private void setBrightnessLevel(float level) {
         boolean bookend = (level <= 0f || level >= 1f) && level != mLevel;
+        if (level <= 0f) {
+            // Bottom of the range: auto brightness. The window stops overriding the screen; the
+            // system's own mode decides (and, with the grant, this swipe turns auto on).
+            if (!mAutoAtZero) {
+                mAutoAtZero = true;
+                enterAutoBrightness();
+            }
+            applyWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE);
+        } else {
+            if (mAutoAtZero) {
+                mAutoAtZero = false;
+                leaveAutoBrightness();
+            }
+            if (mBrightnessActive) {
+                applyWindowBrightness(gammaToLinear(level));
+            }
+        }
         mLevel = level;
         sBrightness = level;
         sBrightnessAt = SystemClock.elapsedRealtime();
-        if (mBrightnessActive) {
-            applyWindowBrightness(gammaToLinear(level));
-        }
         if (bookend) {
             Haptics.tick(mHapticView); // the darkest and the brightest are boundaries, like a seek bar's ends
         }
+    }
+
+    /**
+     * Brightness 0 = the system's auto brightness. Writing that mode is a system setting, so it
+     * needs {@code WRITE_SETTINGS} ("Modify system settings"); without it we still stop overriding
+     * the window brightness (auto applies if the phone already had it on) and the host offers the
+     * grant once.
+     *
+     * <p>0 owns auto either way: the phone may already have had it on, but leaving 0 still puts
+     * the system back to manual - that is what the bottom of the swipe means here, and what the
+     * pill's auto icon promises. Without the grant the window override still delivers the manual
+     * side for as long as the player is fullscreen.</p>
+     */
+    private void enterAutoBrightness() {
+        Context context = mWindow.getContext();
+        mAutoModeApplied = true;
+        if (isSystemAutoBrightnessOn(context)) {
+            return;
+        }
+        if (Settings.System.canWrite(context)) {
+            try {
+                Settings.System.putInt(context.getContentResolver(),
+                        Settings.System.SCREEN_BRIGHTNESS_MODE,
+                        Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC);
+            } catch (SecurityException ignored) {
+                // The grant was revoked between canWrite() and the write; treat it as missing.
+            }
+        } else if (!mAutoPermissionAsked) {
+            mAutoPermissionAsked = true;
+            if (mAutoBrightnessPermission != null) {
+                mAutoBrightnessPermission.onPermissionNeeded();
+            }
+        }
+    }
+
+    private void leaveAutoBrightness() {
+        if (!mAutoModeApplied) {
+            return;
+        }
+        mAutoModeApplied = false;
+        Context context = mWindow.getContext();
+        if (!Settings.System.canWrite(context)) {
+            return; // no grant: the window override still delivers the manual side while fullscreen
+        }
+        try {
+            Settings.System.putInt(context.getContentResolver(),
+                    Settings.System.SCREEN_BRIGHTNESS_MODE,
+                    Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+        } catch (SecurityException ignored) {
+            // Do Not Disturb / an OEM policy owns the setting; the window override still works.
+        }
+    }
+
+    private static boolean isSystemAutoBrightnessOn(Context context) {
+        return Settings.System.getInt(context.getContentResolver(),
+                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+                == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC;
     }
 
     /** Where a brightness swipe starts: what the swipes last set, else the phone's own level. */
@@ -294,6 +426,10 @@ final class SwipeLevels {
             }
             return level < 0.5f ? R.drawable.ic_player_volume_down
                     : R.drawable.ic_player_volume_up;
+        }
+        if (level <= 0f) {
+            // Bottom of the range is auto brightness, not "as dark as possible".
+            return R.drawable.ic_player_brightness_auto;
         }
         if (level < 1f / 3f) {
             return R.drawable.ic_player_brightness_low;

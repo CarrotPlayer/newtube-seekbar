@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  NEWTUBE(search-filters): YouTube's search filter sheet, opened from the filter button right of
+  the search bar's microphone. Sort by / Upload date / Duration / Type are single-choice chip
+  groups (tapping the selected one clears it); Features is multi-choice. The chips come from
+  Widget.NewTube.SearchFilterChip, whose fill and label colours have light/night values, and the
+  sheet surface comes from the app's bottomSheetDialogTheme (plus bg_mobile_sheet here).
+
+  The sheet wraps its content, like the Download picker (a short sheet, exactly as tall as the
+  five groups), and the NestedScrollView gives the height back when the content would overrun
+  the screen - the weighted pattern sheet_mobile_speed.xml already uses.
+  SearchFilterSheet binds every group to SearchPresenter's search options.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_mobile_sheet"
+    android:orientation="vertical">
+
+    <View
+        android:layout_width="36dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_mobile_sheet_handle" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="20dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="6dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="sans-serif-medium"
+            android:text="@string/mobile_search_filter_title"
+            android:textColor="@color/mobile_color_on_surface"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/search_filter_reset"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center_vertical"
+            android:minHeight="48dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="10dp"
+            android:text="@string/mobile_search_filter_reset"
+            android:textColor="@color/mobile_color_on_surface"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:overScrollMode="never"
+        android:paddingHorizontal="20dp"
+        android:paddingBottom="20dp"
+        android:scrollbars="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/MobileSearchFilterLabel"
+                android:text="@string/mobile_search_filter_sort_by" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/search_filter_sort_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="8dp"
+                app:chipSpacingVertical="8dp"
+                app:selectionRequired="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_sort_relevance"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_relevance" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_sort_popularity"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_popularity" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <TextView
+                style="@style/MobileSearchFilterLabel"
+                android:text="@string/mobile_search_filter_upload_date" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/search_filter_date_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="8dp"
+                app:chipSpacingVertical="8dp"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_date_today"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_today" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_date_week"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_this_week" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_date_month"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_this_month" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_date_year"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_this_year" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <TextView
+                style="@style/MobileSearchFilterLabel"
+                android:text="@string/mobile_search_filter_duration" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/search_filter_duration_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="8dp"
+                app:chipSpacingVertical="8dp"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_duration_under4"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_under_4" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_duration_4to20"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_4_to_20" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_duration_over20"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_over_20" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <TextView
+                style="@style/MobileSearchFilterLabel"
+                android:text="@string/mobile_search_filter_type" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/search_filter_type_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="8dp"
+                app:chipSpacingVertical="8dp"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_type_videos"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_videos" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_type_channels"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_channels" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_type_playlists"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_playlists" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_type_movies"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_movies" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <TextView
+                style="@style/MobileSearchFilterLabel"
+                android:text="@string/mobile_search_filter_features" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/search_filter_feature_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="8dp"
+                app:chipSpacingVertical="8dp">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_feature_live"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_live" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_feature_4k"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_4k" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_feature_hdr"
+                    style="@style/Widget.NewTube.SearchFilterChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkable="true"
+                    android:text="@string/mobile_search_filter_hdr" />
+            </com.google.android.material.chip.ChipGroup>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</LinearLayout>

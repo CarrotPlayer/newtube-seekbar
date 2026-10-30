@@ -39,6 +39,13 @@
     <!-- A commenter's handle: brighter than the time beside it, quieter than the comment. -->
     <color name="mobile_color_comment_handle">#2E2E2E</color>
 
+    <!-- NEWTUBE(search-filters): the filter sheet's chips. Light theme: grey pills on the white
+         sheet, near-black when selected. values-night inverts the selected pair, like YouTube. -->
+    <color name="mobile_color_filter_chip">#F2F2F2</color>
+    <color name="mobile_color_filter_chip_text">#0F0F0F</color>
+    <color name="mobile_color_filter_chip_selected">#0F0F0F</color>
+    <color name="mobile_color_filter_chip_selected_text">#FFFFFF</color>
+
     <!-- NEWTUBE(theme): tokens added with the light theme (night values in values-night). -->
     <!-- A raised card on the page: the watch page's Comments / Live chat / queue cards. -->
     <color name="mobile_color_card">#F2F2F2</color>
