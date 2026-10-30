@@ -23,8 +23,9 @@ All notable user-facing changes to NewTube, the phone app built on SmartTube.
 
 ### Behind the scenes
 
-- The CI workflow now publishes only the **arm64-v8a** APK; the other ABIs are
-  no longer uploaded or scanned.
+- Nightly builds now appear on the Releases page as a pre-release with the
+  **universal** APK attached directly (all ABIs, so it also installs on 32-bit
+  phones). The stable build is still the latest published release.
 
 ## 1.17.1 — 2026-10-22 — Pepe Viyuela Edition
 

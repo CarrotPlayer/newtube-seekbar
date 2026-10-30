@@ -25,8 +25,10 @@ versiones anteriores está en [CHANGELOG.md](CHANGELOG.md) (en inglés).
 
 ### Entre bastidores
 
-- El flujo de CI publica ahora solo el APK **arm64-v8a**; las demás ABI ya no
-  se suben ni se analizan.
+- Las compilaciones nocturnas aparecen ahora en la página de Releases como una
+  pre-release con el APK **universal** adjunto directamente (todas las ABI, así
+  que también se instala en móviles de 32 bits). La versión estable sigue siendo
+  la última release publicada.
 
 ## 1.17.1 — 22-10-2026 — Edición Pepe Viyuela
 

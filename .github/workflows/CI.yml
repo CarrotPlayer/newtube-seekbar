@@ -1,4 +1,4 @@
-name: Build arm64 Release APK
+name: Nightly universal release
 
 on:
   push:
@@ -8,9 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the nightly pre-release and upload its APK
     env:
       HAS_SIGNING_KEY: ${{ secrets.SIGNING_KEY != '' }}
-      HAS_VT_KEY: ${{ secrets.VIRUS_TOTAL_API_KEY != '' }}
 
     steps:
       - name: Checkout Code
@@ -40,65 +41,42 @@ jobs:
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
           echo "storeFile=${{ github.workspace }}/key.jks" >> keystore.properties
           echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > ${{ github.workspace }}/key.jks
-    
+
       - name: Grant Gradle permissions
         run: chmod +x gradlew
 
-      # Informational only: the project already carries a large lint backlog (764 errors on the
-      # current tree, e.g. Haptics.java's API-30 vibration call), and a release must not be
-      # blocked by it. The report is still uploaded below.
-      - name: Lint with Gradle
-        continue-on-error: true
-        run: ./gradlew lintStmobileRelease
-
-      - name: Upload Lint Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: lint-report
-          path: '**/build/reports/lint-results-*.html'
-          if-no-files-found: warn
-
+      # No lint here: it used to add 4+ minutes to every nightly for a pre-existing backlog
+      # (764 errors at the time of writing) and never blocked anything. Run it locally or in a
+      # separate pull-request workflow; this workflow exists to publish a build.
       - name: Build with Gradle
         run: ./gradlew clean assembleStmobileRelease
 
-      - name: VirusTotal Scan
-        if: ${{ env.HAS_VT_KEY == 'true' }}
-        id: vt
-        uses: crazy-max/ghaction-virustotal@936d8c5c00afe97d3d9a1af26d017cfdf26800a2 # v5.0.0
-        with:
-          vt_api_key: ${{ secrets.VIRUS_TOTAL_API_KEY }}
-          files: |
-            ./smarttubetv/build/outputs/renamed_apks/stmobileRelease/NewTube_*_arm64-v8a.apk
-          request_rate: 4
-
-      - name: VirusTotal Summary
-        if: steps.vt.outcome == 'success'
+      # The universal APK is attached straight to a GitHub pre-release, so the Releases page is
+      # the download. It carries every ABI, so it also installs on 32-bit phones where the
+      # arm64-v8a split was refused. A workflow artifact would only wrap the APK in a ZIP.
+      - name: Publish nightly pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION_NAME: ${{ steps.get_version.outputs.VERSION_NAME }}
         run: |
-          echo "Waiting 150s for VirusTotal engines to report..."
-          sleep 150
-
-          echo "### Security Scan Results" >> $GITHUB_STEP_SUMMARY
-          echo "| Artifact Name | VirusTotal Status | Detailed Report |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-
-          for apk in ./smarttubetv/build/outputs/renamed_apks/stmobileRelease/NewTube_*_arm64-v8a.apk; do
-            filename=$(basename "$apk")
-            sha256=$(sha256sum "$apk" | awk '{print $1}')
-
-            # Construct the dynamic badge URL using the hash
-            badge_url="https://badges.cssnr.com/vt/id/$sha256?start=green&end=red&n=8"
-            vt_link="https://www.virustotal.com/gui/file/$sha256"
-
-            echo "| $filename | [![$filename]($badge_url)]($vt_link) | [View Report]($vt_link) |" >> $GITHUB_STEP_SUMMARY
-          done
-
-      # Only the 64-bit ARM build is published. Google Play requires 64-bit, every Pixel and
-      # current phone is arm64-v8a, and the other splits only doubled the artifacts to scan and
-      # hand out. (The Gradle splits still build them locally; they are simply not deployed.)
-      - name: Upload ARM64 APK
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: NewTube_${{ steps.get_version.outputs.VERSION_NAME }}_arm64
-          path: ./smarttubetv/build/outputs/renamed_apks/stmobileRelease/NewTube_*_arm64-v8a.apk
-          if-no-files-found: error
+          set -euo pipefail
+          tag="nightly-${GITHUB_RUN_NUMBER}"
+          apk=$(ls smarttubetv/build/outputs/renamed_apks/stmobileRelease/NewTube_*_universal.apk)
+          echo "Publishing $apk as $tag"
+          if [ "${HAS_SIGNING_KEY}" != "true" ]; then
+            echo "::warning::SIGNING_KEY is not set: this APK is unsigned and will not install on a normal phone."
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$apk" --clobber
+          else
+            gh release create "$tag" "$apk" \
+              --prerelease \
+              --target "$GITHUB_SHA" \
+              --title "NewTube ${VERSION_NAME}" \
+              --notes "Automatic nightly build from commit ${GITHUB_SHA} (run ${GITHUB_RUN_NUMBER}). Universal APK (all ABIs). This is a pre-release: it is not served to the in-app updater; the stable build is the latest published release."
+          fi
+          {
+            echo "### Nightly pre-release"
+            echo "[$tag](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag})"
+          } >> "$GITHUB_STEP_SUMMARY"
