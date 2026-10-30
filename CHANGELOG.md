@@ -13,14 +13,14 @@ shows you where it is going before you let go.
   at that point fills the whole video box - no small bubble, nothing floating
   over the dot - and follows the drag through the whole video. The last frame
   drawn stays on screen while the next one loads, so a long drag never flashes
-  black. Only the bar's own drag shows it: the sideways swipe on the video
-  keeps its own pill.
+  black. Works on the bar and on the sideways swipe-to-seek gesture.
 - **Search filters, like YouTube's.** A filter button now sits to the right of
   the mic on the search screen: Sort by (Relevance, Popularity), Upload date,
   Duration, Type (Videos, Channels, Playlists, Movies) and Features (Live, 4K,
   HDR). Each category is a single line you scroll sideways - the pills never
-  wrap - and it opens in the same sheet as the Download menu. Reset clears them
-  all and leaves the sheet open.
+  wrap - and it opens in the same sheet as the Download menu, in the app's own
+  pill style. Tapping a filter applies it and leaves the sheet open (swipe it
+  down or tap outside to close it); Reset clears them all.
 
 ### Changed
 

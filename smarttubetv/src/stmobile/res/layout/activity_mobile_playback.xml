@@ -335,12 +335,12 @@
             </FrameLayout>
 
             <!-- NEWTUBE(seek-preview): while the bar is dragged, the storyboard frame under the
-                 finger FILLS the video box - no small floating card, no window over the dot.
-                 Above the controls overlay (so its scrims never dim it) but below the bar and the
-                 time pill, which stay readable. The bitmap is only replaced once the next
-                 storyboard sheet is loaded (MobilePlaybackActivity.updateSeekPreview), so it never
-                 flashes black. Only the bar's own drag shows it: the sideways swipe on the video
-                 (NEWTUBE(gestures)) keeps its pill and nothing more. -->
+                 finger FILLS the video box - no small floating card, no window over the dot. It
+                 also follows the sideways swipe-to-seek on the video (NEWTUBE(gestures)). Above
+                 the controls overlay (so its scrims never dim it) but below the bar and the time
+                 pill, which stay readable. The bitmap is only replaced once the next storyboard
+                 sheet is loaded (MobilePlaybackActivity.updateSeekPreview), so it never flashes
+                 black. -->
             <ImageView
                 android:id="@+id/mobile_seek_preview"
                 android:layout_width="match_parent"

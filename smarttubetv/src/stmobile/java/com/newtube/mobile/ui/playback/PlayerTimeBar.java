@@ -860,10 +860,8 @@ public class PlayerTimeBar extends View implements TimeBar {
             stopScrubbing(false); // a keyboard scrub still waiting to land
         }
         mSwipeAnchorRawX = rawX;
-        // Before beginScrub: its onScrubStart listeners must already know this is a swipe (the
-        // storyboard preview belongs to the bar's own drag, not to this gesture).
-        mDragBySwipe = true;
         beginScrub(mPosition);
+        mDragBySwipe = true;
         return true;
     }
 
@@ -873,14 +871,6 @@ public class PlayerTimeBar extends View implements TimeBar {
             long position = Math.max(0, Math.min(mDuration, mScrubOrigin + swipeOffsetMs(dx / mTouchDensity)));
             scrubTo(position, Math.abs(dx));
         }
-    }
-
-    /**
-     * NEWTUBE(seek-preview): true while the scrub under way is the sideways swipe on the video
-     * rather than a finger on the bar. The storyboard preview only belongs to the bar's own drag.
-     */
-    public boolean isSwipeScrubbing() {
-        return mScrubbing && mDragBySwipe;
     }
 
     /** A swipe's seek per dp at first: 72 dp (about a centimetre) is about a double tap's 10 s. */

@@ -6861,13 +6861,12 @@ public class MobilePlaybackActivity extends MobileActivity
      * sheet's range must not flash black - and a sheet that arrives late for a group nobody is
      * looking at any more is dropped.</p>
      *
-     * <p>Only the bar's own drag gets a preview: the sideways swipe on the video keeps its pill
-     * (NEWTUBE(gestures), its own switch) and nothing more.</p>
+     * <p>The bar's drag and the sideways swipe on the video both get it, since both scrub through
+     * the same bar.</p>
      */
     private void updateSeekPreview(long positionMs) {
         MediaItemStoryboard storyboard = mStoryboard;
-        if (mSeekPreview == null || storyboard == null
-                || (mTimeBar != null && mTimeBar.isSwipeScrubbing())) {
+        if (mSeekPreview == null || storyboard == null) {
             return;
         }
 
@@ -6948,9 +6947,9 @@ public class MobilePlaybackActivity extends MobileActivity
 
     /** Cut {@link #mPreviewWantedFrame} out of the loaded sheet into the preview. */
     private void drawStoryboardFrame(MediaItemStoryboard.Size size) {
-        // A sheet that lands after the finger left - or during the swipe gesture - must not make
-        // the preview pop up by itself: the next drag on the bar draws it.
-        if (!mScrubbing || (mTimeBar != null && mTimeBar.isSwipeScrubbing())) {
+        // A sheet that lands after the finger left must not make the preview pop up by itself:
+        // the next drag draws it.
+        if (!mScrubbing) {
             return;
         }
 

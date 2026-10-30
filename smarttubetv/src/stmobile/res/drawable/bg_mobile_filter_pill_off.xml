@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- NEWTUBE(search-filters): an UNselected filter pill. Solid: over a sheet the translucent
-     mobile_color_pill reads different in each theme. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/mobile_color_chip" />
-    <corners android:radius="20dp" />
-</shape>

@@ -35,13 +35,16 @@ import java.util.List;
  *   <li>Features: Live / 4K / HDR (the only multi-select row)</li>
  * </ul>
  *
- * <p>Each category owns one horizontal line: the pills NEVER wrap onto a second line, and the
- * scroller's padding is inside its drawing area (clipToPadding=false), so a scrolled pill runs to
- * the real screen edge instead of being clipped at the sheet's margin.</p>
+ * <p>The pills are the app's own: same 20dp-rounded pill the watch page draws under a video
+ * ("Download", "Subscribe"...), 36dp tall, regular 14sp label on the page colour - selected, the
+ * pill turns to the inverse of the page and its label with it. Each category owns one horizontal
+ * line: the pills NEVER wrap onto a second line, and the scroller's padding is inside its drawing
+ * area (clipToPadding=false), so a scrolled pill runs to the real screen edge instead of being
+ * clipped at the sheet's margin.</p>
  *
- * <p>Tapping a pill applies it at once and closes the sheet, like YouTube's and like the Download
- * drawer. Reset clears every filter but KEEPS the sheet open, with the pills back on their
- * defaults, so the next pick is one tap away.</p>
+ * <p>Tapping a pill applies it AT ONCE and the sheet STAYS OPEN - the only ways out are the ones
+ * of any sheet: swipe it down, tap outside it, or Back. Reset clears every filter the same way,
+ * with the pills back on their defaults, so a change of mind never costs a reopen.</p>
  */
 final class SearchFilterSheet {
 
@@ -52,7 +55,9 @@ final class SearchFilterSheet {
 
     private static final int MARGIN_DP = 20;
     private static final int GAP_DP = 8;
-    private static final int PILL_HEIGHT_DP = 40;
+    /** The watch page's pill: 36dp of visible pill, 12dp of padding beside a 14sp label. */
+    private static final int PILL_HEIGHT_DP = 36;
+    private static final int PILL_PADDING_DP = 12;
 
     private static final int[] SORT_MASK = {
             SearchOptions.SORT_BY_UPLOAD_DATE, SearchOptions.SORT_BY_VIEW_COUNT,
@@ -218,10 +223,10 @@ final class SearchFilterSheet {
         TextView pill = new TextView(mContext);
         pill.setLayoutParams(params);
         pill.setGravity(Gravity.CENTER);
-        pill.setPadding(dp(16), 0, dp(16), 0);
+        pill.setPadding(dp(PILL_PADDING_DP), 0, dp(PILL_PADDING_DP), 0);
         pill.setSingleLine(true); // a pill is one line, always - the ROW is what scrolls
         pill.setText(labelRes);
-        pill.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        pill.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14); // the watch page's pill label
         pill.setTextColor(ContextCompat.getColorStateList(mContext,
                 R.color.mobile_filter_pill_text));
         pill.setBackgroundResource(R.drawable.bg_mobile_filter_pill);
@@ -234,28 +239,22 @@ final class SearchFilterSheet {
         return pill;
     }
 
-    /** A pill: apply it and close the sheet. */
+    /**
+     * A pill was tapped: apply the new selection and KEEP the sheet open (only a swipe down, a tap
+     * outside or Back closes it - "activer ou désactiver une pilule ne ferme pas le panel").
+     */
     private void pick(int options) {
-        int before = mOptions;
+        if (options == mOptions) {
+            return; // tapping the value already selected changes nothing
+        }
         mOptions = options;
         refreshPills();
-        mDialog.dismiss();
-        if (options != before) {
-            mListener.onSearchOptions(options);
-        }
+        mListener.onSearchOptions(options);
     }
 
-    /**
-     * Reset: clear every filter, put the pills back on their defaults and LEAVE THE SHEET OPEN -
-     * a reset is the start of a new pick, not the end of the visit.
-     */
+    /** Reset: the same as picking "no filter anywhere" - clears everything, sheet stays open. */
     private void reset() {
-        if (mOptions == 0) {
-            return; // nothing to clear
-        }
-        mOptions = 0;
-        refreshPills();
-        mListener.onSearchOptions(0);
+        pick(0);
     }
 
     private void refreshPills() {

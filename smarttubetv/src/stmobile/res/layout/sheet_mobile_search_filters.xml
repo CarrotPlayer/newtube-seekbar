@@ -12,7 +12,6 @@
   is only ever cut by the screen's own edge, never by the sheet's margin.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_mobile_sheet"
@@ -46,19 +45,19 @@
             android:textSize="22sp"
             android:textStyle="bold" />
 
+        <!-- Reset: plain text, NO ripple (a touch here must not flash the sheet) - it clears the
+             filters and leaves the sheet open. -->
         <TextView
             android:id="@+id/mobile_search_filter_reset"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
             android:clickable="true"
             android:focusable="true"
             android:paddingHorizontal="12dp"
             android:paddingVertical="12dp"
             android:text="@string/mobile_search_filter_reset"
             android:textColor="@color/mobile_color_on_surface_secondary"
-            android:textSize="16sp"
-            tools:ignore="RtlHardcoded" />
+            android:textSize="16sp" />
     </LinearLayout>
 
     <androidx.core.widget.NestedScrollView

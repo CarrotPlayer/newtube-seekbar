@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- NEWTUBE(search-filters): the filter pill's surface, off/on (see the two shapes). -->
+<!-- NEWTUBE(search-filters): the filter pill's surface, off/on. Off is the very same pill the
+     watch page draws under a video (mobile_watch_pill_bg: 20dp corners, the page's pill colour);
+     on is its inverse, as YouTube's selected chips are (white on the dark theme, near-black on
+     the light one). -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@drawable/bg_mobile_filter_pill_on" android:state_selected="true" />
-    <item android:drawable="@drawable/bg_mobile_filter_pill_off" />
+    <item android:drawable="@drawable/mobile_watch_pill_bg" />
 </selector>
