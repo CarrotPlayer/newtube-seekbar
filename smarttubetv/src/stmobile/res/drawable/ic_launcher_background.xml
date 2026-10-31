@@ -4,7 +4,7 @@
 
   Full-bleed 108x108 layer; the launcher applies its own mask (circle / rounded
   square / squircle) on top. Flat #0F0F0F - the exact colour of the app icon's
-  source art (mon_icone.png) - so the bitmap foreground, which is an opaque
+  source art (mon_icone4.png) - so the bitmap foreground, which is an opaque
   square, blends into this layer with no seam and the mask crops only the black
   surround of the play badge.
 -->

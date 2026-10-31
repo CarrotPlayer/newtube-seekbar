@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- NewTube adaptive launcher icon (API 26+), overrides @mipmap/app_icon for stmobile.
 
-     Foreground: the app's own artwork, exactly as delivered (mon_icone.png), only resized per
+     Foreground: the app's own artwork, exactly as delivered (mon_icone4.png), only resized per
      density into mipmap-<density>/ic_launcher_foreground.png - the full 108dp square, so the
      play badge sits at ~48% of the canvas, inside the adaptive safe zone. Android applies the
      launcher's mask (circle / squircle / rounded square) on top.
